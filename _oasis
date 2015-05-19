@@ -1,0 +1,22 @@
+OASISFormat: 0.4
+Name:        ocaml-ci
+Version:     0.0.0
+Synopsis:    distributed integration engine for opam packages
+Authors:     Qi Li
+License:     ISC
+Plugins:     META (0.3), DevFiles (0.3)
+BuildTools:  ocamlbuild
+
+Library ci_basic
+  Path: lib
+  Findlibname: ci_basic
+  Modules: Object, Task, Message
+  BuildDepends: sexplib, sexplib.syntax
+
+Executable worker
+  Path: lib
+  MainIs: worker.ml
+  Custom: true
+  Install: true
+  CompiledObject: best
+  BuildDepends: lwt, cohttp, cohttp.lwt, cmdliner, uri, unix, ci_basic
