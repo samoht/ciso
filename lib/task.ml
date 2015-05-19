@@ -10,8 +10,7 @@ and pull = {
   repo_url : string;
   base_sha : string;
   head_sha : string;
-}
-with sexp
+} with sexp
 
 let id_of_t {id} = id
 
