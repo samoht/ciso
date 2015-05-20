@@ -10,4 +10,5 @@ type master_msg =
   | Ack_register of int * string
   | Ack_heartbeat
   | New_task of int * int
+  | Best_object of string * int * string
 with sexp

@@ -30,6 +30,17 @@ let get_working_dir worker =
   if not (Sys.file_exists path) then Unix.mkdir path 0o775;
   path
 
+let to_local_obj dir id addr content =
+  let file = Printf.sprintf "%d.out" id in
+  let path = Filename.concat dir file in
+  Lwt_io.open_file
+    ~flags:[Unix.O_WRONLY; Unix.O_TRUNC] ~mode:Lwt_io.output path
+  >>= fun oc -> Lwt_io.fprint oc content
+  >>= fun () -> Lwt_io.close oc
+  >>= fun () ->
+    let relative_path = Filename.concat (Filename.basename dir) file in
+    return (Object.create id addr relative_path)
+
 (* POST base/workers -> `Created *)
 let worker_register base ((ip, port) as addr) =
   let msg = Message.sexp_of_worker_msg (Register (ip, port)) in
@@ -83,23 +94,6 @@ let worker_request_task base {id; sha} task_id =
         return (Task.t_of_sexp (Sexplib.Sexp.of_string body_str))
     else fail exn
 
-(* GET worker_ip:port/path -> `OK *)
-let worker_request_object obj =
-  let headers =
-    Cohttp.Header.of_list ["obj_id",string_of_int (Object.id_of_t obj)] in
-  let addr = Object.addr_of_t obj in
-  let base_str = Printf.sprintf "http://%s:%d" (fst addr) (snd addr) in
-  let base = Uri.of_string base_str in
-  let path = Uri.of_string (Object.path_of_t obj) in
-  let uri = Uri.resolve "" base path in
-  Client.get ~headers uri
-  >>= fun (resp, body) -> Body.to_string body
-  >>= fun body_str ->
-    let status = Response.status resp in
-    let exn = WrongResponse (Cohttp.Code.string_of_status status, body_str) in
-    if status = Cohttp.Code.(`OK) then return body_str
-    else fail exn
-
 (* POST base/worker<id>/objects -> `Created *)
 let worker_publish base {id; addr; sha} obj =
   let headers = Cohttp.Header.of_list ["worker", sha] in
@@ -114,26 +108,57 @@ let worker_publish base {id; addr; sha} obj =
     if status = Cohttp.Code.(`Created) then return ()
     else fail (WrongResponse (Cohttp.Code.string_of_status status, body_str))
 
+(* GET base/object<obj_id> -> `OK *)
+let worker_consult_object base (ip, port) obj_id =
+  let uri_path = Printf.sprintf "object%d" obj_id in
+  let uri = Uri.resolve "" base (Uri.of_string uri_path) in
+  let headers = Cohttp.Header.of_list ["ip", ip; "port", string_of_int port] in
+  Client.get ~headers uri
+  >>= fun (resp, body) -> Body.to_string body
+  >>= fun body_str ->
+    let status = Response.status resp in
+    let exn = WrongResponse (Cohttp.Code.string_of_status status, body_str) in
+    if status = Cohttp.Code.(`OK) then
+      match Message.master_msg_of_sexp (Sexplib.Sexp.of_string body_str) with
+      | Best_object (i, p, path) -> return (i, p, path)
+      | _ -> fail exn
+    else fail exn
+
+(* GET worker_ip:port/path -> `OK *)
+let worker_request_object base worker obj_id =
+  worker_consult_object base worker.addr obj_id
+  >>= fun (ip, port, path) ->
+    let headers =
+      Cohttp.Header.of_list ["obj_id",string_of_int obj_id] in
+    let base_str = Printf.sprintf "http://%s:%d" ip port in
+    let base = Uri.of_string base_str in
+    let path = Uri.of_string path in
+    let uri = Uri.resolve "" base path in
+    Client.get ~headers uri
+  >>= fun (resp, body) -> Body.to_string body
+  >>= fun body_str -> (* TODO: publish the just got object  *)
+    let status = Response.status resp in
+    let exn = WrongResponse (Cohttp.Code.string_of_status status, body_str) in
+    if status = Cohttp.Code.(`OK) then
+      choose
+        [(to_local_obj (get_working_dir worker) obj_id worker.addr body_str
+          >>= fun obj -> worker_publish base worker obj
+          >>= fun () -> return "should not show");
+         return body_str]
+    else fail exn
+
 (* dummy execution *)
-let task_execute addr work_dir task obj_id =
+let task_execute base worker task obj_id =
   let t_inputs = Task.inputs_of_t task in
-  Lwt_list.map_p (fun input ->
-    worker_request_object input
-    >>= fun obj -> return (Object.id_of_t input, obj)) t_inputs
+  Lwt_list.map_p (fun input_id ->
+    worker_request_object base worker input_id
+    >>= fun obj_str -> return (input_id, obj_str)) t_inputs
   >>= fun input_tups ->
-    let file = Printf.sprintf "%d.out" obj_id in
-    let path = Filename.concat work_dir file in
-    Lwt_io.open_file
-      ~flags:[Unix.O_WRONLY; Unix.O_TRUNC] ~mode:Lwt_io.output path
-  >>= fun oc ->
-    let str = Task.string_of_t task in
-    let inputs = String.concat "\n" (List.map (fun (id, content) ->
+    let task_str = Task.string_of_t task in
+    let inputs_str = String.concat "\n" (List.map (fun (id, content) ->
       Printf.sprintf "%d ->\n\t%s\n" id content) input_tups) in
-    Lwt_io.fprintf oc "%s\n  [inputs]:\n%s\n" str inputs
-  >>= fun () -> Lwt_io.close oc
-  >>= fun () ->
-    let relative_path = Filename.concat (Filename.basename work_dir) file in
-    return (Object.create obj_id addr relative_path)
+    let content = Printf.sprintf "%s\n  [inputs]:\n%s\n" task_str inputs_str in
+    to_local_obj (get_working_dir worker) obj_id worker.addr content
 
 let rec execution_loop base worker cond =
   Lwt_condition.wait cond >>= fun (task_id, obj_id) ->
@@ -143,7 +168,7 @@ let rec execution_loop base worker cond =
         worker_request_task base worker task_id
         >>= fun task ->
           worker.status <- Working task;
-          task_execute worker.addr (get_working_dir worker) task obj_id
+          task_execute base worker task obj_id
         >>= fun obj -> worker_publish base worker obj
         >>= fun () ->
           worker.tasks <- task :: worker.tasks;

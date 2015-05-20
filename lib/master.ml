@@ -4,8 +4,8 @@ module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
-type task_tbl = (Task.t, int) Hashtbl.t
-type obj_tbl = (int, Object.t list) Hashtbl.t
+type task_tbl = (Task.t, int) Hashtbl.t (* task->obj.id *)
+type obj_tbl = (int, Object.t list) Hashtbl.t (* obj.id -> obj *)
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
 type queue_tbl = (int * string, Task.t Queue.t) Hashtbl.t (* id, sha->queue  *)
 

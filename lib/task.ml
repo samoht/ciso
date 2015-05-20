@@ -3,7 +3,7 @@ open Sexplib.Std
 type t = {
   id : int;
   pull : pull;
-  inputs : Object.t list;
+  inputs : int list;
 }
 and pull = {
   pull_num : int;
