@@ -191,21 +191,22 @@ let worker_file_server worker =
 let worker base_str ip port =
   let base = Uri.of_string base_str in
   worker_register base (ip, port)
-  >>= fun worker ->
+  >>= (fun worker ->
     let cond = Lwt_condition.create () in
     join [heartbeat_loop base worker cond; execution_loop base worker cond;
-          worker_file_server worker]
+          worker_file_server worker])
+  |> Lwt_main.run
 
 let base = Cmdliner.Arg.(
-  required & pos 1 (some string) None & info []
+  required & pos 0 (some string) None & info []
     ~docv:"HOST" ~doc:"the uri string of master node")
 
 let ip = Cmdliner.Arg.(
-  value & opt string "127.0.0.1" & info ["--ip"]
+  value & opt string "127.0.0.1" & info ["ip"]
     ~doc:"the ip address of this worker")
 
 let port = Cmdliner.Arg.(
-  value & opt int 8080 & info ["--port"]
+  value & opt int 8000 & info ["port"]
     ~doc:"the port number of this worker")
 
 let () = Cmdliner.Term.(

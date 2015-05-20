@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b0452c723af684b914c2a9af1e87daee)
+# DO NOT EDIT (digest: 8e017ee2a14c39c129a21f47e6ab1f55)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -26,14 +26,26 @@ true: annot, bin_annot
 <lib/worker.{native,byte}>: pkg_unix
 <lib/worker.{native,byte}>: pkg_uri
 <lib/worker.{native,byte}>: use_ci_basic
+<lib/*.ml{,i,y}>: pkg_unix
+<lib/worker.{native,byte}>: custom
+# Executable master
+<lib/master.{native,byte}>: pkg_cmdliner
+<lib/master.{native,byte}>: pkg_cohttp
+<lib/master.{native,byte}>: pkg_cohttp.lwt
+<lib/master.{native,byte}>: pkg_lwt
+<lib/master.{native,byte}>: pkg_re
+<lib/master.{native,byte}>: pkg_sexplib
+<lib/master.{native,byte}>: pkg_sexplib.syntax
+<lib/master.{native,byte}>: pkg_uri
+<lib/master.{native,byte}>: use_ci_basic
 <lib/*.ml{,i,y}>: pkg_cmdliner
 <lib/*.ml{,i,y}>: pkg_cohttp
 <lib/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_re
 <lib/*.ml{,i,y}>: pkg_sexplib
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
-<lib/*.ml{,i,y}>: pkg_unix
 <lib/*.ml{,i,y}>: pkg_uri
 <lib/*.ml{,i,y}>: use_ci_basic
-<lib/worker.{native,byte}>: custom
+<lib/master.{native,byte}>: custom
 # OASIS_STOP

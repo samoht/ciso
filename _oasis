@@ -17,6 +17,14 @@ Executable worker
   Path: lib
   MainIs: worker.ml
   Custom: true
-  Install: true
+  Install: false
   CompiledObject: best
   BuildDepends: lwt, cohttp, cohttp.lwt, cmdliner, uri, unix, ci_basic
+
+Executable master
+  Path: lib
+  MainIs: master.ml
+  Custom: true
+  Install: false
+  CompiledObject: best
+  BuildDepends: lwt, cohttp, cohttp.lwt, cmdliner, uri, re, ci_basic
