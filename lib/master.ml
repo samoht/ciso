@@ -4,10 +4,10 @@ module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
-type task_tbl = (Task.t, int) Hashtbl.t (* task->obj.id *)
+type task_tbl = (int, Task.t) Hashtbl.t (* obj.id -> task *)
 type obj_tbl = (int, Object.t) Hashtbl.t (* obj.id -> obj *)
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
-type queue_tbl = (int * string, Task.t Queue.t) Hashtbl.t (* id, sha->queue  *)
+type queue_tbl = (int * string, int Queue.t) Hashtbl.t (* id, sha -> queue  *)
 
 exception WrongMessage of string
 
@@ -49,17 +49,16 @@ let heartbeat_handler groups headers body =
   let sha = match Cohttp.Header.get headers "worker" with
     | Some str -> str | None -> "" in
   let t_q = Hashtbl.find q_tbl (id, sha) in
-  let t_id = if Queue.is_empty t_q then (-1)
-             else Task.id_of_t (Queue.peek t_q) in
+  let obj_id = if Queue.is_empty t_q then (-1)
+               else Queue.peek t_q in
   Body.to_string body
   >>= fun body_str ->
     let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
     let resp_msg = Message.(match msg with
       | Heartbeat None ->
-         if t_id = (-1) then Message.Ack_heartbeat
-         else Message.New_task (t_id, Hashtbl.find t_tbl (Queue.peek t_q))
-      | Heartbeat (Some execution_id) ->
-         assert (t_id = execution_id); Message.Ack_heartbeat
+         if obj_id = (-1) then Message.Ack_heartbeat else
+           Message.New_task (Task.id_of_t (Hashtbl.find t_tbl obj_id), obj_id)
+      | Heartbeat (Some execution_id) -> Message.Ack_heartbeat
       |_ -> raise (WrongMessage body_str)) in
     let resp = Response.make ~status:Code.(`OK) () in
     let msg_sexp = Message.sexp_of_master_msg resp_msg in
@@ -73,7 +72,7 @@ let request_task_handler groups headers body =
   let sha = match Cohttp.Header.get headers "worker" with
     | Some str -> str | None -> "" in
   let t_q = Hashtbl.find q_tbl (id, sha) in
-  let t = Queue.peek t_q in
+  let t = Hashtbl.find t_tbl (Queue.peek t_q) in
   assert (t_id = Task.id_of_t t);
   let resp = Response.make ~status:Code.(`OK) () in
   let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
