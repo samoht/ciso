@@ -109,10 +109,10 @@ let worker_publish base {id; addr; sha} obj =
     else fail (WrongResponse (Cohttp.Code.string_of_status status, body_str))
 
 (* GET base/object<obj_id> -> `OK *)
-let worker_consult_object base (ip, port) obj_id =
+let worker_consult_object base (ip, _) obj_id =
   let uri_path = Printf.sprintf "object%d" obj_id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
-  let headers = Cohttp.Header.of_list ["ip", ip; "port", string_of_int port] in
+  let headers = Cohttp.Header.of_list ["ip", ip] in
   Client.get ~headers uri
   >>= fun (resp, body) -> Body.to_string body
   >>= fun body_str ->

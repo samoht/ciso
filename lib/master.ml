@@ -5,7 +5,7 @@ module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
 type task_tbl = (Task.t, int) Hashtbl.t (* task->obj.id *)
-type obj_tbl = (int, Object.t list) Hashtbl.t (* obj.id -> obj *)
+type obj_tbl = (int, Object.t) Hashtbl.t (* obj.id -> obj *)
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
 type queue_tbl = (int * string, Task.t Queue.t) Hashtbl.t (* id, sha->queue  *)
 
@@ -92,8 +92,41 @@ let publish_handler groups headers body =
     assert ((id, sha) = Hashtbl.find w_tbl addr);
     let (obj_id, obj_path) = obj_info in
     let obj = Object.create obj_id addr obj_path in
-    Hashtbl.replace o_tbl obj_id (obj :: (Hashtbl.find o_tbl obj_id));
+    Hashtbl.add o_tbl obj_id obj;
     return (Response.make ~status:Code.(`Created) (), Body.empty)
+
+let distance_of_ips ipx ipy =
+  let int_of_ip ip = Re.(
+    let decimals = split (compile (str ".")) ip in
+    let (_, sum) =
+      List.fold_right (fun d (deg, sum) ->
+        (deg * 1000, sum + deg * (int_of_string d))) decimals (1, 0) in
+    sum) in
+  abs (int_of_ip ipx - int_of_ip ipy)
+
+(* consult : GET base/object<obj_id> -> `OK * Best_object *)
+let consult_handler groups headers body =
+  let id = int_of_string (groups.(1)) in
+  let objs = Hashtbl.find_all o_tbl id in
+  let ip =
+    match Cohttp.Header.get headers "ip"
+    with Some str -> str | None -> raise (WrongMessage "no headers['ip']") in
+  let rec find_best (dis, obj) = function
+      | hd :: tl ->
+         let ip_hd = fst (Object.addr_of_t hd) in
+         let dis_hd = distance_of_ips ip ip_hd in
+         if dis_hd <= dis then find_best (dis_hd, hd) tl
+         else find_best (dis, obj) tl
+      | [] -> obj in
+  let (hd:Object.t), tl = List.hd objs, List.tl objs in
+  let best =
+    if tl = [] then hd
+    else find_best (distance_of_ips ip (fst (Object.addr_of_t hd)), hd) tl in
+  let (ip, port), path = Object.(addr_of_t best, path_of_t best) in
+  let msg_sexp = Message.(sexp_of_master_msg (Best_object (ip, port, path))) in
+  let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
+  let resp = Response.make ~status:Code.(`OK) () in
+  return (resp, body)
 
 let handler_route_table = Re.(
   let post, get = Code.(`POST, `GET) in
@@ -102,7 +135,8 @@ let handler_route_table = Re.(
    (get,  seq [str "/worker"; group (rep1 digit);
                str "/newtask/"; group (rep1 digit)]), request_task_handler;
    (post, seq [str "/worker"; group (rep1 digit);
-               str "/objects"]), publish_handler])
+               str "/objects"]), publish_handler;
+   (get, seq [str "/object"; group (rep1 digit); eos]), consult_handler;])
 
 let route_handler meth path = Re.(
   List.fold_left (fun acc ((m, p), h) ->
