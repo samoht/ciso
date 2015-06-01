@@ -9,9 +9,9 @@ BuildTools:  ocamlbuild
 
 Library ci_basic
   Path: lib
-  Findlibname: ci_basic
+  Install: false
   Modules: Object, Task, Message
-  BuildDepends: sexplib, sexplib.syntax
+  BuildDepends: sexplib.syntax
 
 Executable worker
   Path: lib
@@ -19,7 +19,7 @@ Executable worker
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp, cohttp.lwt, cmdliner, uri, unix, ci_basic
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, unix
 
 Executable master
   Path: lib
@@ -27,4 +27,4 @@ Executable master
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp, cohttp.lwt, cmdliner, uri, re, ci_basic
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix, Ci_opam, Scheduler
