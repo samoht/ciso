@@ -13,17 +13,23 @@ let w_tbl : worker_tbl = Hashtbl.create 16
 let q_tbl : queue_tbl = Hashtbl.create 16
 let worker_cnt = ref 0
 
+let addr_of_id (id, sha) =
+  let ip = ref "" and port = ref (-1) in
+  Hashtbl.iter (fun (_ip, _port) (_id, _sha)->
+      if _id = id && _sha = sha then begin ip := _ip; port := _port end) w_tbl;
+  !ip, !port
+
 let get_sha str = str
 
 let new_worker ip port =
-  if Hashtbl.mem w_tbl (ip, port) then return (Hashtbl.find w_tbl (ip, port))
+  if Hashtbl.mem w_tbl (ip, port) then Hashtbl.find w_tbl (ip, port)
   else begin
       incr worker_cnt;
       let id = !worker_cnt in
       let sha = get_sha (ip ^ (string_of_int port) ^ (string_of_int id)) in
       Hashtbl.add w_tbl (ip, port) (id, sha);
       Hashtbl.add q_tbl (id, sha) (Queue.create ());
-      return (id, sha)
+      id, sha
       end
 
 let register_handler subs headers body =
@@ -33,8 +39,11 @@ let register_handler subs headers body =
     let ip, port = match msg with
       | Message.Register (i, p) -> i, p
       | _ -> raise (WrongMessage body_str) in
-    new_worker ip port)
-  >>= fun (id, sha) ->
+    return ((ip, port), new_worker ip port))
+  >>= fun ((ip, port), (id, sha)) ->
+    let oid = Scheduler.find_task ip port in
+    let t_q = Hashtbl.find q_tbl (id, sha) in
+    let () = if oid = (-1) then () else Queue.add oid t_q in
     let resp = Response.make ~status:Code.(`Created) () in
     let msg_sexp = Message.(sexp_of_master_msg (Ack_register (id, sha))) in
     let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
@@ -70,8 +79,11 @@ let request_task_handler groups headers body =
   let sha = match Cohttp.Header.get headers "worker" with
     | Some str -> str | None -> "" in
   let t_q = Hashtbl.find q_tbl (id, sha) in
-  let t = Scheduler.task_of_oid (Queue.peek t_q) in
+  let t = Scheduler.task_of_oid (Queue.pop t_q) in
   assert (t_id = Task.id_of_t t);
+  let ip, port = addr_of_id (id, sha) in
+  let oid = Scheduler.find_task ip port in
+  let () = if oid = (-1) then () else Queue.add oid t_q in
   let resp = Response.make ~status:Code.(`OK) () in
   let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
   return (resp, body)
@@ -92,14 +104,6 @@ let publish_handler groups headers body =
     Scheduler.publish_object obj_id obj;
   >>= fun () -> return (Response.make ~status:Code.(`Created) (), Body.empty)
 
-let distance_of_ips ipx ipy =
-  let int_of_ip ip = Re.(
-    let decimals = split (compile (str ".")) ip in
-    let (_, sum) =
-      List.fold_right (fun d (deg, sum) ->
-        (deg * 1000, sum + deg * (int_of_string d))) decimals (1, 0) in
-    sum) in
-  abs (int_of_ip ipx - int_of_ip ipy)
 
 (* consult : GET base/object<obj_id> -> `OK * Best_object *)
 let consult_handler groups headers body =
@@ -111,14 +115,16 @@ let consult_handler groups headers body =
   let rec find_best (dis, obj) = function
       | hd :: tl ->
          let ip_hd = fst (Object.addr_of_t hd) in
-         let dis_hd = distance_of_ips ip ip_hd in
+         let dis_hd = Scheduler.distance_of_ips ip ip_hd in
          if dis_hd <= dis then find_best (dis_hd, hd) tl
          else find_best (dis, obj) tl
       | [] -> obj in
   let (hd:Object.t), tl = List.hd objs, List.tl objs in
   let best =
     if tl = [] then hd
-    else find_best (distance_of_ips ip (fst (Object.addr_of_t hd)), hd) tl in
+    else
+      let dis = Scheduler.distance_of_ips ip (Object.ip_of_t hd) in
+      find_best (dis, hd) tl in
   let (ip, port), path = Object.(addr_of_t best, path_of_t best) in
   let msg_sexp = Message.(sexp_of_master_msg (Best_object (ip, port, path))) in
   let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
