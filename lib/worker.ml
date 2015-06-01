@@ -126,8 +126,17 @@ let worker_consult_object base (ip, _) obj_id =
 
 (* GET worker_ip:port/path -> `OK *)
 let worker_request_object base worker obj_id =
-  worker_consult_object base worker.addr obj_id
-  >>= fun (ip, port, path) ->
+  let obj = List.filter (fun obj ->
+    Object.id_of_t obj = obj_id) worker.objects in
+  if List.length obj <> 0 then begin
+    let path = Object.path_of_t (List.hd obj) in
+    let file = Filename.basename path in
+    assert (Sys.file_exists file);
+    Lwt_io.(open_file ~mode:input ~flags:[Unix.O_RDONLY] file
+    >>= fun ic -> read ic) end
+  else begin
+    worker_consult_object base worker.addr obj_id
+    >>= fun (ip, port, path) ->
     let headers =
       Cohttp.Header.of_list ["obj_id",string_of_int obj_id] in
     let base_str = Printf.sprintf "http://%s:%d" ip port in
@@ -135,17 +144,17 @@ let worker_request_object base worker obj_id =
     let path = Uri.of_string path in
     let uri = Uri.resolve "" base path in
     Client.get ~headers uri
-  >>= fun (resp, body) -> Body.to_string body
-  >>= fun body_str -> (* TODO: publish the just got object  *)
-    let status = Response.status resp in
-    let exn = WrongResponse (Cohttp.Code.string_of_status status, body_str) in
-    if status = Cohttp.Code.(`OK) then
-      choose
-        [(to_local_obj (get_working_dir worker) obj_id worker.addr body_str
-          >>= fun obj -> worker_publish base worker obj
-          >>= fun () -> return "should not show");
-         return body_str]
-    else fail exn
+    >>= fun (resp, body) -> Body.to_string body
+    >>= fun body_str -> (* TODO: publish the just got object  *)
+      let status = Response.status resp in
+      let exn = WrongResponse (Cohttp.Code.string_of_status status, body_str) in
+      if status = Cohttp.Code.(`OK) then
+        choose
+          [(to_local_obj (get_working_dir worker) obj_id worker.addr body_str
+            >>= fun obj -> worker_publish base worker obj
+            >>= fun () -> return "should not show");
+           return body_str]
+      else fail exn end
 
 (* dummy execution *)
 let task_execute base worker task obj_id =

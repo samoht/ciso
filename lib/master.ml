@@ -4,25 +4,22 @@ module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
-type task_tbl = (int, Task.t) Hashtbl.t (* obj.id -> task *)
-type obj_tbl = (int, Object.t) Hashtbl.t (* obj.id -> obj *)
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
 type queue_tbl = (int * string, int Queue.t) Hashtbl.t (* id, sha -> queue  *)
 
 exception WrongMessage of string
 
-let t_tbl : task_tbl = Hashtbl.create 16
-let o_tbl : obj_tbl  = Hashtbl.create 16
 let w_tbl : worker_tbl = Hashtbl.create 16
 let q_tbl : queue_tbl = Hashtbl.create 16
+let worker_cnt = ref 0
 
 let get_sha str = str
 
 let new_worker ip port =
   if Hashtbl.mem w_tbl (ip, port) then return (Hashtbl.find w_tbl (ip, port))
   else begin
-      let mem = Hashtbl.length w_tbl in
-      let id = succ mem in
+      incr worker_cnt;
+      let id = !worker_cnt in
       let sha = get_sha (ip ^ (string_of_int port) ^ (string_of_int id)) in
       Hashtbl.add w_tbl (ip, port) (id, sha);
       Hashtbl.add q_tbl (id, sha) (Queue.create ());
@@ -57,7 +54,8 @@ let heartbeat_handler groups headers body =
     let resp_msg = Message.(match msg with
       | Heartbeat None ->
          if obj_id = (-1) then Message.Ack_heartbeat else
-           Message.New_task (Task.id_of_t (Hashtbl.find t_tbl obj_id), obj_id)
+           let task = Scheduler.task_of_oid obj_id in
+           Message.New_task (Task.id_of_t task, obj_id)
       | Heartbeat (Some execution_id) -> Message.Ack_heartbeat
       |_ -> raise (WrongMessage body_str)) in
     let resp = Response.make ~status:Code.(`OK) () in
@@ -72,7 +70,7 @@ let request_task_handler groups headers body =
   let sha = match Cohttp.Header.get headers "worker" with
     | Some str -> str | None -> "" in
   let t_q = Hashtbl.find q_tbl (id, sha) in
-  let t = Hashtbl.find t_tbl (Queue.peek t_q) in
+  let t = Scheduler.task_of_oid (Queue.peek t_q) in
   assert (t_id = Task.id_of_t t);
   let resp = Response.make ~status:Code.(`OK) () in
   let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
@@ -91,8 +89,8 @@ let publish_handler groups headers body =
     assert ((id, sha) = Hashtbl.find w_tbl addr);
     let (obj_id, obj_path) = obj_info in
     let obj = Object.create obj_id addr obj_path in
-    Hashtbl.add o_tbl obj_id obj;
-    return (Response.make ~status:Code.(`Created) (), Body.empty)
+    Scheduler.publish_object obj_id obj;
+  >>= fun () -> return (Response.make ~status:Code.(`Created) (), Body.empty)
 
 let distance_of_ips ipx ipy =
   let int_of_ip ip = Re.(
@@ -105,8 +103,8 @@ let distance_of_ips ipx ipy =
 
 (* consult : GET base/object<obj_id> -> `OK * Best_object *)
 let consult_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
-  let objs = Hashtbl.find_all o_tbl id in
+  let obj_id = int_of_string (groups.(1)) in
+  let objs = Scheduler.get_objects obj_id in
   let ip =
     match Cohttp.Header.get headers "ip"
     with Some str -> str | None -> raise (WrongMessage "no headers['ip']") in
