@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f40d8f64aacadcc1e9d290d758e91684)
+# DO NOT EDIT (digest: 8cb9363fe51df05beb4ef155db1c01ec)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -26,8 +26,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_unix
 <lib/worker.{native,byte}>: custom
 # Executable master
-<lib/master.{native,byte}>: pkg_Ci_opam
-<lib/master.{native,byte}>: pkg_Scheduler
 <lib/master.{native,byte}>: pkg_cmdliner
 <lib/master.{native,byte}>: pkg_cohttp.lwt
 <lib/master.{native,byte}>: pkg_github.unix
@@ -35,8 +33,6 @@ true: annot, bin_annot
 <lib/master.{native,byte}>: pkg_opam-lib.client
 <lib/master.{native,byte}>: pkg_opam-lib.solver
 <lib/master.{native,byte}>: pkg_uri
-<lib/*.ml{,i,y}>: pkg_Ci_opam
-<lib/*.ml{,i,y}>: pkg_Scheduler
 <lib/*.ml{,i,y}>: pkg_cmdliner
 <lib/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/*.ml{,i,y}>: pkg_github.unix
