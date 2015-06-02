@@ -17,6 +17,7 @@ let obj_cnt = ref 0
 
 let user = "ocaml"
 let repo = "opam-repository"
+let token = ref None
 
 let oid_of_task t =
   Hashtbl.fold (fun obj_id task acc ->
@@ -64,6 +65,8 @@ let find_task ip port =
           else acc_oid, acc_dis)
         (oid, distance_of_inputs inputs) (List.tl oid_inputs) in
       Hashtbl.replace s_tbl oid `Dispatched;
+      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %d\n%!"
+        (String.concat " " (List.rev_map string_of_int runnables)) oid;
       oid
     end
 
@@ -73,8 +76,10 @@ let publish_object_hook obj_id =
       let oids = Hashtbl.find_all h_tbl obj_id in
       let tups = List.rev_map (fun oid -> oid, task_of_oid oid) oids in
       Lwt_list.iter_p (fun (oid, task) ->
+        let state = Hashtbl.find s_tbl oid in
         let inputs = Task.inputs_of_t task in
-        if List.for_all (fun input -> Hashtbl.mem o_tbl input) inputs then
+        if state <> `Pending then return ()
+        else if List.for_all (fun input -> Hashtbl.mem o_tbl input) inputs then
           return (Hashtbl.replace s_tbl oid `Runnable)
         else return ()) tups
     end
@@ -84,8 +89,13 @@ let publish_object obj_id obj =
     Hashtbl.add o_tbl obj_id obj;
     Hashtbl.replace s_tbl obj_id `Completed;
     return () in
-  choose [publish ();
-          publish_object_hook obj_id]
+  publish ()
+  >>= fun () -> publish_object_hook obj_id
+  >>= fun () ->
+    let runnables = Hashtbl.fold (fun oid state acc ->
+        if state = `Runnable then oid :: acc else acc) s_tbl [] in
+    let str = String.concat " " (List.rev_map string_of_int runnables) in
+    return (Printf.eprintf "\t[scheduler@publish]: %d -> [%s]\n%!" obj_id str)
 
 let init_gh_token name =
   Github_cookie_jar.init ()
@@ -120,7 +130,7 @@ let pull_info token num = Github.Monad.(
     Task.make_pull num base_repo.repo_clone_url base.branch_sha head.branch_sha
     |> return)
 
-let resolve_and_add pull pkg =
+let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
   let new_task ?pull pkg v =
     incr task_cnt;
@@ -135,12 +145,27 @@ let resolve_and_add pull pkg =
     let t = task_of_oid oid in
     let new_task = Task.update_task t inputs in
     Hashtbl.replace t_tbl oid new_task;
-    List.iter (fun input -> Hashtbl.add h_tbl input oid) inputs in
-  Ci_opam.add_task new_task update_inputs pull action_graph
+    List.iter (fun input -> Hashtbl.add h_tbl input oid) inputs;
+    if inputs = [] then Hashtbl.replace s_tbl oid `Runnable in
+  Ci_opam.add_task new_task update_inputs ?pull action_graph
 
-let github_hook token num = Github.Monad.(
-  packages_of_pull token num
-  >>= fun pkgs -> pull_info token num
-  >>= fun pull ->
-    List.iter (resolve_and_add pull) pkgs;
-    return ())
+let github_hook num =
+  (match !token with
+    | Some t -> return t
+    | None -> begin
+        init_gh_token "scry"
+        >>= fun t ->
+          token := Some t;
+          return t
+      end)
+  >>= fun token -> Github.Monad.(
+    (packages_of_pull token num
+    >>= fun pkgs -> pull_info token num
+    >>= fun pull ->
+        List.iter (resolve_and_add ~pull) pkgs;
+        return ())
+    |> run)
+
+let test_handler pkg =
+  resolve_and_add pkg;
+  return ()

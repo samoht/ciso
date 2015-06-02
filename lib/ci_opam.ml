@@ -67,7 +67,7 @@ let resolve str =
   graph
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
-let add_task new_task update_inputs pull graph =
+let add_task new_task update_inputs ?pull graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -78,8 +78,8 @@ let add_task new_task update_inputs pull graph =
       let name = Pkg.name_to_string pkg in
       let version = Pkg.version_to_string pkg in
       let degree = Graph.out_degree graph v in
-      let oid = if degree = 0 then new_task ?pull:(Some pull) name version
-                else new_task ?pull:None name version in
+      let oid = if degree = 0 then new_task ?pull name version
+                else new_task ?pull name version in
       Pkg.Map.add pkg oid map) graph Pkg.Map.empty in
   Graph.iter_vertex (fun v ->
       let pkg = package_of_action v in
@@ -90,10 +90,11 @@ let add_task new_task update_inputs pull graph =
           input :: acc) graph v [] in
       update_inputs oid inputs) graph
 
+(*
 let str = Arg.(
   required & pos 0 (some string) None & info
     ~docv:"PKG" ~doc:"package name (and version constraint) to solve" [])
 
 let () = Term.(
   let tup = pure resolve $ str, info ~doc:"solve dependencies" "ci-solver" in
-  match eval tup with `Error _ -> exit 1 | _ -> exit 0)
+  match eval tup with `Error _ -> exit 1 | _ -> exit 0) *)

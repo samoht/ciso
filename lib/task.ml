@@ -33,4 +33,11 @@ let make_task id ?pull package version =
 
 let update_task t inputs = {t with inputs}
 
-let string_of_t t = ""
+let string_of_t {id; inputs; task} =
+  let task_str = match task with
+    | Github (pkg, version, pull) ->
+       Printf.sprintf "%s.%s from github/%d" pkg version pull.pull_num
+    | Package (pkg, version) ->
+       Printf.sprintf "%s.%s" pkg version in
+  let inputs_str = String.concat "," (List.rev_map string_of_int inputs) in
+  Printf.sprintf "%s -> [%d: %s]" inputs_str id task_str
