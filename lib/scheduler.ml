@@ -1,9 +1,19 @@
 open Lwt
 
-type task_tbl = (int, Task.t) Hashtbl.t (* obj.id -> task *)
-type obj_tbl = (int, Object.t) Hashtbl.t (* obj.id -> obj *)
+(* object id -> the task who is supposed to produce the object *)
+type task_tbl = (int, Task.t) Hashtbl.t
+
+(* object id -> object
+   when the object isn't produced, there will be no binding in the table,
+   an object may have multiple copies,
+   so there might be multiple bindings for one id *)
+type obj_tbl = (int, Object.t) Hashtbl.t
+
+(* object id -> object id
+   if task A has dependencies objects b, c, d,
+   and task A is supposed to produce object a,
+   then there will be bindins b -> a, c -> a, d -> a, *)
 type hook_tbl = (int, int) Hashtbl.t
-(* input.id -> (task ->) obj.id  *)
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
 type state_tbl = (int, state) Hashtbl.t
 

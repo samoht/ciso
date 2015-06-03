@@ -6,12 +6,12 @@ module Client = Cohttp_lwt_unix.Client
 module Response = Cohttp_lwt_unix.Response
 
 type t = {
-  id : int;
-  addr : string * int;
-  sha : string;
-  mutable tasks : Task.t list;
-  mutable objects : Object.t list;
-  mutable status : worker_status;
+  id : int;                      (* worker id assigned by master *)
+  addr : string * int;           (* ip * port number where worker is hosted *)
+  sha : string;                  (* a checksum used for master authentication *)
+  mutable tasks : Task.t list;     (* all completed tasks *)
+  mutable objects : Object.t list; (* objects hosted on this machine *)
+  mutable status : worker_status;  (* working on a task of idle *)
 }
 and worker_status =
   | Working of Task.t
@@ -124,7 +124,8 @@ let worker_publish base {id; addr; sha} obj =
     else fail (WrongResponse (Cohttp.Code.string_of_status status, body_str))
 
 (* GET base/object<obj_id> -> `OK *)
-let worker_consult_object base (ip, port) obj_id =
+let worker_consult_object base {addr} obj_id =
+  let ip, port = addr in
   let info = "need positions of object" ^ (string_of_int obj_id) in
   log "send" "consult" ~info;
   let uri_path = Printf.sprintf "object%d" obj_id in
@@ -156,7 +157,7 @@ let worker_request_object base worker obj_id =
     (* Lwt_io.(open_file ~mode:input ~flags:[Unix.O_RDONLY] file
     >>= fun ic -> read ic*) end
   else begin
-    worker_consult_object base worker.addr obj_id
+    worker_consult_object base worker obj_id
     >>= fun (ip, port, path) ->
     let headers =
       Cohttp.Header.of_list ["obj_id",string_of_int obj_id] in

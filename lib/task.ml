@@ -1,13 +1,14 @@
 open Sexplib.Std
 
 type t = {
-  id : int;
-  inputs : int list;
+  id : int;           (* task is referenced by this id *)
+  inputs : int list;  (* inputs are object ids *)
   task : task;
 }
+ (* a task may be a github PR or a dependency resolved by opam solver *)
 and task =
-  | Github of string * string * pull
-  | Package of string * string
+  | Github of string * string * pull   (* package name * version * pull *)
+  | Package of string * string         (* package name * version *)
 and pull = {
     pull_num : int;
     repo_url : string;
