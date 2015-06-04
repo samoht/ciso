@@ -20,7 +20,10 @@ let addr_of_id (id, sha) =
   !ip, !port
 
 let get_sha1 str =
-  Cryptokit.(hash_string (Hash.sha1 ()) str)
+  str |> Cstruct.of_string |>
+  Nocrypto.Hash.SHA1.digest |>
+  Cstruct.to_string
+  (* Cryptokit.(hash_string (Hash.sha1 ()) str) *)
 
 let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in

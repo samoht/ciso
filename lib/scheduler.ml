@@ -38,8 +38,10 @@ let id_map = ref IdMap.empty
    could add os and architecture later *)
 let hash_id pkg v inputs =
   let str = pkg ^ v ^ (String.concat "" (List.rev_map string_of_int inputs)) in
-  let to_sha1 = Cryptokit.(hash_string (Hash.sha1 ())) in
-  let sha1 = to_sha1 str in
+  let hash str =
+    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest |> Cstruct.to_string in
+  (* let sha1 = to_sha1 str in *)
+  let sha1 = hash str in
   try IdMap.find sha1 !id_map
   with Not_found ->
     incr id_cnt;
