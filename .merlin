@@ -1,5 +1,5 @@
-PKG lwt cmdliner
-PKG cohttp github
+PKG lwt cmdliner cryptokit
+PKG cohttp conduit.lwt-unix github
 PKG opam-lib opam-lib.client opam-lib.solver
 S lib
 B _build/lib

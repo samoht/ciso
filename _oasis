@@ -27,4 +27,4 @@ Executable master
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix, cryptokit
