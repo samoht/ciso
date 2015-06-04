@@ -1,19 +1,20 @@
 open Lwt
 
-(* object id -> the task who is supposed to produce the object *)
+(* id -> the task who is supposed to produce the object *)
 type task_tbl = (int, Task.t) Hashtbl.t
 
-(* object id -> object
+(* id -> object
    when the object isn't produced, there will be no binding in the table,
    an object may have multiple copies,
    so there might be multiple bindings for one id *)
 type obj_tbl = (int, Object.t) Hashtbl.t
 
-(* object id -> object id
+(* id -> id
    if task A has dependencies objects b, c, d,
    and task A is supposed to produce object a,
    then there will be bindins b -> a, c -> a, d -> a, *)
 type hook_tbl = (int, int) Hashtbl.t
+
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
 type state_tbl = (int, state) Hashtbl.t
 
@@ -28,6 +29,22 @@ let obj_cnt = ref 0
 let user = "ocaml"
 let repo = "opam-repository"
 let token = ref None
+
+module IdMap = Map.Make(String)
+let id_cnt = ref 0
+let id_map = ref IdMap.empty
+
+(* return a deterministic id, based on pakcage name, version, and dependencies
+   could add os and architecture later *)
+let hash_id pkg v inputs =
+  let str = pkg ^ v ^ (String.concat "" (List.rev_map string_of_int inputs)) in
+  let to_sha1 = Cryptokit.(hash_string (Hash.sha1 ())) in
+  let sha1 = to_sha1 str in
+  try IdMap.find sha1 !id_map
+  with Not_found ->
+    incr id_cnt;
+    id_map := IdMap.add sha1 !id_cnt !id_map;
+    !id_cnt
 
 let oid_of_task t =
   Hashtbl.fold (fun obj_id task acc ->
@@ -116,7 +133,8 @@ let init_gh_token name =
 
 (* /packages/<pkg>/<pkg.version>/{opam, url, descr, files/.., etc} *)
 let packages_of_pull token num = Github.Monad.(
-  Github.Pull.list_files ~token ~user ~repo ~num ()
+  Github.Pull.files ~token ~user ~repo ~num ()
+  |> Github.Stream.to_list
   >>= fun files ->
     List.fold_left (fun acc file ->
         let parts = Array.of_list
@@ -132,32 +150,27 @@ let packages_of_pull token num = Github.Monad.(
 let pull_info token num = Github.Monad.(
   let open Github_t in
   Github.Pull.get ~token ~user ~repo ~num ()
-  >>= fun pull ->
+  >>= fun pull_resp ->
+    let pull = Github.Response.value pull_resp in
     let base = pull.pull_base and head = pull.pull_head in
     let base_repo =
       match base.branch_repo with
       | Some repo -> repo | None -> failwith "pr_info" in
-    Task.make_pull num base_repo.repo_clone_url base.branch_sha head.branch_sha
+    Task.make_pull
+      num base_repo.repository_clone_url base.branch_sha head.branch_sha
     |> return)
 
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
-  let new_task ?pull pkg v =
-    incr task_cnt;
-    let id = !task_cnt in
-    let t = Task.make_task id ?pull pkg v in
-    incr obj_cnt;
-    let oid = !obj_cnt in
-    Hashtbl.add t_tbl oid t;
-    Hashtbl.add s_tbl oid `Pending;
-    oid in
-  let update_inputs oid inputs =
-    let t = task_of_oid oid in
-    let new_task = Task.update_task t inputs in
-    Hashtbl.replace t_tbl oid new_task;
-    List.iter (fun input -> Hashtbl.add h_tbl input oid) inputs;
-    if inputs = [] then Hashtbl.replace s_tbl oid `Runnable in
-  Ci_opam.add_task new_task update_inputs ?pull action_graph
+  let new_task ?pull pkg v inputs =
+    let id = hash_id pkg v inputs in
+    if Hashtbl.mem t_tbl id then id else
+      let task = Task.make_task ?pull id pkg v inputs in
+      Hashtbl.add t_tbl id task;
+      Hashtbl.add s_tbl id `Pending;
+      id in
+  Ci_opam.add_task ?pull new_task action_graph;
+  Printf.eprintf "\t[scheduler@resolve]: %d tasks\n%!" (Hashtbl.length t_tbl)
 
 let github_hook num =
   (match !token with

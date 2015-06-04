@@ -19,7 +19,8 @@ let addr_of_id (id, sha) =
       if _id = id && _sha = sha then begin ip := _ip; port := _port end) w_tbl;
   !ip, !port
 
-let get_sha str = str
+let get_sha1 str =
+  Cryptokit.(hash_string (Hash.sha1 ()) str)
 
 let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in
@@ -30,7 +31,7 @@ let new_worker ip port =
   else begin
       incr worker_cnt;
       let id = !worker_cnt in
-      let sha = get_sha (ip ^ (string_of_int port) ^ (string_of_int id)) in
+      let sha = get_sha1 (ip ^ (string_of_int port) ^ (string_of_int id)) in
       Hashtbl.add w_tbl (ip, port) (id, sha);
       Hashtbl.add q_tbl (id, sha) (Queue.create ());
       id, sha

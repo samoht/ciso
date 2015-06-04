@@ -26,11 +26,11 @@ let make_pull num url base head = {
     base_sha = base;
     head_sha = head;}
 
-let make_task id ?pull package version =
+let make_task ?pull id package version inputs =
   let task = match pull with
     | Some pull -> Github (package, version, pull)
     | None -> Package (package, version) in
-  {id; inputs = []; task}
+  {id; inputs; task}
 
 let update_task t inputs = {t with inputs}
 

@@ -38,10 +38,11 @@ let print_edges vx vy =
 
 let modify_state state =
   let open OpamState.Types in
-  let base = OpamState.base_packages state in
+  let base = OpamState.base_packages in
+  let is_base pkg = List.mem (OpamPackage.name pkg) base in
   { state with
-    installed = base;
-    installed_roots = base;
+    installed = OpamPackage.Set.filter is_base state.installed;
+    installed_roots = OpamPackage.Set.filter is_base state.installed_roots;
     pinned = OpamPackage.Name.Map.empty; }
 
 let resolve str =
@@ -57,39 +58,45 @@ let resolve str =
     wish_upgrade = [];
     criteria = `Default} in
   let result = OpamSolver.resolve
-    universe ~orphans:OpamPackage.Set.empty request in
+    ~orphans:OpamPackage.Set.empty ~requested:OpamPackage.Name.Set.empty
+    universe request in
   let solution = match result with
     | Success s -> s
     | Conflicts _ -> failwith (Printf.sprintf "no solution for %s" str) in
-  let graph = OpamSolver.get_atomic_action_graph solution in
+  let graph = solution.to_process in
   let oc = open_out "solver_log" in
   OpamSolver.ActionGraph.Dot.output_graph oc graph; close_out oc;
   graph
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
-let add_task new_task update_inputs ?pull graph =
+let add_task ?pull new_task graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
     | To_change (origin, target) -> assert (origin = None); target
     | _ -> failwith "Not expect" in
-  let oid_map = Graph.fold_vertex (fun v map ->
-      let pkg = package_of_action v in
-      let name = Pkg.name_to_string pkg in
-      let version = Pkg.version_to_string pkg in
-      let degree = Graph.out_degree graph v in
-      let oid = if degree = 0 then new_task ?pull name version
-                else new_task ?pull name version in
-      Pkg.Map.add pkg oid map) graph Pkg.Map.empty in
+  let process_queue = Queue.create () in
+  let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
-      let pkg = package_of_action v in
-      let oid = Pkg.Map.find pkg oid_map in
-      let inputs = Graph.fold_pred (fun pred acc ->
-          let pred_pkg = package_of_action pred in
-          let input = Pkg.Map.find pred_pkg oid_map in
-          input :: acc) graph v [] in
-      update_inputs oid inputs) graph
-
+      if Graph.out_degree graph v = 0 then Queue.add v process_queue) graph;
+  while not (Queue.is_empty process_queue) do
+    let v = Queue.pop process_queue in
+    Graph.iter_pred (fun pred -> Queue.add pred process_queue) graph v;
+    Stack.push v add_stack;
+  done;
+  let id_map = ref Pkg.Map.empty in
+  while not (Stack.is_empty add_stack) do
+    let v = Stack.pop add_stack in
+    let pkg = package_of_action v in
+    let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
+    let inputs = Graph.fold_pred (fun pred inputs ->
+        (Pkg.Map.find (package_of_action pred) !id_map) :: inputs) graph v [] in
+    let id =
+      if Graph.out_degree graph v <> 0 then
+        new_task ?pull:None name version inputs
+      else new_task ?pull name version inputs in
+    id_map := Pkg.Map.add pkg id !id_map
+  done
 (*
 let str = Arg.(
   required & pos 0 (some string) None & info
