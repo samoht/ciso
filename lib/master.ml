@@ -5,7 +5,7 @@ module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
-type queue_tbl = (int * string, int Queue.t) Hashtbl.t (* id, sha -> queue  *)
+type queue_tbl = (int * string, string Queue.t) Hashtbl.t (* id, sha -> queue *)
 
 exception WrongMessage of string
 
@@ -20,10 +20,19 @@ let addr_of_id (id, sha) =
   !ip, !port
 
 let get_sha1 str =
+  let hex_of_cs cs =
+    let buf = Buffer.create 16 in
+    Cstruct.hexdump_to_buffer buf cs;
+    Buffer.contents buf in
+  let stripe_nl_space s = Re.(
+    let re = compile (alt [compl [notnl]; space]) in
+    replace_string re ~by:"" s) in
   str |> Cstruct.of_string |>
   Nocrypto.Hash.SHA1.digest |>
-  Cstruct.to_string
+  hex_of_cs |> stripe_nl_space
   (* Cryptokit.(hash_string (Hash.sha1 ()) str) *)
+
+let sub len str = String.sub str 0 len
 
 let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in
@@ -70,14 +79,15 @@ let heartbeat_handler groups headers body =
          if Queue.is_empty t_q then begin
              let ip, port = addr_of_id (id, sha) in
              let oid = Scheduler.find_task ip port in
-             if oid <> (-1) then Queue.add oid t_q end
-         else Printf.eprintf "\ttask %d is in the queue\n%!" (Queue.peek t_q);
-         let obj_id = try Queue.peek t_q with _ -> (-1) in
-         if obj_id = (-1) then Message.Ack_heartbeat else
+             if oid <> "" then Queue.add oid t_q end
+         else Printf.eprintf "\ttask %s is in the queue\n%!"
+                (sub 5 (Queue.peek t_q));
+         let obj_id = try Queue.peek t_q with _ -> "" in
+         if obj_id = "" then Message.Ack_heartbeat else
            let task = Scheduler.task_of_oid obj_id in
            Message.New_task (Task.id_of_t task, obj_id)
       | Heartbeat (Some execution_id) ->
-         log "heartbeat" id ("working " ^ (string_of_int execution_id));
+         log "heartbeat" id ("working " ^ (sub 5 execution_id));
          Message.Ack_heartbeat
       |_ -> raise (WrongMessage body_str)) in
     let resp = Response.make ~status:Code.(`OK) () in
@@ -88,13 +98,13 @@ let heartbeat_handler groups headers body =
 (* request_task : GET base/worker<id>/newtask/<task_id> -> `OK  *)
 let request_task_handler groups headers body =
   let id = int_of_string (groups.(1)) in
-  let t_id = int_of_string (groups.(2)) in
+  let t_id = groups.(2) in
   let sha = match Cohttp.Header.get headers "worker" with
     | Some str -> str | None -> "" in
   let t_q = Hashtbl.find q_tbl (id, sha) in
   let t = Scheduler.task_of_oid (Queue.pop t_q) in
   assert (t_id = Task.id_of_t t);
-  log "task" id ("dequeue task " ^ (string_of_int t_id));
+  log "task" id ("dequeue task " ^ (Scheduler.task_info t_id));
   let resp = Response.make ~status:Code.(`OK) () in
   let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
   return (resp, body)
@@ -111,7 +121,7 @@ let publish_handler groups headers body =
       | Publish (a, o) -> a, o | _ -> raise (WrongMessage body_str)) in
     assert ((id, sha) = Hashtbl.find w_tbl addr);
     let (obj_id, obj_path) = obj_info in
-    log "publish" id ("object" ^ (string_of_int obj_id));
+    log "publish" id ("object " ^ (Scheduler.task_info obj_id));
     let obj = Object.create obj_id addr obj_path in
     Scheduler.publish_object obj_id obj;
   >>= fun () -> return (Response.make ~status:Code.(`Created) (), Body.empty)
@@ -119,7 +129,7 @@ let publish_handler groups headers body =
 
 (* consult : GET base/object<obj_id> -> `OK * Best_object *)
 let consult_handler groups headers body =
-  let obj_id = int_of_string (groups.(1)) in
+  let obj_id = groups.(1) in
   let objs = Scheduler.get_objects obj_id in
   let ip, port =
     match Cohttp.Header.(get headers "ip", get headers "port") with
@@ -141,8 +151,9 @@ let consult_handler groups headers body =
   let (d_ip, d_port), path = Object.(addr_of_t best, path_of_t best) in
   let msg = Message.Best_object (d_ip, d_port, path) in
   let msg_sexp = Message.(sexp_of_master_msg msg) in
-  let info =  Printf.sprintf "%d at worker%d %s"
-    obj_id (fst (Hashtbl.find w_tbl (d_ip, d_port))) path in
+  let info =  Printf.sprintf "%s at worker%d %s"
+    (Scheduler.task_info obj_id)
+    (fst (Hashtbl.find w_tbl (d_ip, d_port))) path in
   log "consult" (fst (Hashtbl.find w_tbl (ip, port))) info;
   let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
   let resp = Response.make ~status:Code.(`OK) () in
@@ -167,13 +178,14 @@ let test_handler groups headers body =
 
 let handler_route_table = Re.(
   let post, get = Code.(`POST, `GET) in
+  let id = rep1 (set "0123456789abcdef") in
   [(post, str "/workers"), register_handler;
    (post, seq [str "/worker"; group (rep1 digit); eos]), heartbeat_handler;
    (get,  seq [str "/worker"; group (rep1 digit);
-               str "/newtask/"; group (rep1 digit)]), request_task_handler;
+               str "/newtask/"; group id]), request_task_handler;
    (post, seq [str "/worker"; group (rep1 digit);
                str "/objects"]), publish_handler;
-   (get, seq [str "/object"; group (rep1 digit); eos]), consult_handler;
+   (get, seq [str "/object"; group id; eos]), consult_handler;
    (post, seq [str "/github/"; group (rep1 digit); eos]), github_hook_handler;
    (post, seq [str "/pkg/"; group (rep1 any); eos]), test_handler])
 

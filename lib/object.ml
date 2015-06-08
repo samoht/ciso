@@ -1,7 +1,7 @@
 open Sexplib.Std
 
 type t = {
-  id : int;             (* object is referenced by id in scheduler *)
+  id : string;          (* object is referenced by id in scheduler *)
   addr : string * int;  (* ip * port of the machine who has a copy of object *)
   path : string         (* the path to the object on the machine at addr *)
 } with sexp

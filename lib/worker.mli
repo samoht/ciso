@@ -2,7 +2,7 @@ type t
 
 (** [to_local_obj worker obj_id content]:
     when get a dependency object from other workers, save it locally *)
-val to_local_obj: t -> int -> string -> Object.t Lwt.t
+val to_local_obj: t -> string -> string -> Object.t Lwt.t
 
 (******************************************************************************)
 
@@ -15,11 +15,11 @@ val worker_register: Uri.t -> string * int -> t Lwt.t
     or idle, if idle and the master has assigned a new task A to it,
     the task A produces object a, the function returns a thread holds
     Some (A.id, a.id) *)
-val worker_heartbeat: Uri.t -> t -> (int * int) option Lwt.t
+val worker_heartbeat: Uri.t -> t -> (string * string) option Lwt.t
 
 (** [worker_request_task master_uri worker task_id]:
     asks master to return the sexp of task whose id is task_id *)
-val worker_request_task: Uri.t -> t -> int -> Task.t Lwt.t
+val worker_request_task: Uri.t -> t -> string -> Task.t Lwt.t
 
 (** [worker_publish master_uri worker object]:
     if produces a new object or get a copy from other workers,
@@ -31,7 +31,7 @@ val worker_publish: Uri.t -> t -> Object.t -> unit Lwt.t
     the best location of a copy of the id obj_id, the returned thread
     is supposed to give the ip, addr of the worker to contact and also
     the path at that worker to retrieve the object *)
-val worker_consult_object: Uri.t -> t -> int -> (string * int * string) Lwt.t
+val worker_consult_object: Uri.t -> t -> string -> (string * int * string) Lwt.t
 
 (** [worker_request_object master_uri worker obj_id]:
     before task execution, the worker will gather all the dependencies by this
@@ -40,7 +40,7 @@ val worker_consult_object: Uri.t -> t -> int -> (string * int * string) Lwt.t
     retrieve it from other workers, save it locally,
     publish it to master that a copy of this object has been made,
     then return the thread *)
-val worker_request_object: Uri.t -> t -> int -> string Lwt.t
+val worker_request_object: Uri.t -> t -> string -> string Lwt.t
 
 
 (******************************************************************************)
@@ -48,13 +48,13 @@ val worker_request_object: Uri.t -> t -> int -> string Lwt.t
 (** [execution_loop master_uri worker cond]:
     infinite loop to execute tasks, the conditional variable this function waits
     for is task_id and obj_id *)
-val execution_loop: Uri.t -> t -> (int * int) Lwt_condition.t -> 'a Lwt.t
+val execution_loop: Uri.t -> t -> (string * string) Lwt_condition.t -> 'a Lwt.t
 
 (** [heartbeat_loop master_uri worker cond]:
     infinite loop to send out heartbeats to master,
     under the idle state, if gets the response of Some (task_id, obj_id),
     the function will send a signl to the conditional variable cond *)
-val heartbeat_loop: Uri.t -> t -> (int * int) Lwt_condition.t -> 'a Lwt.t
+val heartbeat_loop: Uri.t -> t -> (string * string) Lwt_condition.t -> 'a Lwt.t
 
 (** [worker_file_server worker]:
     responsible for the requests from other workers for the objects produced

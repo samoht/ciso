@@ -1,56 +1,55 @@
 open Lwt
 
 (* id -> the task who is supposed to produce the object *)
-type task_tbl = (int, Task.t) Hashtbl.t
+type task_tbl = (string, Task.t) Hashtbl.t
 
 (* id -> object
    when the object isn't produced, there will be no binding in the table,
    an object may have multiple copies,
    so there might be multiple bindings for one id *)
-type obj_tbl = (int, Object.t) Hashtbl.t
+type obj_tbl = (string, Object.t) Hashtbl.t
 
 (* id -> id
    if task A has dependencies objects b, c, d,
    and task A is supposed to produce object a,
    then there will be bindins b -> a, c -> a, d -> a, *)
-type hook_tbl = (int, int) Hashtbl.t
+type hook_tbl = (string, string) Hashtbl.t
 
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
-type state_tbl = (int, state) Hashtbl.t
+type state_tbl = (string, state) Hashtbl.t
 
 let t_tbl : task_tbl = Hashtbl.create 16
 let o_tbl : obj_tbl  = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
 
-let task_cnt = ref 0
-let obj_cnt = ref 0
-
 let user = "ocaml"
 let repo = "opam-repository"
 let token = ref None
 
-module IdMap = Map.Make(String)
-let id_cnt = ref 0
-let id_map = ref IdMap.empty
+let task_info id =
+  let task = Hashtbl.find t_tbl id in
+  (String.sub id 0 5) ^ ":" ^ Task.info_of_t task
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
 let hash_id pkg v inputs =
-  let str = pkg ^ v ^ (String.concat "" (List.rev_map string_of_int inputs)) in
+  let str = pkg ^ v ^ (String.concat ";" inputs) in
   let hash str =
-    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest |> Cstruct.to_string in
-  (* let sha1 = to_sha1 str in *)
-  let sha1 = hash str in
-  try IdMap.find sha1 !id_map
-  with Not_found ->
-    incr id_cnt;
-    id_map := IdMap.add sha1 !id_cnt !id_map;
-    !id_cnt
+    let hex_of_cs cs =
+      let buf = Buffer.create 16 in
+      Cstruct.hexdump_to_buffer buf cs;
+      Buffer.contents buf in
+    let stripe_nl_space s = Re.(
+      let re = compile (alt [compl [notnl]; space]) in
+      replace_string re ~by:"" s) in
+    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
+    |> hex_of_cs |> stripe_nl_space in
+  hash str
 
 let oid_of_task t =
   Hashtbl.fold (fun obj_id task acc ->
-    if task = t then obj_id else acc) t_tbl (-1)
+    if task = t then obj_id else acc) t_tbl ""
 
 let task_of_oid obj_id =
   try Hashtbl.find t_tbl obj_id with _ -> failwith "task not found"
@@ -85,7 +84,7 @@ let find_task ip port =
   let distance_of_inputs inputs =
     let distances = List.rev_map distance_of_input inputs in
     List.fold_left (fun acc dis -> acc + dis) 0 distances in
-  if oid_inputs = [] then (-1)
+  if oid_inputs = [] then ""
   else begin
       let (oid, inputs) = List.hd oid_inputs in
       let oid, _ = List.fold_left (fun (acc_oid, acc_dis) (oid, inputs) ->
@@ -94,8 +93,8 @@ let find_task ip port =
           else acc_oid, acc_dis)
         (oid, distance_of_inputs inputs) (List.tl oid_inputs) in
       Hashtbl.replace s_tbl oid `Dispatched;
-      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %d\n%!"
-        (String.concat " " (List.rev_map string_of_int runnables)) oid;
+      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %s\n%!"
+        (String.concat " " (List.rev_map task_info runnables)) (task_info oid);
       oid
     end
 
@@ -123,8 +122,9 @@ let publish_object obj_id obj =
   >>= fun () ->
     let runnables = Hashtbl.fold (fun oid state acc ->
         if state = `Runnable then oid :: acc else acc) s_tbl [] in
-    let str = String.concat " " (List.rev_map string_of_int runnables) in
-    return (Printf.eprintf "\t[scheduler@publish]: %d -> [%s]\n%!" obj_id str)
+    let str = String.concat " " (List.rev_map task_info runnables) in
+    return (Printf.eprintf "\t[scheduler@publish]: %s -> [%s]\n%!"
+        (task_info obj_id) str)
 
 let init_gh_token name =
   Github_cookie_jar.init ()
@@ -169,7 +169,9 @@ let resolve_and_add ?pull pkg =
     if Hashtbl.mem t_tbl id then id else
       let task = Task.make_task ?pull id pkg v inputs in
       Hashtbl.add t_tbl id task;
-      Hashtbl.add s_tbl id `Pending;
+      List.iter (fun input -> Hashtbl.add h_tbl input id) inputs;
+      Hashtbl.add s_tbl id
+        (if inputs = [] then `Runnable else `Pending);
       id in
   Ci_opam.add_task ?pull new_task action_graph;
   Printf.eprintf "\t[scheduler@resolve]: %d tasks\n%!" (Hashtbl.length t_tbl)

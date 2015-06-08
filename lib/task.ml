@@ -1,8 +1,8 @@
 open Sexplib.Std
 
 type t = {
-  id : int;           (* task is referenced by this id *)
-  inputs : int list;  (* inputs are object ids *)
+  id : string;           (* task is referenced by this id *)
+  inputs : string list;  (* inputs are object ids *)
   task : task;
 }
  (* a task may be a github PR or a dependency resolved by opam solver *)
@@ -19,6 +19,10 @@ and pull = {
 let id_of_t {id} = id
 
 let inputs_of_t {inputs} = inputs
+
+let info_of_t t =
+  match t.task with
+  | Github (p, v, _) | Package (p, v) -> p ^ "." ^ v
 
 let make_pull num url base head = {
     pull_num = num;
@@ -40,5 +44,6 @@ let string_of_t {id; inputs; task} =
        Printf.sprintf "%s.%s from github/%d" pkg version pull.pull_num
     | Package (pkg, version) ->
        Printf.sprintf "%s.%s" pkg version in
-  let inputs_str = String.concat "," (List.rev_map string_of_int inputs) in
-  Printf.sprintf "%s -> [%d: %s]" inputs_str id task_str
+  let subset = fun str -> String.sub str 0 5 in
+  let inputs_str = String.concat "," (List.rev_map subset inputs) in
+  Printf.sprintf "%s -> [%s: %s]" inputs_str (subset id) task_str

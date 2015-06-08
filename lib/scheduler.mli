@@ -30,20 +30,22 @@ type state_tbl
 (* given the ip and port number of a worker, return an object id for it,
    the task who produces the object must be runnable and also needs the least
    dependencies transfers from other workers *)
-val find_task: string -> int -> int
+val find_task: string -> int -> string
 
 (* return all the object copies correspond to the given object id*)
-val get_objects: int -> Object.t list
+val get_objects: string -> Object.t list
 
 (* find the task who produces an object with the given object id*)
-val task_of_oid: int -> Task.t
+val task_of_oid: string -> Task.t
 
 (* calcute the "distance" between two ip addresses *)
 val distance_of_ips: string -> string -> int
 
 (* given an object id and an object, add them in the object table *)
-val publish_object: int -> Object.t -> unit Lwt.t
+val publish_object: string -> Object.t -> unit Lwt.t
 
+(* given a task id and return the pacakge name and version information *)
+val task_info: string -> string
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task

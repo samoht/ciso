@@ -23,6 +23,8 @@ let idle_sleep = 3.0
 let working_sleep = 5.0
 let body_of_sexp sexp = Body.of_string (Sexplib.Sexp.to_string sexp)
 
+let sub len str = String.sub str 0 len
+
 let log action func ~info =
   let title = Printf.sprintf "%s@%s" action func in
   if info = "" then Printf.eprintf "[%s]\n%!" title
@@ -36,7 +38,7 @@ let get_working_dir worker =
   path
 
 let to_local_obj worker id content =
-  let file = Printf.sprintf "%d.out" id in
+  let file = Printf.sprintf "%s.out" (sub 5 id) in
   let dir = get_working_dir worker in
   let path = Filename.concat dir file in
   return (open_out path)
@@ -50,7 +52,6 @@ let to_local_obj worker id content =
 
 (* POST base/workers -> `Created *)
 let worker_register base ((ip, port) as addr) =
-  log "send" "register" ~info:"";
   let msg = Message.sexp_of_worker_msg (Register (ip, port)) in
   let body = body_of_sexp msg in
   let uri = Uri.resolve "" base (Uri.of_string "workers") in
@@ -62,6 +63,8 @@ let worker_register base ((ip, port) as addr) =
     if status = Cohttp.Code.(`Created) then
       match Message.master_msg_of_sexp (Sexplib.Sexp.of_string body_str) with
       | Ack_register (id, sha) ->
+         let info = Printf.sprintf "success: %d %s" id sha in
+         log "send" "register" ~info;
          return { id; addr; sha; tasks = []; objects = []; status = Idle}
       | _ -> fail exn
     else fail exn
@@ -73,7 +76,7 @@ let worker_heartbeat base { id; sha; status } =
     match status with
     | Working t ->
        let t_id = Task.id_of_t t in
-       log "send" "heartbeat" ~info:("working " ^ (string_of_int t_id));
+       log "send" "heartbeat" ~info:("working " ^ (sub 5 t_id));
        Heartbeat (Some (Task.id_of_t t))
     | Idle ->
        log "send" "heartbeat" ~info:"idle";
@@ -95,9 +98,9 @@ let worker_heartbeat base { id; sha; status } =
 
 (* GET base/worker<id>/newtask/<task_id> -> `OK  *)
 let worker_request_task base {id; sha} task_id =
-  log "send" "task" ~info:("request task " ^ (string_of_int task_id));
+  log "send" "task" ~info:("request task " ^ (sub 5 task_id));
   let headers = Cohttp.Header.of_list ["worker", sha] in
-  let uri_path = Printf.sprintf "worker%d/newtask/%d" id task_id in
+  let uri_path = Printf.sprintf "worker%d/newtask/%s" id task_id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
   Client.get ~headers uri
   >>= fun (resp, body) -> Body.to_string body
@@ -110,7 +113,7 @@ let worker_request_task base {id; sha} task_id =
 
 (* POST base/worker<id>/objects -> `Created *)
 let worker_publish base {id; addr; sha} obj =
-  log "send" "publish" ~info:("object" ^ (string_of_int (Object.id_of_t obj)));
+  log "send" "publish" ~info:("object " ^ (sub 5 (Object.id_of_t obj)));
   let headers = Cohttp.Header.of_list ["worker", sha] in
   let obj_info = Object.(id_of_t obj, path_of_t obj) in
   let body = body_of_sexp (sexp_of_worker_msg (Publish (addr, obj_info))) in
@@ -126,9 +129,9 @@ let worker_publish base {id; addr; sha} obj =
 (* GET base/object<obj_id> -> `OK *)
 let worker_consult_object base {addr} obj_id =
   let ip, port = addr in
-  let info = "need positions of object" ^ (string_of_int obj_id) in
+  let info = "need positions of object " ^ (sub 5 obj_id) in
   log "send" "consult" ~info;
-  let uri_path = Printf.sprintf "object%d" obj_id in
+  let uri_path = Printf.sprintf "object%s" obj_id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
   let headers = Cohttp.Header.of_list ["ip", ip; "port", string_of_int port] in
   Client.get ~headers uri
@@ -147,12 +150,13 @@ let worker_request_object base worker obj_id =
   let obj = List.filter (fun obj ->
     Object.id_of_t obj = obj_id) worker.objects in
   if List.length obj <> 0 then begin
-    log "send" "object" ~info:(Printf.sprintf "get object%d locally" obj_id);
+    log "send" "object"
+        ~info:(Printf.sprintf "get object %s locally" (sub 5obj_id));
     let path = Object.path_of_t (List.hd obj) in
     assert (Sys.file_exists path);
     let ic = open_in path in
     let line = input_line ic in
-    let str = Printf.sprintf "\tFrom %d: %s\n" obj_id  line in
+    let str = Printf.sprintf "\tFrom %s: %s\n" (sub 5 obj_id)  line in
     return str
     (* Lwt_io.(open_file ~mode:input ~flags:[Unix.O_RDONLY] file
     >>= fun ic -> read ic*) end
@@ -160,12 +164,12 @@ let worker_request_object base worker obj_id =
     worker_consult_object base worker obj_id
     >>= fun (ip, port, path) ->
     let headers =
-      Cohttp.Header.of_list ["obj_id",string_of_int obj_id] in
+      Cohttp.Header.of_list ["obj_id",sub 5 obj_id] in
     let req_base = Uri.of_string (Printf.sprintf "http://%s:%d" ip port) in
     let path = Uri.of_string path in
     let uri = Uri.resolve "" req_base path in
-    let info = Printf.sprintf "get object%d from %s"
-      obj_id (Uri.to_string uri) in
+    let info = Printf.sprintf "get object %s from %s"
+      (sub 5 obj_id) (Uri.to_string uri) in
     log "send" "object" ~info;
     Client.get ~headers uri
     >>= fun (resp, body) -> Body.to_string body
@@ -183,8 +187,8 @@ let worker_request_object base worker obj_id =
 (* dummy execution *)
 let task_execute base worker task obj_id =
   let t_inputs = Task.inputs_of_t task in
-  let inputs_str = String.concat " " (List.rev_map string_of_int t_inputs) in
-  let info = Printf.sprintf "task%d need %s" obj_id inputs_str in
+  let inputs_str = String.concat " " (List.rev_map (sub 5) t_inputs) in
+  let info = Printf.sprintf "task %s need %s" (sub 5 obj_id) inputs_str in
   log "execute" "task" ~info;
   Lwt_list.map_p (fun input_id ->
     worker_request_object base worker input_id
@@ -197,7 +201,7 @@ let task_execute base worker task obj_id =
 
 let rec execution_loop base worker cond =
   Lwt_condition.wait cond >>= fun (task_id, obj_id) ->
-    let task_id_last = try Task.id_of_t (List.hd worker.tasks) with _ -> (-1) in
+    let task_id_last = try Task.id_of_t (List.hd worker.tasks) with _ -> "" in
     if task_id_last = task_id then execution_loop base worker cond
     else begin
         worker_request_task base worker task_id
@@ -257,7 +261,8 @@ let worker base_str ip port =
   worker_register base (ip, port)
   >>= (fun worker ->
     let cond = Lwt_condition.create () in
-    join [heartbeat_loop base worker cond; execution_loop base worker cond;
+    join [heartbeat_loop base worker cond;
+          execution_loop base worker cond;
           worker_file_server worker])
   |> Lwt_main.run
 
