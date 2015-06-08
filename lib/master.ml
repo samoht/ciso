@@ -5,12 +5,11 @@ module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
 type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
-type queue_tbl = (int * string, string Queue.t) Hashtbl.t (* id, sha -> queue *)
-
+type log_tbl = (int * string, string) Hashtbl.t (*id, sha -> task_id list*)
 exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16
-let q_tbl : queue_tbl = Hashtbl.create 16
+let l_tbl : log_tbl = Hashtbl.create 16
 let worker_cnt = ref 0
 
 let addr_of_id (id, sha) =
@@ -32,8 +31,6 @@ let get_sha1 str =
   hex_of_cs |> stripe_nl_space
   (* Cryptokit.(hash_string (Hash.sha1 ()) str) *)
 
-let sub len str = String.sub str 0 len
-
 let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in
   Printf.eprintf "[%s]: %s\n%!" title info
@@ -45,7 +42,6 @@ let new_worker ip port =
       let id = !worker_cnt in
       let sha = get_sha1 (ip ^ (string_of_int port) ^ (string_of_int id)) in
       Hashtbl.add w_tbl (ip, port) (id, sha);
-      Hashtbl.add q_tbl (id, sha) (Queue.create ());
       id, sha
       end
 
@@ -75,19 +71,13 @@ let heartbeat_handler groups headers body =
     let resp_msg = Message.(match msg with
       | Heartbeat None ->
          log "heartbeat" id "idle";
-         let t_q = Hashtbl.find q_tbl (id, sha) in
-         if Queue.is_empty t_q then begin
-             let ip, port = addr_of_id (id, sha) in
-             let oid = Scheduler.find_task ip port in
-             if oid <> "" then Queue.add oid t_q end
-         else Printf.eprintf "\ttask %s is in the queue\n%!"
-                (sub 5 (Queue.peek t_q));
-         let obj_id = try Queue.peek t_q with _ -> "" in
-         if obj_id = "" then Message.Ack_heartbeat else
-           let task = Scheduler.task_of_oid obj_id in
-           Message.New_task (Task.id_of_t task, obj_id)
+         let ip, port = addr_of_id (id, sha) in
+         let oid = Scheduler.find_task ip port in
+         if oid = "" then Message.Ack_heartbeat else
+           let task = Scheduler.task_of_oid oid in
+           Message.New_task (oid, Sexplib.Sexp.to_string (Task.sexp_of_t task))
       | Heartbeat (Some execution_id) ->
-         log "heartbeat" id ("working " ^ (sub 5 execution_id));
+         log "heartbeat" id ("working " ^ (Scheduler.task_info execution_id));
          Message.Ack_heartbeat
       |_ -> raise (WrongMessage body_str)) in
     let resp = Response.make ~status:Code.(`OK) () in
@@ -95,7 +85,7 @@ let heartbeat_handler groups headers body =
     let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
     return (resp, body)
 
-(* request_task : GET base/worker<id>/newtask/<task_id> -> `OK  *)
+(* request_task : GET base/worker<id>/newtask/<task_id> -> `OK
 let request_task_handler groups headers body =
   let id = int_of_string (groups.(1)) in
   let t_id = groups.(2) in
@@ -107,7 +97,7 @@ let request_task_handler groups headers body =
   log "task" id ("dequeue task " ^ (Scheduler.task_info t_id));
   let resp = Response.make ~status:Code.(`OK) () in
   let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
-  return (resp, body)
+  return (resp, body) *)
 
 (* publish : POST base/worker<id>/objects -> `Created *)
 let publish_handler groups headers body =
@@ -117,13 +107,12 @@ let publish_handler groups headers body =
   Body.to_string body
   >>= fun body_str ->
     let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
-    let addr, obj_info = Message.(match msg with
+    let addr, (oid, obj_path) = Message.(match msg with
       | Publish (a, o) -> a, o | _ -> raise (WrongMessage body_str)) in
-    assert ((id, sha) = Hashtbl.find w_tbl addr);
-    let (obj_id, obj_path) = obj_info in
-    log "publish" id ("object " ^ (Scheduler.task_info obj_id));
-    let obj = Object.create obj_id addr obj_path in
-    Scheduler.publish_object obj_id obj;
+    let id, sha = Hashtbl.find w_tbl addr in
+    Hashtbl.add l_tbl (id, sha) oid;
+    log "publish" id ("object " ^ (Scheduler.task_info oid));
+    Scheduler.publish_object oid (Object.create oid addr obj_path);
   >>= fun () -> return (Response.make ~status:Code.(`Created) (), Body.empty)
 
 
@@ -181,8 +170,8 @@ let handler_route_table = Re.(
   let id = rep1 (set "0123456789abcdef") in
   [(post, str "/workers"), register_handler;
    (post, seq [str "/worker"; group (rep1 digit); eos]), heartbeat_handler;
-   (get,  seq [str "/worker"; group (rep1 digit);
-               str "/newtask/"; group id]), request_task_handler;
+   (* (get,  seq [str "/worker"; group (rep1 digit);
+               str "/newtask/"; group id]), request_task_handler; *)
    (post, seq [str "/worker"; group (rep1 digit);
                str "/objects"]), publish_handler;
    (get, seq [str "/object"; group id; eos]), consult_handler;
@@ -231,8 +220,9 @@ let master ip port =
   >>= (fun ctx ->
     let ctx = Cohttp_lwt_unix_net.init ~ctx () in
     let mode = Conduit_lwt_unix.(`TCP (`Port port)) in
-    Cohttp_lwt_unix.Server.create ~mode ~ctx
-      (Cohttp_lwt_unix.Server.make ~callback ()))
+    let t_server = Cohttp_lwt_unix.Server.create ~mode ~ctx
+      (Cohttp_lwt_unix.Server.make ~callback ()) in
+    join [t_server])
   |> Lwt_unix.run
 
 let ip = Cmdliner.Arg.(

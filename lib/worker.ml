@@ -92,7 +92,7 @@ let worker_heartbeat base { id; sha; status } =
     if status = Cohttp.Code.(`OK) then
       match Message.master_msg_of_sexp (Sexplib.Sexp.of_string body_str) with
       | Ack_heartbeat -> return None
-      | New_task (t_id, o_id) -> return (Some (t_id, o_id))
+      | New_task (id, task) -> return (Some (id, task))
       | _ -> fail exn
     else fail exn
 
@@ -200,14 +200,13 @@ let task_execute base worker task obj_id =
     to_local_obj worker obj_id content
 
 let rec execution_loop base worker cond =
-  Lwt_condition.wait cond >>= fun (task_id, obj_id) ->
-    let task_id_last = try Task.id_of_t (List.hd worker.tasks) with _ -> "" in
-    if task_id_last = task_id then execution_loop base worker cond
+  Lwt_condition.wait cond >>= fun (id, task) ->
+    if List.mem id (List.rev_map Task.id_of_t worker.tasks) then
+      execution_loop base worker cond
     else begin
-        worker_request_task base worker task_id
-        >>= fun task ->
-          worker.status <- Working task;
-          task_execute base worker task obj_id
+        let task = Task.t_of_sexp (Sexplib.Sexp.of_string task) in
+        worker.status <- Working task;
+        task_execute base worker task id
         >>= fun obj -> worker_publish base worker obj
         >>= fun () ->
           worker.tasks <- task :: worker.tasks;
@@ -222,8 +221,8 @@ let rec heartbeat_loop base worker cond =
     | None ->
        Lwt_unix.sleep idle_sleep
        >>= fun () -> heartbeat_loop base worker cond
-    | Some (t_id, o_id) ->
-       Lwt_condition.signal cond (t_id, o_id);
+    | Some (id, task) ->
+       Lwt_condition.signal cond (id, task);
        Lwt_unix.sleep idle_sleep
        >>= fun () -> heartbeat_loop base worker cond end
   | Working _ ->
