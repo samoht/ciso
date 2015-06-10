@@ -12,3 +12,9 @@ let addr_of_t {addr} = addr
 let ip_of_t t = fst (addr_of_t t)
 
 let create id addr path = {id; addr; path}
+
+let string_of_t obj =
+  sexp_of_t obj |> Sexplib.Sexp.to_string
+
+let t_of_string str =
+  Sexplib.Sexp.of_string str |> t_of_sexp
