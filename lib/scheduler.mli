@@ -3,12 +3,6 @@
    then there is the binding a.id -> A *)
 type task_tbl
 
-(* object id -> object
-   when the object isn't produced, there will be no binding in the table,
-   an object may have multiple copies,
-   so there might be multiple bindings for one id *)
-type obj_tbl
-
 (* object id -> object id
    if task A has dependencies objects b, c, d,
    and task A is supposed to produce object a,
@@ -30,22 +24,14 @@ type state_tbl
 (* given the ip and port number of a worker, return an object id for it,
    the task who produces the object must be runnable and also needs the least
    dependencies transfers from other workers *)
-val find_task: string -> int -> string
+val find_task: string -> (string * string) option
 
-(* return all the object copies correspond to the given object id*)
-val get_objects: string -> Object.t list
-
-(* find the task who produces an object with the given object id*)
-val task_of_oid: string -> Task.t
-
-(* calcute the "distance" between two ip addresses *)
-val distance_of_ips: string -> string -> int
-
-(* given an object id and an object, add them in the object table *)
-val publish_object: string -> Object.t -> unit Lwt.t
+(* given an object id and a worker token, add them in the logmap *)
+val publish_object: string -> string -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
 val task_info: string -> string
+
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task
@@ -54,4 +40,4 @@ val github_hook : int -> unit Lwt.t
 
 (* given a package number with version constraint probably, resolve the task
    and add tasks into task table *)
-val user_demand_handler: string -> unit Lwt.t
+val user_demand: string -> unit Lwt.t

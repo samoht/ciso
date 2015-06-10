@@ -1,27 +1,22 @@
 open Lwt
 
-(* id -> the task who is supposed to produce the object *)
+(* set of task/object ids*)
+module IdSet = Set.Make(String)
+
+(* task map from worker token to tasks completed by that worker *)
+module LogMap = Map.Make(String)
+
 type task_tbl = (string, Task.t) Hashtbl.t
 
-(* id -> object
-   when the object isn't produced, there will be no binding in the table,
-   an object may have multiple copies,
-   so there might be multiple bindings for one id *)
-type obj_tbl = (string, Object.t) Hashtbl.t
-
-(* id -> id
-   if task A has dependencies objects b, c, d,
-   and task A is supposed to produce object a,
-   then there will be bindins b -> a, c -> a, d -> a, *)
 type hook_tbl = (string, string) Hashtbl.t
 
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
 type state_tbl = (string, state) Hashtbl.t
 
 let t_tbl : task_tbl = Hashtbl.create 16
-let o_tbl : obj_tbl  = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
+let w_map = ref LogMap.empty
 
 let user = "ocaml"
 let repo = "opam-repository"
@@ -30,6 +25,7 @@ let token = ref None
 let task_info id =
   let task = Hashtbl.find t_tbl id in
   (String.sub id 0 5) ^ ":" ^ Task.info_of_t task
+
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
@@ -47,84 +43,58 @@ let hash_id pkg v inputs =
     |> hex_of_cs |> stripe_nl_space in
   hash str
 
-let oid_of_task t =
-  Hashtbl.fold (fun obj_id task acc ->
-    if task = t then obj_id else acc) t_tbl ""
 
-let task_of_oid obj_id =
-  try Hashtbl.find t_tbl obj_id with _ -> failwith "task not found"
+let find_task wtoken =
+  let runnables = Hashtbl.fold (fun id state acc ->
+      if state = `Runnable then id :: acc else acc) s_tbl [] in
+  if runnables = [] then None
+  else begin
+      let wset = LogMap.find wtoken !w_map in
+      let to_depset inputs = List.fold_left (fun set input ->
+          IdSet.add input set) IdSet.empty inputs in
+      let id, _ = List.fold_left (fun (i, n) tid ->
+          let task = Hashtbl.find t_tbl tid in
+          let inputs = Task.inputs_of_t task in
+          let dset = to_depset inputs in
+          let d = IdSet.cardinal (IdSet.inter wset dset) in
+          if d > n then tid, d else i, n) ("", (-1)) runnables in
+      Hashtbl.replace s_tbl id `Dispatched;
+      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %s\n%!"
+        (String.concat " " (List.rev_map task_info runnables)) (task_info id);
 
-let get_objects obj_id =
-  Hashtbl.find_all o_tbl obj_id
+      let task = Hashtbl.find t_tbl id in
+      let desp = Sexplib.Sexp.to_string (Task.sexp_of_t task) in
+      Some (id, desp) end
 
-let distance_of_ips ipx ipy =
-  let int_of_ip ip = Re.(
-    let decimals = split (compile (str ".")) ip in
-    let (_, sum) =
-      List.fold_right (fun d (deg, sum) ->
-        (deg * 1000, sum + deg * (int_of_string d))) decimals (1, 0) in
-    sum) in
-  abs (int_of_ip ipx - int_of_ip ipy)
 
-let find_task ip port =
+let publish_object_hook id =
+  if not (Hashtbl.mem h_tbl id) then return ()
+  else begin
+      let ids = Hashtbl.find_all h_tbl id in
+      let tups = List.rev_map (fun i -> i, Hashtbl.find t_tbl i) ids in
+      Lwt_list.iter_p (fun (i, task) ->
+        let state = Hashtbl.find s_tbl i in
+        let inputs = Task.inputs_of_t task in
+        if state <> `Pending then return () else
+          Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
+          >>= fun runnable ->
+          if runnable then return (Hashtbl.replace s_tbl i `Runnable)
+          else return ()) tups
+    end
+
+
+let publish_object wtoken id =
+  let wset = LogMap.find wtoken !w_map in
+  let n_wset = IdSet.add id wset in
+  w_map := LogMap.add wtoken n_wset !w_map;
+  return () >>= fun () ->
+  publish_object_hook id >>= fun () ->
   let runnables = Hashtbl.fold (fun oid state acc ->
       if state = `Runnable then oid :: acc else acc) s_tbl [] in
-  let oid_inputs = List.rev_map (fun oid ->
-      let task = task_of_oid oid in
-      let inputs = Task.inputs_of_t task in
-      oid, inputs) runnables in
-  let distance_of_input input =
-    let distances = List.rev_map (fun obj ->
-        let obj_ip = Object.ip_of_t obj in
-        distance_of_ips obj_ip ip)
-        (Hashtbl.find_all o_tbl input) in
-    List.fold_left (fun acc dis ->
-        if dis < acc then dis else acc)
-      (List.hd distances) (List.tl distances) in
-  let distance_of_inputs inputs =
-    let distances = List.rev_map distance_of_input inputs in
-    List.fold_left (fun acc dis -> acc + dis) 0 distances in
-  if oid_inputs = [] then ""
-  else begin
-      let (oid, inputs) = List.hd oid_inputs in
-      let oid, _ = List.fold_left (fun (acc_oid, acc_dis) (oid, inputs) ->
-          let dis = distance_of_inputs inputs in
-          if dis < acc_dis then oid, dis
-          else acc_oid, acc_dis)
-        (oid, distance_of_inputs inputs) (List.tl oid_inputs) in
-      Hashtbl.replace s_tbl oid `Dispatched;
-      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %s\n%!"
-        (String.concat " " (List.rev_map task_info runnables)) (task_info oid);
-      oid
-    end
+  let str = String.concat " " (List.rev_map task_info runnables) in
+  Printf.eprintf "\t[scheduler@publish]: %s -> [%s]\n%!" (task_info id) str;
+  return ()
 
-let publish_object_hook obj_id =
-  if not (Hashtbl.mem h_tbl obj_id) then return ()
-  else begin
-      let oids = Hashtbl.find_all h_tbl obj_id in
-      let tups = List.rev_map (fun oid -> oid, task_of_oid oid) oids in
-      Lwt_list.iter_p (fun (oid, task) ->
-        let state = Hashtbl.find s_tbl oid in
-        let inputs = Task.inputs_of_t task in
-        if state <> `Pending then return ()
-        else if List.for_all (fun input -> Hashtbl.mem o_tbl input) inputs then
-          return (Hashtbl.replace s_tbl oid `Runnable)
-        else return ()) tups
-    end
-
-let publish_object obj_id obj =
-  let publish () =
-    Hashtbl.add o_tbl obj_id obj;
-    Hashtbl.replace s_tbl obj_id `Completed;
-    return () in
-  publish ()
-  >>= fun () -> publish_object_hook obj_id
-  >>= fun () ->
-    let runnables = Hashtbl.fold (fun oid state acc ->
-        if state = `Runnable then oid :: acc else acc) s_tbl [] in
-    let str = String.concat " " (List.rev_map task_info runnables) in
-    return (Printf.eprintf "\t[scheduler@publish]: %s -> [%s]\n%!"
-        (task_info obj_id) str)
 
 let init_gh_token name =
   Github_cookie_jar.init ()
@@ -193,6 +163,6 @@ let github_hook num =
         return ())
     |> run)
 
-let user_demand_handler pkg =
+let user_demand pkg =
   resolve_and_add pkg;
   return ()

@@ -4,19 +4,15 @@ module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
-type worker_tbl = (string * int, int * string) Hashtbl.t (* ip, port->id, sha *)
-type log_tbl = (int * string, string) Hashtbl.t (*id, sha -> task_id list*)
+type worker_tbl = (int, string) Hashtbl.t (* id -> token *)
 exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16
-let l_tbl : log_tbl = Hashtbl.create 16
 let worker_cnt = ref 0
 
-let addr_of_id (id, sha) =
-  let ip = ref "" and port = ref (-1) in
-  Hashtbl.iter (fun (_ip, _port) (_id, _sha)->
-      if _id = id && _sha = sha then begin ip := _ip; port := _port end) w_tbl;
-  !ip, !port
+let log handler worker_id info =
+  let title = Printf.sprintf "worker%d@%s" worker_id handler in
+  Printf.eprintf "[%s]: %s\n%!" title info
 
 let get_sha1 str =
   let hex_of_cs cs =
@@ -29,153 +25,112 @@ let get_sha1 str =
   str |> Cstruct.of_string |>
   Nocrypto.Hash.SHA1.digest |>
   hex_of_cs |> stripe_nl_space
-  (* Cryptokit.(hash_string (Hash.sha1 ()) str) *)
 
-let log handler worker_id info =
-  let title = Printf.sprintf "worker%d@%s" worker_id handler in
-  Printf.eprintf "[%s]: %s\n%!" title info
+let body_of_message m =
+  Message.sexp_of_master_msg m
+  |> Sexplib.Sexp.to_string
+  |> Body.of_string
 
-let new_worker ip port =
-  if Hashtbl.mem w_tbl (ip, port) then Hashtbl.find w_tbl (ip, port)
-  else begin
-      incr worker_cnt;
-      let id = !worker_cnt in
-      let sha = get_sha1 (ip ^ (string_of_int port) ^ (string_of_int id)) in
-      Hashtbl.add w_tbl (ip, port) (id, sha);
-      id, sha
-    end
+let message_of_body body =
+  Body.to_string body >>= fun b ->
+  Sexplib.Sexp.of_string b
+  |> Message.worker_msg_of_sexp
+  |> return
 
-let register_handler subs headers body =
-  Body.to_string body
-  >>= (fun body_str ->
-    let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
-    let ip, port = match msg with
-      | Message.Register (i, p) -> i, p
-      | _ -> raise (WrongMessage body_str) in
-    return ((ip, port), new_worker ip port))
-  >>= fun ((ip, port), (id, sha)) ->
-    log "register" id "success";
-    let resp = Response.make ~status:Code.(`Created) () in
-    let msg_sexp = Message.(sexp_of_master_msg (Ack_register (id, sha))) in
-    let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
-    return (resp, body)
-
-(* heartbeat : POST base/worker<id> -> `Ok *)
-let heartbeat_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
-  let sha = match Cohttp.Header.get headers "worker" with
-    | Some str -> str | None -> "" in
-  Body.to_string body
-  >>= fun body_str ->
-    let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
-    let resp_msg = Message.(match msg with
-      | Heartbeat None ->
-         log "heartbeat" id "idle";
-         let ip, port = addr_of_id (id, sha) in
-         let tid = Scheduler.find_task ip port in
-         if tid = "" then Message.Ack_heartbeat else
-           let task = Scheduler.task_of_oid tid in
-           Message.New_task (tid, Sexplib.Sexp.to_string (Task.sexp_of_t task))
-      | Heartbeat (Some execution_id) ->
-         log "heartbeat" id ("working " ^ (Scheduler.task_info execution_id));
-         Message.Ack_heartbeat
-      |_ -> raise (WrongMessage body_str)) in
-    let resp = Response.make ~status:Code.(`OK) () in
-    let msg_sexp = Message.sexp_of_master_msg resp_msg in
-    let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
-    return (resp, body)
-
-(* request_task : GET base/worker<id>/newtask/<task_id> -> `OK
-let request_task_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
-  let t_id = groups.(2) in
-  let sha = match Cohttp.Header.get headers "worker" with
-    | Some str -> str | None -> "" in
-  let t_q = Hashtbl.find q_tbl (id, sha) in
-  let t = Scheduler.task_of_oid (Queue.pop t_q) in
-  assert (t_id = Task.id_of_t t);
-  log "task" id ("dequeue task " ^ (Scheduler.task_info t_id));
-  let resp = Response.make ~status:Code.(`OK) () in
-  let body = Body.of_string (Sexplib.Sexp.to_string (Task.sexp_of_t t)) in
-  return (resp, body) *)
-
-(* publish : POST base/worker<id>/objects -> `Created *)
-let publish_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
-  let sha = match Cohttp.Header.get headers "worker" with
-    | Some str -> str | None -> "" in
-  Body.to_string body
-  >>= fun body_str ->
-    let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
-    let addr, (oid, obj_path) = Message.(match msg with
-      | Publish (a, o) -> a, o | _ -> raise (WrongMessage body_str)) in
-    Hashtbl.add l_tbl (id, sha) oid;
-    log "publish" id ("object " ^ (Scheduler.task_info oid));
-    Scheduler.publish_object oid (Object.create oid addr obj_path);
-  >>= fun () -> return (Response.make ~status:Code.(`Created) (), Body.empty)
-
-
-(* consult : GET base/object<obj_id> -> `OK * Best_object *)
-let consult_handler groups headers body =
-  let obj_id = groups.(1) in
-  let objs = Scheduler.get_objects obj_id in
-  let ip, port =
-    match Cohttp.Header.(get headers "ip", get headers "port") with
-    | Some ip, Some port -> ip, int_of_string port
-    | _ -> raise (WrongMessage "broken headers @ consult") in
-  let rec find_best (dis, obj) = function
-      | hd :: tl ->
-         let ip_hd = fst (Object.addr_of_t hd) in
-         let dis_hd = Scheduler.distance_of_ips ip ip_hd in
-         if dis_hd <= dis then find_best (dis_hd, hd) tl
-         else find_best (dis, obj) tl
-      | [] -> obj in
-  let (hd:Object.t), tl = List.hd objs, List.tl objs in
-  let best =
-    if tl = [] then hd
-    else
-      let dis = Scheduler.distance_of_ips ip (Object.ip_of_t hd) in
-      find_best (dis, hd) tl in
-  let (d_ip, d_port), path = Object.(addr_of_t best, path_of_t best) in
-  let msg = Message.Best_object (d_ip, d_port, path) in
-  let msg_sexp = Message.(sexp_of_master_msg msg) in
-  let info =  Printf.sprintf "%s at worker%d %s"
-    (Scheduler.task_info obj_id)
-    (fst (Hashtbl.find w_tbl (d_ip, d_port))) path in
-  log "consult" (fst (Hashtbl.find w_tbl (ip, port))) info;
-  let body = Body.of_string (Sexplib.Sexp.to_string msg_sexp) in
-  let resp = Response.make ~status:Code.(`OK) () in
+let empty_response ~status =
+  let resp = Response.make ~status () in
+  let body = Body.empty in
   return (resp, body)
 
-(* pull_request : POST base/github/<pr_num> -> `OK *)
+let new_token id =
+  let id = string_of_int id in
+  let time = string_of_float (Sys.time ()) in
+  get_sha1 (id ^ time)
+
+
+let register_handler groups headers body =
+  let id = incr worker_cnt; !worker_cnt in
+  let token = new_token id in
+  Hashtbl.replace w_tbl id token;
+  Store.register_token token >>= fun () ->
+
+  let m = Message.Ack_register (id, token) in
+  let resp = Response.make ~status:Code.(`Created) () in
+  let body = body_of_message m in
+  return (resp, body)
+
+
+let heartbeat_handler groups headers body =
+  let id = int_of_string (groups.(1)) in
+  let token = match Cohttp.Header.get headers "worker" with
+    | Some t -> t | None -> "" in
+  if token <> Hashtbl.find w_tbl id then failwith "fake worker";
+
+  message_of_body body >>= fun m ->
+  let resp_m = Message.(match m with
+      | Heartbeat None ->
+         log "heartbeat" id "idle";
+         (match Scheduler.find_task token with
+          | None -> Ack_heartbeat
+          | Some (tid, tdesp) -> New_task (tid, tdesp))
+      | Heartbeat (Some tid) ->
+         let info = Scheduler.task_info tid in
+         log "heartbeat" id ("working task " ^ info);
+         Message.Ack_heartbeat
+      | Register | Publish _ -> failwith "wrong message for heartbeat") in
+
+  let resp = Response.make ~status:Code.(`OK) () in
+  let body = body_of_message resp_m in
+  return (resp, body)
+
+
+let publish_handler groups headers body =
+  let id = int_of_string (groups.(1)) in
+  let token = match Cohttp.Header.get headers "worker" with
+    | Some t -> t | None -> "" in
+  if token <> Hashtbl.find w_tbl id then failwith "fake worker";
+
+  message_of_body body >>= fun m ->
+  let tid = Message.(match m with
+      | Publish id -> id
+      | Register | Heartbeat _ -> failwith "wrong message for publish") in
+    log "publish" id ("object " ^ (Scheduler.task_info tid));
+    Scheduler.publish_object token tid >>= fun () ->
+
+    empty_response Code.(`Created)
+
 let github_hook_handler groups headers body =
   let pr_num = int_of_string (groups.(1)) in
   Scheduler.github_hook pr_num
   >>= fun () ->
-    let resp = Response.make ~status:Code.(`Accepted) () in
-    let body = Body.empty in
-    return (resp, body)
+  empty_response Code.(`Accepted)
+
 
 let user_demand_handler groups headers body =
   let pkg = groups.(1) in
-  Scheduler.user_demand_handler pkg
+  Scheduler.user_demand pkg
   >>= fun () ->
-    let resp = Response.make ~status:Code.(`Accepted) () in
-    let body = Body.empty in
-    return (resp, body)
+  empty_response Code.(`Accepted)
+
 
 let handler_route_table = Re.(
-  let post, get = Code.(`POST, `GET) in
-  let id = rep1 (set "0123456789abcdef") in
-  [(post, str "/workers"), register_handler;
-   (post, seq [str "/worker"; group (rep1 digit); eos]), heartbeat_handler;
-   (* (get,  seq [str "/worker"; group (rep1 digit);
-               str "/newtask/"; group id]), request_task_handler; *)
-   (post, seq [str "/worker"; group (rep1 digit);
-               str "/objects"]), publish_handler;
-   (get, seq [str "/object"; group id; eos]), consult_handler;
-   (post, seq [str "/github/"; group (rep1 digit); eos]), github_hook_handler;
-   (post, seq [str "/pkg/"; group (rep1 any); eos]), user_demand_handler])
+  let post = Code.(`POST) in
+  [(post,
+    str "/worker/registration"),
+    register_handler;
+   (post,
+    seq [str "/worker"; group (rep1 digit); str "/state"]),
+    heartbeat_handler;
+   (post,
+    seq [str "/worker"; group (rep1 digit); str "/objects"]),
+    publish_handler;
+   (post,
+    seq [str "/github/"; group (rep1 digit); eos]),
+    github_hook_handler;
+   (post,
+    seq [str "/package/"; group (rep1 any); eos]),
+    user_demand_handler])
+
 
 let route_handler meth path = Re.(
   List.fold_left (fun acc ((m, p), h) ->
@@ -191,32 +146,30 @@ let route_handler meth path = Re.(
         with Not_found -> acc
       end) [] handler_route_table)
 
+
 let callback conn req body =
   let meth, headers, uri = Cohttp_lwt_unix.Request.(
     meth req, headers req, uri req) in
   let path = Uri.path uri in
   let handler = route_handler meth path in
-  if List.length handler <> 1 then
-    return (Response.make ~status:Code.(`Not_found) (),
-            Body.of_string "Service not found...")
-  else begin
-      let handler = List.hd handler in
-      catch (fun () -> handler headers body) (fun exn ->
-        (match exn with
-         | WrongMessage str->
-            Printf.eprintf "Received undecodable message: %s\n%!" str;
-         | Failure str ->
-            Printf.eprintf "[Error]: %s ...\n%!" str;
-         | _ ->
-            Printf.eprintf "Error while handling the request:\n%s %s\n%!"
-                           (Cohttp.Code.string_of_method meth) path);
-        return (Response.make ~status:Code.(`Not_found) (),
-                Body.of_string "Fail!\n"))
-    end
 
-let master ip port =
+  if List.length handler <> 1 then empty_response Code.(`Not_found)
+  else
+    let handler = List.hd handler in
+    let err_handler exn =
+      let meth = Cohttp.Code.string_of_method meth in
+      let err_m = match exn with
+        | Failure str -> Printf.sprintf "Error: %s %s -> %s \n%!" meth path str
+        | _ -> Printf.sprintf "Error: %s %s -> unknown \n%!" meth path in
+      prerr_endline err_m;
+      empty_response Code.(`No_content) in
+    catch (fun () -> handler headers body) err_handler
+
+
+let master store ip port =
+  Store.initial_store ~uri:store () >>= (fun () ->
   Conduit_lwt_unix.init ~src:ip ()
-  >>= (fun ctx ->
+  >>= fun ctx ->
     let ctx = Cohttp_lwt_unix_net.init ~ctx () in
     let mode = Conduit_lwt_unix.(`TCP (`Port port)) in
     let t_server = Cohttp_lwt_unix.Server.create ~mode ~ctx
@@ -232,8 +185,13 @@ let port = Cmdliner.Arg.(
   value & opt int 8080 & info ["port"]
     ~doc:"the port number of the master")
 
+let store = Cmdliner.Arg.(
+  required & pos 0 (some string) None & info []
+    ~doc:"the address to contact the data store" ~docv:"STORE")
+
+
 let () = Cmdliner.Term.(
   let master_cmd =
-    pure master $ ip $ port,
+    pure master $ store $ ip $ port,
     info ~doc:"start the master" "master" in
   match eval master_cmd with `Error _ -> exit 1 | _ -> exit 0)
