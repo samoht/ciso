@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: dc4577fa23e14c5c10dd88cc59797a45)
+# DO NOT EDIT (digest: f680c0c83eadfdb0096ea75690396830)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
 requires = "sexplib.syntax"
@@ -8,5 +8,15 @@ archive(byte, plugin) = "ci_basic.cma"
 archive(native) = "ci_basic.cmxa"
 archive(native, plugin) = "ci_basic.cmxs"
 exists_if = "ci_basic.cma"
+package "ci_store" (
+ version = "0.0.0"
+ description = "distributed integration engine for opam packages"
+ requires = "irmin.unix"
+ archive(byte) = "ci_store.cma"
+ archive(byte, plugin) = "ci_store.cma"
+ archive(native) = "ci_store.cmxa"
+ archive(native, plugin) = "ci_store.cmxs"
+ exists_if = "ci_store.cma"
+)
 # OASIS_STOP
 

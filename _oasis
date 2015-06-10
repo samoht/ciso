@@ -20,13 +20,21 @@ Library ci_store
   Modules: Store
   BuildDepends: irmin.unix
 
+Executable store
+  Path: lib
+  MainIs: store_server.ml
+  Custom: true
+  Install: false
+  CompiledObject: best
+  BuildDepends: cmdliner, irmin.unix
+
 Executable worker
   Path: lib
   MainIs: worker.ml
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, unix
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix
 
 Executable master
   Path: lib
@@ -34,4 +42,4 @@ Executable master
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix, nocrypto
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix, nocrypto, irmin.unix
