@@ -43,7 +43,7 @@ let new_worker ip port =
       let sha = get_sha1 (ip ^ (string_of_int port) ^ (string_of_int id)) in
       Hashtbl.add w_tbl (ip, port) (id, sha);
       id, sha
-      end
+    end
 
 let register_handler subs headers body =
   Body.to_string body
@@ -72,10 +72,10 @@ let heartbeat_handler groups headers body =
       | Heartbeat None ->
          log "heartbeat" id "idle";
          let ip, port = addr_of_id (id, sha) in
-         let oid = Scheduler.find_task ip port in
-         if oid = "" then Message.Ack_heartbeat else
-           let task = Scheduler.task_of_oid oid in
-           Message.New_task (oid, Sexplib.Sexp.to_string (Task.sexp_of_t task))
+         let tid = Scheduler.find_task ip port in
+         if tid = "" then Message.Ack_heartbeat else
+           let task = Scheduler.task_of_oid tid in
+           Message.New_task (tid, Sexplib.Sexp.to_string (Task.sexp_of_t task))
       | Heartbeat (Some execution_id) ->
          log "heartbeat" id ("working " ^ (Scheduler.task_info execution_id));
          Message.Ack_heartbeat
@@ -109,7 +109,6 @@ let publish_handler groups headers body =
     let msg = Message.worker_msg_of_sexp (Sexplib.Sexp.of_string body_str) in
     let addr, (oid, obj_path) = Message.(match msg with
       | Publish (a, o) -> a, o | _ -> raise (WrongMessage body_str)) in
-    let id, sha = Hashtbl.find w_tbl addr in
     Hashtbl.add l_tbl (id, sha) oid;
     log "publish" id ("object " ^ (Scheduler.task_info oid));
     Scheduler.publish_object oid (Object.create oid addr obj_path);
@@ -157,9 +156,9 @@ let github_hook_handler groups headers body =
     let body = Body.empty in
     return (resp, body)
 
-let test_handler groups headers body =
+let user_demand_handler groups headers body =
   let pkg = groups.(1) in
-  Scheduler.test_handler pkg
+  Scheduler.user_demand_handler pkg
   >>= fun () ->
     let resp = Response.make ~status:Code.(`Accepted) () in
     let body = Body.empty in
@@ -176,7 +175,7 @@ let handler_route_table = Re.(
                str "/objects"]), publish_handler;
    (get, seq [str "/object"; group id; eos]), consult_handler;
    (post, seq [str "/github/"; group (rep1 digit); eos]), github_hook_handler;
-   (post, seq [str "/pkg/"; group (rep1 any); eos]), test_handler])
+   (post, seq [str "/pkg/"; group (rep1 any); eos]), user_demand_handler])
 
 let route_handler meth path = Re.(
   List.fold_left (fun acc ((m, p), h) ->

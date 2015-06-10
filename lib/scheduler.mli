@@ -54,4 +54,4 @@ val github_hook : int -> unit Lwt.t
 
 (* given a package number with version constraint probably, resolve the task
    and add tasks into task table *)
-val test_handler: string -> unit Lwt.t
+val user_demand_handler: string -> unit Lwt.t

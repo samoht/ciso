@@ -193,6 +193,6 @@ let github_hook num =
         return ())
     |> run)
 
-let test_handler pkg =
+let user_demand_handler pkg =
   resolve_and_add pkg;
   return ()
