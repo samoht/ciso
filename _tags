@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a055ae866e52afb6cc426fd453358402)
+# DO NOT EDIT (digest: 4945fd2449cd2e0cf576ae4b91236bed)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,6 +17,9 @@ true: annot, bin_annot
 # Library ci_basic
 "lib/ci_basic.cmxs": use_ci_basic
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
+# Library ci_store
+"lib/ci_store.cmxs": use_ci_store
+<lib/*.ml{,i,y}>: pkg_irmin.unix
 # Executable worker
 <lib/worker.{native,byte}>: pkg_cmdliner
 <lib/worker.{native,byte}>: pkg_cohttp.lwt

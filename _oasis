@@ -13,6 +13,13 @@ Library ci_basic
   Modules: Object, Task, Message
   BuildDepends: sexplib.syntax
 
+Library ci_store
+  Path: lib
+  FindlibParent: ci_basic
+  Install: false
+  Modules: Store
+  BuildDepends: irmin.unix
+
 Executable worker
   Path: lib
   MainIs: worker.ml
