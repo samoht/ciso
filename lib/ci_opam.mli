@@ -10,6 +10,7 @@ val resolve : string -> OpamSolver.ActionGraph.t
    update_inputs is a callback function who takes an object id and also
    the dependencies objects' id to update the task's field inputs *)
 val tasks_of_graph: ?pull:Task.pull ->
-                    (string -> string -> string list -> string) ->
+                    (string -> string -> string list ->
+                     string -> string -> string) ->
                     OpamSolver.ActionGraph.t ->
                     (string * Task.t) list

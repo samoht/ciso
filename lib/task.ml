@@ -3,6 +3,8 @@ open Sexplib.Std
 type t = {
   id : string;           (* task is referenced by this id *)
   inputs : string list;  (* inputs are object ids *)
+  compiler : string;
+  host : string;
   task : task;
 }
  (* a task may be a github PR or a dependency resolved by opam solver *)
@@ -30,13 +32,12 @@ let make_pull num url base head = {
     base_sha = base;
     head_sha = head;}
 
-let make_task ?pull id package version inputs =
+let make_task ?pull id package version inputs compiler host =
   let task = match pull with
     | Some pull -> Github (package, version, pull)
     | None -> Package (package, version) in
-  {id; inputs; task}
+  {id; inputs; compiler; host; task;}
 
-let update_task t inputs = {t with inputs}
 
 let string_of_t {id; inputs; task} =
   let task_str = match task with

@@ -1,6 +1,13 @@
 open OpamTypes
 open Cmdliner
 
+let compiler () =
+  OpamCompiler.Version.current ()
+  |> function
+    | None -> "Unknown"
+    | Some v -> OpamCompiler.Version.to_string v
+
+
 (* copied from opam/src/client/opamArg.ml *)
 let parse str =
   let re = Re_str.regexp
@@ -95,15 +102,18 @@ let tasks_of_graph ?pull hash_id graph =
     let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
     let inputs = Graph.fold_pred (fun pred inputs ->
         (Pkg.Map.find (package_of_action pred) !id_map) :: inputs) graph v [] in
-    let id = hash_id name version inputs in
+    let compiler = compiler () in
+    let host = Host.detect () |> Host.to_string in
+    let id = hash_id name version inputs compiler host in
     let task =
       if Graph.out_degree graph v <> 0 then
-        Task.make_task ?pull:None id name version inputs
-      else Task.make_task ?pull id name version inputs in
+        Task.make_task ?pull:None id name version inputs compiler host
+      else Task.make_task ?pull id name version inputs compiler host in
     id_map := Pkg.Map.add pkg id !id_map;
     t_lst := (id, task) :: !t_lst
   done;
   !t_lst
+
 (*
 let str = Arg.(
   required & pos 0 (some string) None & info

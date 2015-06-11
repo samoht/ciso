@@ -27,8 +27,8 @@ let task_info id =
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
-let hash_id pkg v inputs =
-  let str = pkg ^ v ^ (String.concat ";" inputs) in
+let hash_id pkg v inputs compiler host =
+  let str = pkg ^ v ^ (String.concat ";" inputs) ^ compiler ^ host in
   let hash str =
     let hex_of_cs cs =
       let buf = Buffer.create 16 in
