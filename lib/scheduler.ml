@@ -47,7 +47,8 @@ let find_task wtoken =
       if state = `Runnable then id :: acc else acc) s_tbl [] in
   if runnables = [] then None
   else begin
-      let wset = LogMap.find wtoken !w_map in
+      let wset = try LogMap.find wtoken !w_map
+                 with Not_found -> IdSet.empty in
       let to_depset inputs = List.fold_left (fun set input ->
           IdSet.add input set) IdSet.empty inputs in
       let id, _ = List.fold_left (fun (i, n) tid ->
@@ -82,7 +83,8 @@ let publish_object_hook id =
 
 
 let publish_object wtoken id =
-  let wset = LogMap.find wtoken !w_map in
+  let wset = try LogMap.find wtoken !w_map
+             with Not_found -> IdSet.empty in
   let n_wset = IdSet.add id wset in
   w_map := LogMap.add wtoken n_wset !w_map;
   Hashtbl.replace s_tbl id `Completed;
@@ -154,7 +156,12 @@ let update_tables new_tasks =
 
 let bootstrap () =
   Store.retrieve_tasks ()
-  >>= update_tables
+  >>= update_tables >>= fun () ->
+  Printf.eprintf "\t[scheduler@bootstrap]: %d/%d tasks\n%!"
+   (Hashtbl.fold (fun id _ acc ->
+         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) t_tbl 0)
+   (Hashtbl.length t_tbl);
+  return ()
 
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
@@ -165,7 +172,10 @@ let resolve_and_add ?pull pkg =
       return (not (in_store || Hashtbl.mem t_tbl id))) tasks
   >>= update_tables
   >>= fun () ->
-  Printf.eprintf "\t[scheduler@resolve]: %d tasks\n%!" (Hashtbl.length t_tbl);
+  Printf.eprintf "\t[scheduler@resolve]: %d/%d tasks\n%!"
+    (Hashtbl.fold (fun id _ acc ->
+         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) t_tbl 0)
+    (Hashtbl.length t_tbl);
   return ()
 
 let github_hook num =
