@@ -192,7 +192,8 @@ let task_execute base worker tid task =
   Lwt_list.iter_p (fun input ->
     worker_request_object base worker input >>= fun obj ->
     apply_object obj) inputs >>= fun () ->
-  log "execute" "dummy" ~info:(Task.info_of_t task);
+  let p, v = Task.info_of_t task in
+  log "execute" "dummy" ~info:(p ^ "." ^  v);
   return (Object.create "id" ("ip",8000) "dir")
 
 

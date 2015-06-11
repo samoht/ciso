@@ -22,7 +22,7 @@ let inputs_of_t {inputs} = inputs
 
 let info_of_t t =
   match t.task with
-  | Github (p, v, _) | Package (p, v) -> p ^ "." ^ v
+  | Github (p, v, _) | Package (p, v) -> p, v
 
 let make_pull num url base head = {
     pull_num = num;
