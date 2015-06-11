@@ -10,11 +10,25 @@ let path_of_token t =
   let sub_dir = String.sub t 0 2 in
   ["token"; sub_dir; t]
 
-let initial_store ?(uri = "http://127.0.0.1:8888") () =
+let clean_up t =
+  let print_kv k =
+    let path = String.concat "/" k in
+    Irmin.read (t "read value") k >>= (function
+    | None -> return "none" | Some v -> return "value") >>= fun value ->
+    Lwt_io.printf "%s -> %s\n%!" path value  in
+  let remove_kv k =
+    Irmin.read (t "read value") k >>= function
+    | None -> return ()
+    | Some _ -> print_kv k >>= fun () ->
+                Irmin.remove (t "remove kv") k in
+  Irmin.iter (t "iter kv") remove_kv
+
+let initial_store ?(uri = "http://127.0.0.1:8888") ?(fresh = false) () =
   let basic = Irmin.basic (module Irmin_unix.Irmin_http.Make)
                           (module Irmin.Contents.String) in
   let config = Irmin_unix.Irmin_http.config (Uri.of_string uri) in
   Irmin.of_tag basic config Irmin_unix.task "objects" >>= fun t ->
+  if fresh then clean_up t else return () >>= fun () ->
   store_handle := Some t;
   return ()
 

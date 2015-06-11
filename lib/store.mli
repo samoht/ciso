@@ -1,5 +1,5 @@
 
-val initial_store: ?uri:string -> unit -> unit Lwt.t
+val initial_store: ?uri:string -> ?fresh:bool -> unit -> unit Lwt.t
 
 val register_token: string -> unit Lwt.t
 

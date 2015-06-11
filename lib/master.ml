@@ -166,8 +166,8 @@ let callback conn req body =
     catch (fun () -> handler headers body) err_handler
 
 
-let master store ip port =
-  Store.initial_store ~uri:store () >>= (fun () ->
+let master fresh store ip port =
+  Store.initial_store ~uri:store ~fresh () >>= (fun () ->
   Scheduler.bootstrap () >>= fun () ->
   Conduit_lwt_unix.init ~src:ip ()
   >>= fun ctx ->
@@ -186,6 +186,10 @@ let port = Cmdliner.Arg.(
   value & opt int 8080 & info ["port"]
     ~doc:"the port number of the master")
 
+let fresh = Cmdliner.Arg.(
+  value & flag & info ["fresh"; "f"]
+    ~doc:"start with a fresh new store")
+
 let store = Cmdliner.Arg.(
   required & pos 0 (some string) None & info []
     ~doc:"the address to contact the data store" ~docv:"STORE")
@@ -193,6 +197,6 @@ let store = Cmdliner.Arg.(
 
 let () = Cmdliner.Term.(
   let master_cmd =
-    pure master $ store $ ip $ port,
+    pure master $ fresh $ store $ ip $ port,
     info ~doc:"start the master" "master" in
   match eval master_cmd with `Error _ -> exit 1 | _ -> exit 0)
