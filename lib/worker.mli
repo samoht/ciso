@@ -1,8 +1,9 @@
 type t
+type store
 
 (** [worker_register master_uri addr]:
     when started, register itself with ip and port as addr to master *)
-val worker_register: Uri.t -> t Lwt.t
+val worker_register: Uri.t -> (string -> store Lwt.t) -> t Lwt.t
 
 (** [worker_heartbeat master_uri worker]:
     sends heartbeat to master, the heartbeat contains the worker status: work

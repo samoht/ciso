@@ -42,19 +42,35 @@ let message_of_body body =
   |> return
 
 
-let working_directory id () =
-  let home = Sys.getenv "HOME" in
+let working_directory ?(test = true) id () =
+  let home = if test then "." else Sys.getenv "HOME" in
   let path = Filename.concat home ("ci-worker" ^ (string_of_int id)) in
   if not (Sys.file_exists path) then
     Lwt_unix.mkdir path 0o770 >>= fun () -> return path
   else return path
 
 
-let local_store dir () =
+let clean_up t =
+  let print_kv k =
+    let path = String.concat "/" k in
+    Irmin.read (t "read value") k >>= (function
+    | None -> return "none" | Some v -> return "value") >>= fun value ->
+    Lwt_io.printf "%s -> %s\n%!" path value  in
+  let remove_kv k =
+    Irmin.read (t "read value") k >>= function
+    | None -> return ()
+    | Some _ -> print_kv k >>= fun () ->
+                Irmin.remove (t "remove kv") k in
+  Irmin.iter (t "iter kv") remove_kv
+
+
+let local_store ?(fresh = false) dir =
   let basic = Irmin.basic (module Irmin_unix.Irmin_git.FS)
                           (module Irmin.Contents.String) in
   let config = Irmin_git.config ~root:dir ~bare:true () in
-  Irmin.create basic config Irmin_unix.task
+  Irmin.create basic config Irmin_unix.task >>= fun t ->
+  (if fresh then clean_up t else return ()) >>= fun () ->
+  return t
 
 
 let path_of_id id =
@@ -85,7 +101,7 @@ let local_retrieve t id =
 
 
 (* POST base/worker/registration -> `Created *)
-let worker_register base  =
+let worker_register base build_store =
   let body = body_of_message Message.Register in
   let uri_path = "worker/registration" in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
@@ -101,7 +117,7 @@ let worker_register base  =
        let info = Printf.sprintf "success: %d token: %s" id (sub 10 token) in
        log "send" "register" ~info;
        working_directory id () >>= fun dir ->
-       local_store dir () >>= fun store ->
+       build_store dir >>= fun store ->
        return { id; token; store; status = Idle}
   else fail exn
 
@@ -169,20 +185,6 @@ let worker_request_object base worker oid =
       return obj
     end
 
-(* dummy execution
-let task_execute base worker tid task =
-  let t_inputs = Task.inputs_of_t task in
-  let inputs_str = String.concat " " (List.rev_map (sub 5) t_inputs) in
-  let info = Printf.sprintf "task %s need %s" (sub 5 obj_id) inputs_str in
-  log "execute" "task" ~info;
-  Lwt_list.map_p (fun input_id ->
-    worker_request_object base worker input_id
-    >>= fun obj_str -> return (input_id, obj_str)) t_inputs
-  >>= fun input_tups ->
-    let task_str = Task.string_of_t task in
-    let inputs_str = String.concat "\n" (List.rev_map snd input_tups) in
-    let content = Printf.sprintf "%s\n  [inputs]:\n%s\n" task_str inputs_str in
-    to_local_obj worker obj_id content *)
 
 let apply_object obj = return ()
 
@@ -194,7 +196,7 @@ let task_execute base worker tid task =
     apply_object obj) inputs >>= fun () ->
   let p, v = Task.info_of_t task in
   log "execute" "dummy" ~info:(p ^ "." ^  v);
-  return (Object.create "id" ("ip",8000) "dir")
+  return (Object.create tid)
 
 
 let rec execution_loop base worker cond =
@@ -226,11 +228,12 @@ let rec heartbeat_loop base worker cond =
      Lwt_unix.sleep working_sleep
      >>= fun () -> heartbeat_loop base worker cond
 
-let worker base_str store_str ip port =
+let worker base_str store_str ip port fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
 
  let base = Uri.of_string base_str in
-  worker_register base >>= fun worker ->
+ let build_store = local_store ~fresh in
+  worker_register base build_store >>= fun worker ->
 
     let cond = Lwt_condition.create () in
     join [heartbeat_loop base worker cond;
@@ -253,8 +256,16 @@ let port = Cmdliner.Arg.(
   value & opt int 8000 & info ["port"]
     ~doc:"the port number of this worker")
 
+let test = Cmdliner.Arg.(
+  value & flag & info ["test"; "t"]
+    ~doc:"when set, data store will be installed in the current directory")
+
+let fresh = Cmdliner.Arg.(
+  value & flag & info ["fresh"; "f"]
+    ~doc:"start with a fresh new local store")
+
 let () = Cmdliner.Term.(
   let worker_cmd =
-    pure worker $ base $store $ ip $ port,
+    pure worker $ base $store $ ip $ port $ fresh,
     info ~doc:"start a worker" "worker" in
   match eval worker_cmd with `Error _ -> exit 1 | _ -> exit 0)
