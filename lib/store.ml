@@ -54,3 +54,34 @@ let register_token token =
   get_store () >>= fun t ->
   let path = path_of_token token in
   Irmin.update (t ("register token " ^ token)) path token
+
+
+let tpath_of_id id =
+  ["task"; id]
+
+let log_task id task =
+  get_store () >>= fun t ->
+  let path = tpath_of_id id in
+  let content = Sexplib.Sexp.to_string (Task.sexp_of_t task) in
+  Irmin.update (t ("log task " ^ id)) path content
+
+let unlog_task id =
+  get_store () >>= fun t ->
+  let path = tpath_of_id id in
+  Irmin.remove (t ("unlog task" ^ id)) path
+
+let retrieve_tasks () =
+  get_store () >>= fun t ->
+  let par_dir = ["task"] in
+  Irmin.list (t "list ids") par_dir >>= fun paths ->
+  let rec id_of_path = function
+    | [id] -> id
+    | _ :: tl -> id_of_path tl
+    | [] -> raise (Invalid_argument "empty path") in
+  let task_of_content c =
+    Task.t_of_sexp (Sexplib.Sexp.of_string c) in
+  Lwt_list.rev_map_p (fun p ->
+      let id = id_of_path p in
+      Irmin.read (t ("retrieve task" ^ id)) p >>= function
+      | None -> fail (raise Not_found)
+      | Some c -> return (id, task_of_content c)) paths
