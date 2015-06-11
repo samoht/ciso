@@ -1,17 +1,22 @@
 open Sexplib.Std
 
 type t = {
-  id : string;          (* object is referenced by id in scheduler *)
-  addr : string * int;  (* ip * port of the machine who has a copy of object *)
-  path : string         (* the path to the object on the machine at addr *)
+  id : string;                (* object is referenced by id in scheduler *)
+  result : [`Success |`Fail]; (* result of opam build *)
+  output: string list;      (* relative paths of stdout and stderr in archive *)
+  installed : string list;  (* relative paths of installed files in archive *)
+  archive: string * string;
+  (* archive who holds output and installed files, name * content *)
 } with sexp
 
-let path_of_t {path} = path
 let id_of_t {id} = id
-let addr_of_t {addr} = addr
-let ip_of_t t = fst (addr_of_t t)
 
-let create id addr path = {id; addr; path}
+let create id = {
+    id;
+    result = `Success;
+    output = [".stdout"; ".stderr"];
+    installed = [".cmi"; ".cmx"; ".cmxa"; ".cmo"; ".cma";];
+    archive =  ".tar.gz", "content" }
 
 let string_of_t obj =
   sexp_of_t obj |> Sexplib.Sexp.to_string
