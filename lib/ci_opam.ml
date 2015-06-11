@@ -69,34 +69,41 @@ let resolve str =
   graph
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
-let add_task ?pull new_task graph =
+
+let tasks_of_graph ?pull hash_id graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
     | To_change (origin, target) -> assert (origin = None); target
-    | _ -> failwith "Not expect" in
+    | To_delete _ | To_recompile _ -> failwith "Not expect" in
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
       if Graph.out_degree graph v = 0 then Queue.add v process_queue) graph;
+
   while not (Queue.is_empty process_queue) do
     let v = Queue.pop process_queue in
     Graph.iter_pred (fun pred -> Queue.add pred process_queue) graph v;
     Stack.push v add_stack;
   done;
+
   let id_map = ref Pkg.Map.empty in
+  let t_lst = ref [] in
   while not (Stack.is_empty add_stack) do
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
     let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
     let inputs = Graph.fold_pred (fun pred inputs ->
         (Pkg.Map.find (package_of_action pred) !id_map) :: inputs) graph v [] in
-    let id =
+    let id = hash_id name version inputs in
+    let task =
       if Graph.out_degree graph v <> 0 then
-        new_task ?pull:None name version inputs
-      else new_task ?pull name version inputs in
-    id_map := Pkg.Map.add pkg id !id_map
-  done
+        Task.make_task ?pull:None id name version inputs
+      else Task.make_task ?pull id name version inputs in
+    id_map := Pkg.Map.add pkg id !id_map;
+    t_lst := (id, task) :: !t_lst
+  done;
+  !t_lst
 (*
 let str = Arg.(
   required & pos 0 (some string) None & info

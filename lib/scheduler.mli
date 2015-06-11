@@ -32,6 +32,9 @@ val publish_object: string -> string -> unit Lwt.t
 (* given a task id and return the pacakge name and version information *)
 val task_info: string -> string
 
+(* pickup any uncompleted tasks due to master failure *)
+val bootstrap: unit -> unit Lwt.t
+
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task

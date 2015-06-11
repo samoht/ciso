@@ -168,6 +168,7 @@ let callback conn req body =
 
 let master store ip port =
   Store.initial_store ~uri:store () >>= (fun () ->
+  Scheduler.bootstrap () >>= fun () ->
   Conduit_lwt_unix.init ~src:ip ()
   >>= fun ctx ->
     let ctx = Cohttp_lwt_unix_net.init ~ctx () in

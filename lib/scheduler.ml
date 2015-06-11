@@ -3,7 +3,7 @@ open Lwt
 (* set of task/object ids*)
 module IdSet = Set.Make(String)
 
-(* task map from worker token to tasks completed by that worker *)
+(* map from worker token to tasks completed by that worker as IdSet.t *)
 module LogMap = Map.Make(String)
 
 type task_tbl = (string, Task.t) Hashtbl.t
@@ -18,13 +18,11 @@ let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
 
-let user = "ocaml"
-let repo = "opam-repository"
-let token = ref None
 
 let task_info id =
   let task = Hashtbl.find t_tbl id in
-  (String.sub id 0 5) ^ ":" ^ Task.info_of_t task
+  let p, v = Task.info_of_t task in
+  (String.sub id 0 5) ^ ":" ^ p ^ "." ^ v
 
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
@@ -87,13 +85,19 @@ let publish_object wtoken id =
   let wset = LogMap.find wtoken !w_map in
   let n_wset = IdSet.add id wset in
   w_map := LogMap.add wtoken n_wset !w_map;
-  return () >>= fun () ->
+  Hashtbl.replace s_tbl id `Completed;
+  Store.unlog_task id >>= fun () ->
   publish_object_hook id >>= fun () ->
   let runnables = Hashtbl.fold (fun oid state acc ->
       if state = `Runnable then oid :: acc else acc) s_tbl [] in
   let str = String.concat " " (List.rev_map task_info runnables) in
   Printf.eprintf "\t[scheduler@publish]: %s -> [%s]\n%!" (task_info id) str;
   return ()
+
+
+let user = "ocaml"
+let repo = "opam-repository"
+let token = ref None
 
 
 let init_gh_token name =
@@ -119,6 +123,7 @@ let packages_of_pull token num = Github.Monad.(
       [] files
     |> return)
 
+
 let pull_info token num = Github.Monad.(
   let open Github_t in
   Github.Pull.get ~token ~user ~repo ~num ()
@@ -132,19 +137,36 @@ let pull_info token num = Github.Monad.(
       num base_repo.repository_clone_url base.branch_sha head.branch_sha
     |> return)
 
+
+let update_tables new_tasks =
+  Lwt_list.iter_p (fun (id, t) ->
+      Store.log_task id t >>= fun () ->
+      Hashtbl.replace t_tbl id t;
+      let inputs = Task.inputs_of_t t in
+      Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
+      >>= fun runnable ->
+      (if runnable then Hashtbl.replace s_tbl id `Runnable
+       else begin
+           List.iter (fun input -> Hashtbl.add h_tbl input id) inputs;
+           Hashtbl.replace s_tbl id `Pending; end);
+      return ()) new_tasks
+
+
+let bootstrap () =
+  Store.retrieve_tasks ()
+  >>= update_tables
+
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
-  let new_task ?pull pkg v inputs =
-    let id = hash_id pkg v inputs in
-    if Hashtbl.mem t_tbl id then id else
-      let task = Task.make_task ?pull id pkg v inputs in
-      Hashtbl.add t_tbl id task;
-      List.iter (fun input -> Hashtbl.add h_tbl input id) inputs;
-      Hashtbl.add s_tbl id
-        (if inputs = [] then `Runnable else `Pending);
-      id in
-  Ci_opam.add_task ?pull new_task action_graph;
-  Printf.eprintf "\t[scheduler@resolve]: %d tasks\n%!" (Hashtbl.length t_tbl)
+
+  let tasks = Ci_opam.tasks_of_graph ?pull hash_id action_graph in
+  Lwt_list.filter_p (fun (id, _) ->
+      Store.query_object id >>= fun in_store ->
+      return (not (in_store || Hashtbl.mem t_tbl id))) tasks
+  >>= update_tables
+  >>= fun () ->
+  Printf.eprintf "\t[scheduler@resolve]: %d tasks\n%!" (Hashtbl.length t_tbl);
+  return ()
 
 let github_hook num =
   (match !token with
@@ -155,14 +177,9 @@ let github_hook num =
           token := Some t;
           return t
       end)
-  >>= fun token -> Github.Monad.(
-    (packages_of_pull token num
-    >>= fun pkgs -> pull_info token num
-    >>= fun pull ->
-        List.iter (resolve_and_add ~pull) pkgs;
-        return ())
-    |> run)
+  >>= fun token -> Github.Monad.run (pull_info token num)
+  >>= fun pull -> Github.Monad.run (packages_of_pull token num)
+  >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add ~pull) pkgs
 
 let user_demand pkg =
-  resolve_and_add pkg;
-  return ()
+  resolve_and_add pkg
