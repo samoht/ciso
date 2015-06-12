@@ -20,10 +20,13 @@ let w_map = ref LogMap.empty
 
 
 let task_info id =
-  let task = Hashtbl.find t_tbl id in
-  let p, v = Task.info_of_t task in
-  (String.sub id 0 5) ^ ":" ^ p ^ "." ^ v
-
+  let sub = String.sub id 0 5 in
+  try
+    let task = Hashtbl.find t_tbl id in
+    let p, v = Task.info_of_t task in
+     sub ^ ":" ^ p ^ "." ^ v
+  with Not_found -> Printf.sprintf "Object %s not in the t_tbl" sub
+     | e -> raise e
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
@@ -42,13 +45,18 @@ let hash_id pkg v inputs compiler host =
   hash str
 
 
+let register_token wtoken =
+  w_map := LogMap.add wtoken IdSet.empty !w_map
+
+let invalidate_token wtoken =
+  w_map := LogMap.remove wtoken !w_map
+
 let find_task wtoken =
   let runnables = Hashtbl.fold (fun id state acc ->
       if state = `Runnable then id :: acc else acc) s_tbl [] in
   if runnables = [] then None
   else begin
-      let wset = try LogMap.find wtoken !w_map
-                 with Not_found -> IdSet.empty in
+      let wset = LogMap.find wtoken !w_map in
       let to_depset inputs = List.fold_left (fun set input ->
           IdSet.add input set) IdSet.empty inputs in
       let id, _ = List.fold_left (fun (i, n) tid ->
@@ -83,12 +91,10 @@ let publish_object_hook id =
 
 
 let publish_object wtoken id =
-  let wset = try LogMap.find wtoken !w_map
-             with Not_found -> IdSet.empty in
+  let wset = LogMap.find wtoken !w_map in
   let n_wset = IdSet.add id wset in
   w_map := LogMap.add wtoken n_wset !w_map;
   Hashtbl.replace s_tbl id `Completed;
-  Store.unlog_task id >>= fun () ->
   publish_object_hook id >>= fun () ->
   let runnables = Hashtbl.fold (fun oid state acc ->
       if state = `Runnable then oid :: acc else acc) s_tbl [] in

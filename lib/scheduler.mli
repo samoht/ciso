@@ -35,6 +35,12 @@ val task_info: string -> string
 (* pickup any uncompleted tasks due to master failure *)
 val bootstrap: unit -> unit Lwt.t
 
+(* add a new worker's token to the worker log map *)
+val register_token: string -> unit
+
+(* eliminate a worker's token when worker is down*)
+val invalidate_token: string -> unit
+
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task

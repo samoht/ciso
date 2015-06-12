@@ -3,6 +3,8 @@ val initial_store: ?uri:string -> ?fresh:bool -> unit -> unit Lwt.t
 
 val register_token: string -> unit Lwt.t
 
+val invalidate_token: string -> unit Lwt.t
+
 val query_object: string -> bool Lwt.t
 
 val publish_object: string -> string -> Object.t -> unit Lwt.t

@@ -69,6 +69,10 @@ let register_token token =
   let path = path_of_token token in
   Irmin.update (t ("register token " ^ token)) path token
 
+let invalidate_token token =
+  get_store () >>= fun t ->
+  let path = path_of_token token in
+  Irmin.remove (t ("invalidate token" ^ token)) path
 
 let tpath_of_id id =
   ["task"; id]
