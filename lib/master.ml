@@ -5,9 +5,12 @@ module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
 type worker_tbl = (int, string) Hashtbl.t (* id -> token *)
+type checkin_tbl = (int, int) Hashtbl.t (* id -> check in times *)
 exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16
+let c_tbl : checkin_tbl = Hashtbl.create 16
+let check_round = 5.0
 let worker_cnt = ref 0
 
 let log handler worker_id info =
@@ -48,10 +51,48 @@ let new_token id =
   get_sha1 (id ^ time)
 
 
+let worker_checkin id =
+  let times = Hashtbl.find c_tbl id in
+  Hashtbl.replace c_tbl id (succ times)
+
+let eliminate_workers ids =
+  if ids = [] then return () else
+    let eliminate_one id =
+      let token = Hashtbl.find w_tbl id in
+      Hashtbl.remove w_tbl id;
+      Hashtbl.remove c_tbl id;
+      Scheduler.invalidate_token token;
+      Store.invalidate_token token in
+    Lwt_list.iter_p eliminate_one ids >>= fun () ->
+    Hashtbl.fold (fun id _ acc -> id :: acc) c_tbl []
+    |> List.rev_map (fun id -> "worker" ^ (string_of_int id))
+    |> String.concat " "
+    |> Lwt_io.printf "\t[Alive workers]: %s\n%!"
+
+let worker_monitor () =
+  let count () =
+    Hashtbl.fold (fun id times acc -> (id, times) :: acc) c_tbl [] in
+  let rec loop t =
+    t >>= fun last ->
+    let now = count () in
+    let down =
+      List.fold_left (fun acc (id, times) ->
+          let last_times = try List.assoc id last
+                           with Not_found -> pred times in
+          if last_times = times then id :: acc else acc)
+        [] now in
+    eliminate_workers down >>= fun () ->
+    Lwt_unix.sleep check_round >>= fun () ->
+    loop (return now) in
+  loop (return (count ()))
+
 let register_handler groups headers body =
   let id = incr worker_cnt; !worker_cnt in
   let token = new_token id in
   Hashtbl.replace w_tbl id token;
+  Hashtbl.replace c_tbl id (-1);
+  worker_checkin id;
+  Scheduler.register_token token;
   Store.register_token token >>= fun () ->
 
   let m = Message.Ack_register (id, token) in
@@ -64,7 +105,8 @@ let heartbeat_handler groups headers body =
   let id = int_of_string (groups.(1)) in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
-  if token <> Hashtbl.find w_tbl id then failwith "fake worker";
+  if token <> Hashtbl.find w_tbl id then failwith "fake worker"
+  else worker_checkin id;
 
   message_of_body body >>= fun m ->
   let resp_m = Message.(match m with
@@ -175,7 +217,7 @@ let master fresh store ip port =
     let mode = Conduit_lwt_unix.(`TCP (`Port port)) in
     let t_server = Cohttp_lwt_unix.Server.create ~mode ~ctx
       (Cohttp_lwt_unix.Server.make ~callback ()) in
-    join [t_server])
+    join [t_server; worker_monitor ()])
   |> Lwt_unix.run
 
 let ip = Cmdliner.Arg.(
