@@ -22,6 +22,7 @@ exception WrongResponse of string * string
 
 let idle_sleep = 3.0
 let working_sleep = 5.0
+let master_timeout = 3.0
 
 let sub len str = String.sub str 0 len
 
@@ -74,9 +75,13 @@ let local_store ?(fresh = false) dir =
 
 
 let path_of_id id =
-  let file = String.sub id 0 6 in
-  ["object"; file]
+  let sub_dir = String.sub id 0 2 in
+  ["object"; sub_dir; id]
 
+let rec id_of_path = function
+  | [id] -> id
+  | _ :: tl -> id_of_path tl
+  | _ -> failwith "empty path"
 
 let local_query t id =
   let path = path_of_id id in
@@ -100,13 +105,59 @@ let local_retrieve t id =
   | Some o -> return (Object.t_of_string o)
 
 
+let local_retrieve_all t =
+  let tups = ref [] in
+  let iter k =
+    Irmin.read (t "read object") k >>= function
+      | None -> return ()
+      | Some v -> tups := (id_of_path k, Object.t_of_string v) :: !tups;
+                  return () in
+  Irmin.iter (t "retrieve all objects") iter >>= fun () ->
+  return (!tups)
+
+
+let with_client_request request =
+  let timeout_response () =
+    Lwt_unix.sleep master_timeout >>= fun () ->
+    let resp = Response.make ~status:Code.(`I_m_a_teapot) () in
+    let body = Body.empty in
+    return (resp, body) in
+
+  let err_handler exn =
+    (match exn with
+     | Failure f -> Printf.eprintf "[ERROR]: %s\n%!" f
+     | _  -> Printf.eprintf "[ERROR]: connection to masterfailed\n%!");
+    return (exit 1) in
+  catch (fun () ->
+      pick [timeout_response (); request] >>= fun ((resp, _) as r) ->
+      if Response.status resp = Code.(`I_m_a_teapot)
+      then fail_with "master timeout"
+      else return r) err_handler
+
+
+(* POST base/worker<id>/objects -> `Created *)
+let worker_publish base {id; token} oid obj =
+  log "send" "publish" ~info:("object " ^ (sub 5 oid));
+  let headers = Cohttp.Header.of_list ["worker", token] in
+  let m = Message.Publish oid in
+  let body = body_of_message m in
+  let uri_path = Printf.sprintf "worker%d/objects" id in
+  let uri = Uri.resolve "" base (Uri.of_string uri_path) in
+
+  with_client_request (Client.post ~headers ~body uri)
+  >>= fun (resp, _) ->
+  let status = Response.status resp in
+  if status = Code.(`Created) then return ()
+  else fail (WrongResponse (Code.string_of_status status, "publish"))
+
+
 (* POST base/worker/registration -> `Created *)
 let worker_register base build_store =
   let body = body_of_message Message.Register in
   let uri_path = "worker/registration" in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
-  Client.post ~body uri >>= fun (resp, body) ->
+  with_client_request (Client.post ~body uri) >>= fun (resp, body) ->
   message_of_body body >>= fun m ->
   let status = Response.status resp in
   let exn = WrongResponse (Cohttp.Code.string_of_status status, "register") in
@@ -118,7 +169,14 @@ let worker_register base build_store =
        log "send" "register" ~info;
        working_directory id () >>= fun dir ->
        build_store dir >>= fun store ->
-       return { id; token; store; status = Idle}
+       let worker = { id; token; store; status = Idle} in
+
+       local_retrieve_all store >>= fun tups ->
+       if tups = [] then return worker
+       else Lwt_list.iter_p (fun (id, o) ->
+           join [Store.publish_object token id o;
+                 worker_publish base worker id o;]) tups >>= fun () ->
+           return worker
   else fail exn
 
 
@@ -137,7 +195,7 @@ let worker_heartbeat base { id; token; status } =
   let uri_path = Printf.sprintf "worker%d/state" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
-  Client.post ~headers ~body uri >>= fun (resp, body) ->
+  with_client_request (Client.post ~headers ~body uri) >>= fun (resp, body) ->
   message_of_body body >>= fun m ->
   let status = Response.status resp in
   let exn = WrongResponse (Code.string_of_status status, "heartbeat") in
@@ -147,24 +205,6 @@ let worker_heartbeat base { id; token; status } =
     | New_task (id, tdesp) -> return (Some (id, tdesp))
     | Ack_register _ -> fail exn
   else fail exn
-
-
-(* POST base/worker<id>/objects -> `Created *)
-let worker_publish base {id; token} oid obj =
-  Store.publish_object token oid obj >>= fun () ->
-
-  log "send" "publish" ~info:("object " ^ (sub 5 oid));
-  let headers = Cohttp.Header.of_list ["worker", token] in
-  let m = Message.Publish oid in
-  let body = body_of_message m in
-  let uri_path = Printf.sprintf "worker%d/objects" id in
-  let uri = Uri.resolve "" base (Uri.of_string uri_path) in
-
-  Client.post ~headers ~body uri
-  >>= fun (resp, _) ->
-  let status = Response.status resp in
-  if status = Code.(`Created) then return ()
-  else fail (WrongResponse (Code.string_of_status status, "publish"))
 
 
 (* GET worker_ip:port/path -> `OK *)
@@ -180,8 +220,8 @@ let worker_request_object base worker oid =
       let info = Printf.sprintf "get object %s from data store" (sub 5 oid) in
       log "send" "object" ~info;
       Store.retrieve_object oid >>= fun obj ->
-      choose[local_publish store oid obj;
-             worker_publish base worker oid obj] >>= fun () ->
+      choose [local_publish store oid obj;
+              worker_publish base worker oid obj] >>= fun () ->
       return obj
     end
 
@@ -191,6 +231,8 @@ let apply_object obj = return ()
 
 let task_execute base worker tid task =
   let inputs = Task.inputs_of_t task in
+  let info = Printf.sprintf "of total %d" (List.length inputs) in
+  log "execute" "inputs" ~info;
   Lwt_list.iter_p (fun input ->
     worker_request_object base worker input >>= fun obj ->
     apply_object obj) inputs >>= fun () ->
@@ -207,7 +249,8 @@ let rec execution_loop base worker cond =
       let task = Sexplib.Sexp.of_string tdesp |> Task.t_of_sexp in
       worker.status <- Working tid;
       task_execute base worker tid task >>= fun obj ->
-      choose [worker_publish base worker tid obj;
+      choose [Store.publish_object worker.token tid obj;
+              worker_publish base worker tid obj;
               local_publish worker.store tid obj] >>= fun () ->
       worker.status <- Idle;
       execution_loop base worker cond
@@ -231,12 +274,12 @@ let rec heartbeat_loop base worker cond =
 let worker base_str store_str ip port fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
 
- let base = Uri.of_string base_str in
- let build_store = local_store ~fresh in
+  let base = Uri.of_string base_str in
+  let build_store = local_store ~fresh in
   worker_register base build_store >>= fun worker ->
 
     let cond = Lwt_condition.create () in
-    join [heartbeat_loop base worker cond;
+    pick [heartbeat_loop base worker cond;
           execution_loop base worker cond;])
   |> Lwt_main.run
 
