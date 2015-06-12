@@ -126,7 +126,7 @@ let with_client_request request =
   let err_handler exn =
     (match exn with
      | Failure f -> Printf.eprintf "[ERROR]: %s\n%!" f
-     | _  -> Printf.eprintf "[ERROR]: connection to masterfailed\n%!");
+     | _  -> Printf.eprintf "[ERROR]: connection to master failed\n%!");
     return (exit 1) in
   catch (fun () ->
       pick [timeout_response (); request] >>= fun ((resp, _) as r) ->
@@ -174,7 +174,8 @@ let worker_register base build_store =
        local_retrieve_all store >>= fun tups ->
        if tups = [] then return worker
        else Lwt_list.iter_p (fun (id, o) ->
-           join [Store.publish_object token id o;
+           join [Store.publish_object token id o >>= fun () ->
+                 Store.unlog_task id;
                  worker_publish base worker id o;]) tups >>= fun () ->
            return worker
   else fail exn
@@ -249,7 +250,8 @@ let rec execution_loop base worker cond =
       let task = Sexplib.Sexp.of_string tdesp |> Task.t_of_sexp in
       worker.status <- Working tid;
       task_execute base worker tid task >>= fun obj ->
-      choose [Store.publish_object worker.token tid obj;
+      choose [Store.publish_object worker.token tid obj >>= fun () ->
+              Store.unlog_task tid;
               worker_publish base worker tid obj;
               local_publish worker.store tid obj] >>= fun () ->
       worker.status <- Idle;
