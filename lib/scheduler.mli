@@ -1,3 +1,5 @@
+open Common_types
+
 (* object id -> task
    if task A is supposed to produce object a,
    then there is the binding a.id -> A *)
@@ -21,25 +23,24 @@ type state_tbl
 
 (******************************************************************************)
 
-(* given the ip and port number of a worker, return an object id for it,
-   the task who produces the object must be runnable and also needs the least
-   dependencies transfers from other workers *)
-val find_task: string -> (string * string) option
+(*  finds a suitable task based on given worker token, if there is one,
+    return the task id and description *)
+val find_task: worker_token -> (id * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
-val publish_object: string -> string -> unit Lwt.t
+val publish_object: worker_token -> id -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
-val task_info: string -> string
+val task_info: id -> string
 
 (* pickup any uncompleted tasks due to master failure *)
 val bootstrap: unit -> unit Lwt.t
 
 (* add a new worker's token to the worker log map *)
-val register_token: string -> unit
+val register_token: worker_token -> unit
 
 (* eliminate a worker's token when worker is down*)
-val invalidate_token: string -> unit
+val invalidate_token: worker_token -> unit
 
 (******************************************************************************)
 

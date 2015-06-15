@@ -7,13 +7,13 @@ module Client = Cohttp_lwt_unix.Client
 module Response = Cohttp_lwt_unix.Response
 
 type t = {
-  id : int;                        (* worker id assigned by master *)
-  token : string;                  (* used to publish in the store *)
+  id : int;                           (* worker id assigned by master *)
+  token : Common_types.worker_token;  (* used to publish in the store *)
   store : store;
   mutable status : worker_status;  (* working on a task of idle *)
 }
 and worker_status =
-  | Working of string
+  | Working of Common_types.id
   | Idle
 and store = (string -> ([`BC], Irmin.Contents.String.Path.t,
                                Irmin.Contents.String.t) Irmin.t)

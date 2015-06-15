@@ -8,6 +8,23 @@ let compiler () =
     | Some v -> OpamCompiler.Version.to_string v
 
 
+(* return a deterministic id, based on pakcage name, version, and dependencies
+   could add os and architecture later *)
+let hash_id pkg v inputs compiler host =
+  let str = pkg ^ v ^ (String.concat ";" inputs) ^ compiler ^ host in
+  let hash str =
+    let hex_of_cs cs =
+      let buf = Buffer.create 16 in
+      Cstruct.hexdump_to_buffer buf cs;
+      Buffer.contents buf in
+    let stripe_nl_space s = Re.(
+      let re = compile (alt [compl [notnl]; space]) in
+      replace_string re ~by:"" s) in
+    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
+    |> hex_of_cs |> stripe_nl_space in
+  hash str
+
+
 (* copied from opam/src/client/opamArg.ml *)
 let parse str =
   let re = Re_str.regexp
@@ -77,7 +94,7 @@ let resolve str =
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
 
-let tasks_of_graph ?pull hash_id graph =
+let tasks_of_graph ?pull graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function

@@ -1,8 +1,9 @@
 open Sexplib.Std
+open Common_types
 
 type t = {
-  id : string;           (* task is referenced by this id *)
-  inputs : string list;  (* inputs are object ids *)
+  id : id;           (* task is referenced by this id *)
+  inputs : id list;  (* inputs are object ids *)
   compiler : string;
   host : string;
   task : task;
@@ -37,14 +38,3 @@ let make_task ?pull id package version inputs compiler host =
     | Some pull -> Github (package, version, pull)
     | None -> Package (package, version) in
   {id; inputs; compiler; host; task;}
-
-
-let string_of_t {id; inputs; task} =
-  let task_str = match task with
-    | Github (pkg, version, pull) ->
-       Printf.sprintf "%s.%s from github/%d" pkg version pull.pull_num
-    | Package (pkg, version) ->
-       Printf.sprintf "%s.%s" pkg version in
-  let subset = fun str -> String.sub str 0 5 in
-  let inputs_str = String.concat "," (List.rev_map subset inputs) in
-  Printf.sprintf "%s -> [%s: %s]" inputs_str (subset id) task_str

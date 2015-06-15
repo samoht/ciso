@@ -1,17 +1,24 @@
 open Lwt
+open Common_types
 
 (* set of task/object ids*)
-module IdSet = Set.Make(String)
+module IdSet = Set.Make(struct
+  type t = id
+  let compare = String.compare
+end)
 
 (* map from worker token to tasks completed by that worker as IdSet.t *)
-module LogMap = Map.Make(String)
+module LogMap = Map.Make(struct
+  type t = worker_token
+  let compare = String.compare
+end)
 
-type task_tbl = (string, Task.t) Hashtbl.t
+type task_tbl = (id, Task.t) Hashtbl.t
 
-type hook_tbl = (string, string) Hashtbl.t
+type hook_tbl = (id, id) Hashtbl.t
 
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
-type state_tbl = (string, state) Hashtbl.t
+type state_tbl = (id, state) Hashtbl.t
 
 let t_tbl : task_tbl = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
@@ -27,23 +34,6 @@ let task_info id =
      sub ^ ":" ^ p ^ "." ^ v
   with Not_found -> Printf.sprintf "Object %s not in the t_tbl" sub
      | e -> raise e
-
-(* return a deterministic id, based on pakcage name, version, and dependencies
-   could add os and architecture later *)
-let hash_id pkg v inputs compiler host =
-  let str = pkg ^ v ^ (String.concat ";" inputs) ^ compiler ^ host in
-  let hash str =
-    let hex_of_cs cs =
-      let buf = Buffer.create 16 in
-      Cstruct.hexdump_to_buffer buf cs;
-      Buffer.contents buf in
-    let stripe_nl_space s = Re.(
-      let re = compile (alt [compl [notnl]; space]) in
-      replace_string re ~by:"" s) in
-    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
-    |> hex_of_cs |> stripe_nl_space in
-  hash str
-
 
 let register_token wtoken =
   w_map := LogMap.add wtoken IdSet.empty !w_map
@@ -172,7 +162,7 @@ let bootstrap () =
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
 
-  let tasks = Ci_opam.tasks_of_graph ?pull hash_id action_graph in
+  let tasks = Ci_opam.tasks_of_graph ?pull action_graph in
   Lwt_list.filter_p (fun (id, _) ->
       Store.query_object id >>= fun in_store ->
       return (not (in_store || Hashtbl.mem t_tbl id))) tasks

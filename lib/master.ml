@@ -1,11 +1,13 @@
 open Lwt
+open Common_types
 
 module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 
-type worker_tbl = (int, string) Hashtbl.t (* id -> token *)
-type checkin_tbl = (int, int) Hashtbl.t (* id -> check in times *)
+type worker_id = int
+type worker_tbl = (worker_id, worker_token) Hashtbl.t  (* id -> token *)
+type checkin_tbl = (worker_id, int) Hashtbl.t (* id -> check in times *)
 exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16

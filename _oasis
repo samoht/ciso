@@ -10,7 +10,7 @@ BuildTools:  ocamlbuild
 Library ci_basic
   Path: lib
   Install: false
-  Modules: Object, Task, Message, Host
+  Modules: Object, Task, Message, Host, Common_types
   BuildDepends: sexplib.syntax
 
 Library ci_store
