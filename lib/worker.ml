@@ -163,7 +163,7 @@ let worker_register base build_store =
   let exn = WrongResponse (Cohttp.Code.string_of_status status, "register") in
   if status = Code.(`Created) then
     match m with
-    | Ack_heartbeat | New_task _ -> fail exn
+    | Ack_heartbeat | New_job _ -> fail exn
     | Ack_register (id, token) ->
        let info = Printf.sprintf "success: %d token: %s" id (sub 10 token) in
        log "send" "register" ~info;
@@ -174,8 +174,8 @@ let worker_register base build_store =
        local_retrieve_all store >>= fun tups ->
        if tups = [] then return worker
        else Lwt_list.iter_p (fun (id, o) ->
-           join [Store.publish_object token id o >>= fun () ->
-                 Store.unlog_task id;
+           join [(Store.publish_object token id o >>= fun () ->
+                  Store.unlog_job id);
                  worker_publish base worker id o;]) tups >>= fun () ->
            return worker
   else fail exn
@@ -186,9 +186,9 @@ let worker_heartbeat base { id; token; status } =
   let headers = Cohttp.Header.of_list ["worker", token] in
   let m =
     match status with
-    | Working tid ->
-       log "send" "heartbeat" ~info:("working " ^ (sub 5 tid));
-       Heartbeat (Some tid)
+    | Working jid ->
+       log "send" "heartbeat" ~info:("working " ^ (sub 5 jid));
+       Heartbeat (Some jid)
     | Idle ->
        log "send" "heartbeat" ~info:"idle";
        Heartbeat None in
@@ -203,7 +203,7 @@ let worker_heartbeat base { id; token; status } =
   if status = Code.(`OK) then
     match m with
     | Ack_heartbeat -> return None
-    | New_task (id, tdesp) -> return (Some (id, tdesp))
+    | New_job (id, jdesp) -> return (Some (id, jdesp))
     | Ack_register _ -> fail exn
   else fail exn
 
@@ -230,30 +230,30 @@ let worker_request_object base worker oid =
 let apply_object obj = return ()
 
 
-let task_execute base worker tid task =
-  let inputs = Task.inputs_of_t task in
+let job_execute base worker jid job =
+  let inputs = Task.inputs_of_job job in
   let info = Printf.sprintf "of total %d" (List.length inputs) in
   log "execute" "inputs" ~info;
   Lwt_list.iter_p (fun input ->
     worker_request_object base worker input >>= fun obj ->
     apply_object obj) inputs >>= fun () ->
-  let p, v = Task.info_of_t task in
+  let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "dummy" ~info:(p ^ "." ^  v);
-  return (Object.create tid)
+  return (Object.create jid)
 
 
 let rec execution_loop base worker cond =
-  Lwt_condition.wait cond >>= fun (tid, tdesp) ->
-  local_query worker.store tid >>= fun completed ->
+  Lwt_condition.wait cond >>= fun (id, desp) ->
+  local_query worker.store id >>= fun completed ->
   if completed then execution_loop base worker cond
   else begin
-      let task = Sexplib.Sexp.of_string tdesp |> Task.t_of_sexp in
-      worker.status <- Working tid;
-      task_execute base worker tid task >>= fun obj ->
-      choose [Store.publish_object worker.token tid obj >>= fun () ->
-              Store.unlog_task tid;
-              worker_publish base worker tid obj;
-              local_publish worker.store tid obj] >>= fun () ->
+      let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
+      worker.status <- Working id;
+      job_execute base worker id job >>= fun obj ->
+      choose [(Store.publish_object worker.token id obj >>= fun () ->
+               Store.unlog_job id);
+              worker_publish base worker id obj;
+              local_publish worker.store id obj] >>= fun () ->
       worker.status <- Idle;
       execution_loop base worker cond
     end
@@ -264,8 +264,8 @@ let rec heartbeat_loop base worker cond =
     | None ->
        Lwt_unix.sleep idle_sleep
        >>= fun () -> heartbeat_loop base worker cond
-    | Some (id, tdesp) ->
-       Lwt_condition.signal cond (id, tdesp);
+    | Some (id, desp) ->
+       Lwt_condition.signal cond (id, desp);
        Lwt_unix.sleep idle_sleep
        >>= fun () -> heartbeat_loop base worker cond end
   | Working _ ->

@@ -13,14 +13,14 @@ module LogMap = Map.Make(struct
   let compare = String.compare
 end)
 
-type task_tbl = (id, Task.t) Hashtbl.t
+type job_tbl = (id, Task.job) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
 type state = [`Pending | `Dispatched | `Runnable | `Completed]
 type state_tbl = (id, state) Hashtbl.t
 
-let t_tbl : task_tbl = Hashtbl.create 16
+let j_tbl : job_tbl = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
@@ -29,10 +29,10 @@ let w_map = ref LogMap.empty
 let task_info id =
   let sub = String.sub id 0 5 in
   try
-    let task = Hashtbl.find t_tbl id in
-    let p, v = Task.info_of_t task in
+    let job = Hashtbl.find j_tbl id in
+    let p, v = Task.(task_of_job job |> info_of_task) in
      sub ^ ":" ^ p ^ "." ^ v
-  with Not_found -> Printf.sprintf "Object %s not in the t_tbl" sub
+  with Not_found -> Printf.sprintf "Object %s not in the j_tbl" sub
      | e -> raise e
 
 let register_token wtoken =
@@ -41,7 +41,7 @@ let register_token wtoken =
 let invalidate_token wtoken =
   w_map := LogMap.remove wtoken !w_map
 
-let find_task wtoken =
+let find_job wtoken =
   let runnables = Hashtbl.fold (fun id state acc ->
       if state = `Runnable then id :: acc else acc) s_tbl [] in
   if runnables = [] then None
@@ -50,17 +50,17 @@ let find_task wtoken =
       let to_depset inputs = List.fold_left (fun set input ->
           IdSet.add input set) IdSet.empty inputs in
       let id, _ = List.fold_left (fun (i, n) tid ->
-          let task = Hashtbl.find t_tbl tid in
-          let inputs = Task.inputs_of_t task in
+          let job = Hashtbl.find j_tbl tid in
+          let inputs = Task.inputs_of_job job in
           let dset = to_depset inputs in
           let d = IdSet.cardinal (IdSet.inter wset dset) in
           if d > n then tid, d else i, n) ("", (-1)) runnables in
       Hashtbl.replace s_tbl id `Dispatched;
-      Printf.eprintf "\t[scheduler@find_task]: [%s] -> %s\n%!"
+      Printf.eprintf "\t[scheduler@find_job]: [%s] -> %s\n%!"
         (String.concat " " (List.rev_map task_info runnables)) (task_info id);
 
-      let task = Hashtbl.find t_tbl id in
-      let desp = Sexplib.Sexp.to_string (Task.sexp_of_t task) in
+      let job = Hashtbl.find j_tbl id in
+      let desp = Sexplib.Sexp.to_string (Task.sexp_of_job job) in
       Some (id, desp) end
 
 
@@ -68,10 +68,10 @@ let publish_object_hook id =
   if not (Hashtbl.mem h_tbl id) then return ()
   else begin
       let ids = Hashtbl.find_all h_tbl id in
-      let tups = List.rev_map (fun i -> i, Hashtbl.find t_tbl i) ids in
-      Lwt_list.iter_p (fun (i, task) ->
+      let tups = List.rev_map (fun i -> i, Hashtbl.find j_tbl i) ids in
+      Lwt_list.iter_p (fun (i, job) ->
         let state = Hashtbl.find s_tbl i in
-        let inputs = Task.inputs_of_t task in
+        let inputs = Task.inputs_of_job job in
         if state <> `Pending then return () else
           Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
           >>= fun runnable ->
@@ -138,9 +138,9 @@ let pull_info token num = Github.Monad.(
 
 let update_tables new_tasks =
   Lwt_list.iter_p (fun (id, t) ->
-      Store.log_task id t >>= fun () ->
-      Hashtbl.replace t_tbl id t;
-      let inputs = Task.inputs_of_t t in
+      Store.log_job id t >>= fun () ->
+      Hashtbl.replace j_tbl id t;
+      let inputs = Task.inputs_of_job t in
       Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
       >>= fun runnable ->
       (if runnable then Hashtbl.replace s_tbl id `Runnable
@@ -151,27 +151,27 @@ let update_tables new_tasks =
 
 
 let bootstrap () =
-  Store.retrieve_tasks ()
+  Store.retrieve_jobs ()
   >>= update_tables >>= fun () ->
   Printf.eprintf "\t[scheduler@bootstrap]: %d/%d tasks\n%!"
    (Hashtbl.fold (fun id _ acc ->
-         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) t_tbl 0)
-   (Hashtbl.length t_tbl);
+         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
+   (Hashtbl.length j_tbl);
   return ()
 
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve pkg in
 
-  let tasks = Ci_opam.tasks_of_graph ?pull action_graph in
+  let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
   Lwt_list.filter_p (fun (id, _) ->
       Store.query_object id >>= fun in_store ->
-      return (not (in_store || Hashtbl.mem t_tbl id))) tasks
+      return (not (in_store || Hashtbl.mem j_tbl id))) jobs
   >>= update_tables
   >>= fun () ->
   Printf.eprintf "\t[scheduler@resolve]: %d/%d tasks\n%!"
     (Hashtbl.fold (fun id _ acc ->
-         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) t_tbl 0)
-    (Hashtbl.length t_tbl);
+         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
+    (Hashtbl.length j_tbl);
   return ()
 
 let github_hook num =

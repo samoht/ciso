@@ -3,7 +3,7 @@ open Common_types
 (* object id -> task
    if task A is supposed to produce object a,
    then there is the binding a.id -> A *)
-type task_tbl
+type job_tbl
 
 (* object id -> object id
    if task A has dependencies objects b, c, d,
@@ -25,7 +25,7 @@ type state_tbl
 
 (*  finds a suitable task based on given worker token, if there is one,
     return the task id and description *)
-val find_task: worker_token -> (id * description) option
+val find_job: worker_token -> (id * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
 val publish_object: worker_token -> id -> unit Lwt.t

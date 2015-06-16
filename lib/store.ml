@@ -74,32 +74,32 @@ let invalidate_token token =
   let path = path_of_token token in
   Irmin.remove (t ("invalidate token" ^ token)) path
 
-let tpath_of_id id =
-  ["task"; id]
+let jpath_of_id id =
+  ["job"; id]
 
-let log_task id task =
+let log_job id job =
   get_store () >>= fun t ->
-  let path = tpath_of_id id in
-  let content = Sexplib.Sexp.to_string (Task.sexp_of_t task) in
-  Irmin.update (t ("log task " ^ id)) path content
+  let path = jpath_of_id id in
+  let content = Sexplib.Sexp.to_string (Task.sexp_of_job job) in
+  Irmin.update (t ("log job " ^ id)) path content
 
-let unlog_task id =
+let unlog_job id =
   get_store () >>= fun t ->
-  let path = tpath_of_id id in
-  Irmin.remove (t ("unlog task" ^ id)) path
+  let path = jpath_of_id id in
+  Irmin.remove (t ("unlog job" ^ id)) path
 
-let retrieve_tasks () =
+let retrieve_jobs () =
   get_store () >>= fun t ->
-  let par_dir = ["task"] in
+  let par_dir = ["job"] in
   Irmin.list (t "list ids") par_dir >>= fun paths ->
   let rec id_of_path = function
     | [id] -> id
     | _ :: tl -> id_of_path tl
     | [] -> raise (Invalid_argument "empty path") in
-  let task_of_content c =
-    Task.t_of_sexp (Sexplib.Sexp.of_string c) in
+  let job_of_content c =
+    Task.job_of_sexp (Sexplib.Sexp.of_string c) in
   Lwt_list.rev_map_p (fun p ->
       let id = id_of_path p in
-      Irmin.read (t ("retrieve task" ^ id)) p >>= function
+      Irmin.read (t ("retrieve job" ^ id)) p >>= function
       | None -> fail (raise Not_found)
-      | Some c -> return (id, task_of_content c)) paths
+      | Some c -> return (id, job_of_content c)) paths

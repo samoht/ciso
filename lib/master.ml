@@ -114,12 +114,12 @@ let heartbeat_handler groups headers body =
   let resp_m = Message.(match m with
       | Heartbeat None ->
          log "heartbeat" id "idle";
-         (match Scheduler.find_task token with
+         (match Scheduler.find_job token with
           | None -> Ack_heartbeat
-          | Some (tid, tdesp) -> New_task (tid, tdesp))
-      | Heartbeat (Some tid) ->
-         let info = Scheduler.task_info tid in
-         log "heartbeat" id ("working task " ^ info);
+          | Some (jid, tdesp) -> New_job (jid, tdesp))
+      | Heartbeat (Some jid) ->
+         let info = Scheduler.task_info jid in
+         log "heartbeat" id ("working job " ^ info);
          Message.Ack_heartbeat
       | Register | Publish _ -> failwith "wrong message for heartbeat") in
 
@@ -135,11 +135,11 @@ let publish_handler groups headers body =
   if token <> Hashtbl.find w_tbl id then failwith "fake worker";
 
   message_of_body body >>= fun m ->
-  let tid = Message.(match m with
+  let jid = Message.(match m with
       | Publish id -> id
       | Register | Heartbeat _ -> failwith "wrong message for publish") in
-    log "publish" id ("object " ^ (Scheduler.task_info tid));
-    Scheduler.publish_object token tid >>= fun () ->
+    log "publish" id ("object " ^ (Scheduler.task_info jid));
+    Scheduler.publish_object token jid >>= fun () ->
 
     empty_response Code.(`Created)
 

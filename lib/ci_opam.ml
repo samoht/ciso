@@ -94,7 +94,7 @@ let resolve str =
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
 
-let tasks_of_graph ?pull graph =
+let jobs_of_graph ?pull graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -124,8 +124,8 @@ let tasks_of_graph ?pull graph =
     let id = hash_id name version inputs compiler host in
     let task =
       if Graph.out_degree graph v <> 0 then
-        Task.make_task ?pull:None id name version inputs compiler host
-      else Task.make_task ?pull id name version inputs compiler host in
+        Task.make_job ?pull:None id name version inputs compiler host
+      else Task.make_job ?pull id name version inputs compiler host in
     id_map := Pkg.Map.add pkg id !id_map;
     t_lst := (id, task) :: !t_lst
   done;

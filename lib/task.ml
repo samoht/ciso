@@ -1,15 +1,7 @@
 open Sexplib.Std
 open Common_types
 
-type t = {
-  id : id;           (* task is referenced by this id *)
-  inputs : id list;  (* inputs are object ids *)
-  compiler : string;
-  host : string;
-  task : task;
-}
- (* a task may be a github PR or a dependency resolved by opam solver *)
-and task =
+type task =
   | Github of string * string * pull   (* package name * version * pull *)
   | Package of string * string         (* package name * version *)
 and pull = {
@@ -19,12 +11,20 @@ and pull = {
     head_sha : string;
 } with sexp
 
-let id_of_t {id} = id
+type job = {
+  id : id;           (* task is referenced by this id *)
+  inputs : id list;  (* inputs are object ids *)
+  compiler : string;
+  host : string;
+  task : task;
+} with sexp
 
-let inputs_of_t {inputs} = inputs
+let id_of_job {id} = id
+let inputs_of_job {inputs} = inputs
+let task_of_job {task} = task
 
-let info_of_t t =
-  match t.task with
+let info_of_task task =
+  match task with
   | Github (p, v, _) | Package (p, v) -> p, v
 
 let make_pull num url base head = {
@@ -33,7 +33,7 @@ let make_pull num url base head = {
     base_sha = base;
     head_sha = head;}
 
-let make_task ?pull id package version inputs compiler host =
+let make_job ?pull id package version inputs compiler host =
   let task = match pull with
     | Some pull -> Github (package, version, pull)
     | None -> Package (package, version) in
