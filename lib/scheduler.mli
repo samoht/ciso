@@ -14,7 +14,7 @@ type job_tbl
 type hook_tbl
 
 (* task state *)
-type state = [`Pending | `Dispatched | `Runnable | `Completed]
+type state = [`Pending | `Dispatched of worker_token | `Runnable | `Completed]
 
 (* object id -> task state
    if task A is supposed to produce object a,

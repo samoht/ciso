@@ -17,7 +17,7 @@ type job_tbl = (id, Task.job) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
-type state = [`Pending | `Dispatched | `Runnable | `Completed]
+type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
 type state_tbl = (id, state) Hashtbl.t
 
 let j_tbl : job_tbl = Hashtbl.create 16
@@ -35,11 +35,21 @@ let task_info id =
   with Not_found -> Printf.sprintf "Object %s not in the j_tbl" sub
      | e -> raise e
 
+
 let register_token wtoken =
   w_map := LogMap.add wtoken IdSet.empty !w_map
 
+
 let invalidate_token wtoken =
+  Hashtbl.iter (fun id s ->
+      if s = (`Dispatched wtoken)
+      then Hashtbl.replace s_tbl id `Runnable) s_tbl;
+  Printf.eprintf "\t[scheduler@invalidate]: %d/%d jobs\n%!"
+   (Hashtbl.fold (fun id _ acc ->
+         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
+   (Hashtbl.length j_tbl);
   w_map := LogMap.remove wtoken !w_map
+
 
 let find_job wtoken =
   let runnables = Hashtbl.fold (fun id state acc ->
@@ -55,7 +65,7 @@ let find_job wtoken =
           let dset = to_depset inputs in
           let d = IdSet.cardinal (IdSet.inter wset dset) in
           if d > n then tid, d else i, n) ("", (-1)) runnables in
-      Hashtbl.replace s_tbl id `Dispatched;
+      Hashtbl.replace s_tbl id (`Dispatched wtoken);
       Printf.eprintf "\t[scheduler@find_job]: [%s] -> %s\n%!"
         (String.concat " " (List.rev_map task_info runnables)) (task_info id);
 
