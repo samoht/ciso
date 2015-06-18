@@ -174,9 +174,9 @@ let worker_register base build_store =
        local_retrieve_all store >>= fun tups ->
        if tups = [] then return worker
        else Lwt_list.iter_p (fun (id, o) ->
-           join [(Store.publish_object token id o >>= fun () ->
-                  Store.unlog_job id);
-                 worker_publish base worker id o;]) tups >>= fun () ->
+           Store.publish_object token id o >>= fun () ->
+           Store.unlog_job id >>= fun () ->
+           worker_publish base worker id o) tups >>= fun () ->
            return worker
   else fail exn
 
@@ -227,19 +227,200 @@ let worker_request_object base worker oid =
     end
 
 
-let apply_object obj = return ()
+let get_opam_var var =
+  let comm = Lwt_process.shell ("opam config var " ^ var) in
+  let null = Lwt_process.(`Dev_null) in
+  let proc_in = Lwt_process.open_process_in ~stdin:null ~stderr:null comm in
+  let ic = proc_in#stdout in
+  Lwt_io.read_line ic
+
+
+let install_archive (name, content) =
+  let tmp = Filename.concat "/tmp" name in
+  if Sys.file_exists tmp then Sys.remove tmp;
+  let write_content oc =
+    Lwt_io.fprint oc content in
+  Lwt_io.with_file ~mode:Lwt_io.output tmp write_content
+  >>= fun () -> return tmp
+
+
+let with_lwt_comm ?fail ?success comm =
+  let fail = match fail with
+    | None -> fun () -> return_unit
+    | Some f -> f in
+  let success = match success with
+    | None -> fun () -> return_unit
+    | Some f -> f in
+  Lwt_unix.system comm >>= function
+  | Lwt_unix.WEXITED rc when rc = 0 -> success ()
+  | Lwt_unix.WEXITED _ | Lwt_unix.WSIGNALED _ | Lwt_unix.WSTOPPED _ -> fail ()
+
+
+let extract_files tar =
+  if not (Filename.check_suffix tar ".tar.gz") then
+    raise (Invalid_argument tar);
+  let comm = "tar -xzf " ^ tar in
+  let fail () = return (log "extract" tar ~info:"failed") in
+  with_lwt_comm ~fail comm
+
+
+let install_files ~src ~dst files =
+  let cp src dst =
+    let comm = Printf.sprintf "cp %s %s" src dst in
+    let fail () = return (log "install" src ~info:"failed") in
+    with_lwt_comm ~fail comm in
+  Lwt_list.iter_p (fun f ->
+    let src = Filename.concat src f in
+    let dst = Filename.concat dst f in
+    cp src dst) files
+
+
+let apply_object prefix obj =
+  let installed, archive = Object.apply_info obj in
+  install_archive archive >>= fun arch_path ->
+  extract_files arch_path >>= fun () ->
+  (* name.tar.gz *)
+  let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
+  install_files ~src ~dst:prefix installed
+
+
+let hash str =
+  let hex_of_cs cs =
+    let buf = Buffer.create 16 in
+    Cstruct.hexdump_to_buffer buf cs;
+    Buffer.contents buf in
+  let stripe_nl_space s = Re.(
+    let re = compile (alt [compl [notnl]; space]) in
+    replace_string re ~by:"" s) in
+  Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
+  |> hex_of_cs |> stripe_nl_space
+
+
+let fs_snapshots dir =
+  log "execute" "snapshot" ~info:dir;
+  let checksum_of_file file =
+    let checksum_of_ic ic =
+      Lwt_io.read ic >>= fun content ->
+      return (hash (file ^ content)) in
+    Lwt_io.with_file Lwt_io.input file checksum_of_ic in
+  let rec loop checksums = function
+    | [] -> return checksums
+    | path :: tl ->
+       if not (Sys.is_directory path) then
+         checksum_of_file path >>= fun c ->
+         loop ((path, c) :: checksums) tl
+       else
+         let files =
+           Sys.readdir path
+           |> Array.to_list
+           |> List.rev_map (fun f -> Filename.concat path f) in
+         loop checksums (List.rev_append files tl) in
+  loop [] [dir]
+
+
+let opam_install p v =
+  let null = Lwt_process.(`Dev_null) in
+  let cmd = Printf.sprintf "opam install --show-actions %s.%s" p v in
+  let pred_comm = Lwt_process.shell cmd in
+  let check_dependency pi =
+    let stdout = pi#stdout in
+    Lwt_io.read_line stdout >>= fun _ -> (* throw away the header *)
+    Lwt_io.read_line stdout >>= fun action ->
+    let predict = Printf.sprintf "install %s %s" p v in
+    return (Re_str.(string_match (regexp predict) action 0)) >>= fun catched ->
+    Lwt_io.read_line_opt stdout >>= fun line_opt ->
+    return (catched && (line_opt = None)) in
+  Lwt_process.with_process_in ~stderr:null pred_comm check_dependency
+
+  (* TODO: install external dependencies *)
+  >>= fun checked ->
+  if not checked then return `Fail
+  else begin
+      let comm = Lwt_process.shell (Printf.sprintf "opam install %s.%s" p v) in
+      let get_result proc = Lwt_process.(
+        let rec result = function
+          | Running -> Lwt_unix.sleep 0.5 >>= fun () -> result proc#state
+          | Exited (Lwt_unix.WEXITED rc) when rc = 0 -> return `Success
+          | Exited (Lwt_unix.WSIGNALED _)
+          | Exited (Lwt_unix.WSTOPPED _)
+          | Exited (Lwt_unix.WEXITED _)-> return `Fail in
+        result proc#state) in
+      Lwt_process.with_process_none comm get_result end
+
+
+let collect_output prefix p v = function
+  | `Success -> return []
+  | `Fail ->
+     let relative_path = ["build"; p ^ "." ^ v] |> String.concat "/" in
+     let path = Filename.concat prefix relative_path in
+     let files = Sys.readdir path |> Array.to_list in
+     List.filter (fun f ->
+         List.exists (fun suffix -> Filename.check_suffix f suffix)
+           [".info"; ".err"; ".out"; ".env"]) files
+     |> List.rev_map (fun f -> Filename.concat relative_path f)
+     |> return
+
+
+let collect_installed prefix before after =
+  let module CsMap = Map.Make(String) in
+  let cmap = List.fold_left (fun acc (f, checksum) ->
+      CsMap.add f checksum acc) CsMap.empty before in
+  (* TODO: collect deleted files *)
+  let installed = List.fold_left (fun acc (f, checksum) ->
+      if not (CsMap.mem f cmap) then f :: acc else
+        let cs = CsMap.find f cmap in
+        if cs <> checksum then f :: acc
+        else acc) [] after in
+  (* 1 is for the delimiter *)
+  let len = 1 + String.length prefix in
+  let chop_prefix f = String.sub f len (String.length f) in
+  return (List.rev_map chop_prefix installed)
+
+
+let create_archive prefix id output installed =
+  let dir = Filename.concat "/tmp" (sub 5 id) in
+  (if Sys.file_exists dir then with_lwt_comm ("rm -r " ^ dir)
+   else return ()) >>= fun () ->
+  Lwt_unix.mkdir dir 0o770 >>= fun () ->
+  let cp file =
+    let src = Filename.concat prefix file in
+    let dst = Filename.concat dir file in
+    let comm = Printf.sprintf "cd %s %s" src dst in
+    let fail () =
+      let info = Printf.sprintf "command [%s] failed" comm in
+      return (log "execute" "cp" ~info) in
+    with_lwt_comm ~fail comm in
+
+  Lwt_list.iter_p cp (List.rev_append output installed) >>= fun () ->
+  let name = (sub 5 id) ^ ".tar.gz" in
+  let path = Filename.concat "/tmp" name in
+  let comm = Printf.sprintf "tar -zcf %s %s" path dir in
+  with_lwt_comm comm >>= fun () ->
+  Lwt_io.with_file Lwt_io.input name Lwt_io.read >>= fun content ->
+  return (name, content)
 
 
 let job_execute base worker jid job =
   let inputs = Task.inputs_of_job job in
   let info = Printf.sprintf "of total %d" (List.length inputs) in
   log "execute" "inputs" ~info;
+
+  get_opam_var "prefix" >>= fun prefix ->
   Lwt_list.iter_p (fun input ->
     worker_request_object base worker input >>= fun obj ->
-    apply_object obj) inputs >>= fun () ->
+    apply_object prefix obj) inputs >>= fun () ->
+
+  fs_snapshots prefix >>= fun before_build ->
   let p, v = Task.info_of_task (Task.task_of_job job) in
-  log "execute" "dummy" ~info:(p ^ "." ^  v);
-  return (Object.create jid)
+  log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
+
+  opam_install p v >>= fun result ->
+  fs_snapshots prefix >>= fun after_build ->
+  collect_output prefix p v result >>= fun output ->
+  collect_installed prefix before_build after_build >>= fun installed ->
+  create_archive prefix jid output installed >>= fun archive ->
+
+  return (Object.create jid result output installed archive)
 
 
 let rec execution_loop base worker cond =
@@ -250,10 +431,10 @@ let rec execution_loop base worker cond =
       let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
       worker.status <- Working id;
       job_execute base worker id job >>= fun obj ->
-      choose [(Store.publish_object worker.token id obj >>= fun () ->
-               Store.unlog_job id);
-              worker_publish base worker id obj;
-              local_publish worker.store id obj] >>= fun () ->
+      Store.publish_object worker.token id obj >>= fun () ->
+      Store.unlog_job id >>= fun () ->
+      join [worker_publish base worker id obj;
+            local_publish worker.store id obj] >>= fun () ->
       worker.status <- Idle;
       execution_loop base worker cond
     end

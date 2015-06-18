@@ -10,13 +10,10 @@ type t = {
 } with sexp
 
 let id_of_t {id} = id
+let apply_info {installed; archive} = installed, archive
 
-let create id = {
-    id;
-    result = `Success;
-    output = [".stdout"; ".stderr"];
-    installed = [".cmi"; ".cmx"; ".cmxa"; ".cmo"; ".cma";];
-    archive =  ".tar.gz", "content" }
+let create id result output installed archive =
+  {id; result; output; installed; archive}
 
 let string_of_t obj =
   sexp_of_t obj |> Sexplib.Sexp.to_string
