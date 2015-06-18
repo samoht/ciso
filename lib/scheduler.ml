@@ -153,7 +153,7 @@ let update_tables new_tasks =
 let bootstrap () =
   Store.retrieve_jobs ()
   >>= update_tables >>= fun () ->
-  Printf.eprintf "\t[scheduler@bootstrap]: %d/%d tasks\n%!"
+  Printf.eprintf "\t[scheduler@bootstrap]: %d/%d jobs\n%!"
    (Hashtbl.fold (fun id _ acc ->
          if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
    (Hashtbl.length j_tbl);
@@ -168,7 +168,7 @@ let resolve_and_add ?pull pkg =
       return (not (in_store || Hashtbl.mem j_tbl id))) jobs
   >>= update_tables
   >>= fun () ->
-  Printf.eprintf "\t[scheduler@resolve]: %d/%d tasks\n%!"
+  Printf.eprintf "\t[scheduler@resolve]: %d/%d jobs\n%!"
     (Hashtbl.fold (fun id _ acc ->
          if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
     (Hashtbl.length j_tbl);

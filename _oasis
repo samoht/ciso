@@ -34,7 +34,7 @@ Executable worker
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str
 
 Executable master
   Path: lib
