@@ -1,5 +1,5 @@
 open OpamTypes
-open Cmdliner
+open Lwt
 
 let compiler () =
   OpamCompiler.Version.current ()
@@ -44,6 +44,7 @@ let parse str =
     try OpamFormula.(OpamPackage.Name.of_string str, None)
     with Failure msg -> failwith msg
 
+
 let print_edges vx vy =
   let string_of_action v =
     let action, pkg = match v with
@@ -60,6 +61,12 @@ let print_edges vx vy =
   let stry = string_of_action vy in
   Printf.printf "%s\t->\t%s\n%!" strx stry
 
+
+let load_state () =
+  OpamGlobals.root_dir := OpamGlobals.default_opam_dir;
+  OpamState.load_state "state"
+
+
 let modify_state state =
   let open OpamState.Types in
   let base = OpamState.base_packages in
@@ -69,13 +76,12 @@ let modify_state state =
     installed_roots = OpamPackage.Set.filter is_base state.installed_roots;
     pinned = OpamPackage.Name.Map.empty; }
 
-let resolve str =
-  OpamGlobals.root_dir := OpamGlobals.default_opam_dir;
-  let state = OpamState.load_state "solve" in
+let resolve ?(bare = true) state str =
+  let state = if bare then modify_state state else state in
   let atom = parse str in
   let install_set = OpamPackage.Name.(Set.add (fst atom) Set.empty) in
   let action = Install install_set in
-  let universe = OpamState.universe (modify_state state) action in
+  let universe = OpamState.universe state action in
   let request = {
     wish_install = [atom];
     wish_remove = [];
@@ -130,6 +136,58 @@ let jobs_of_graph ?pull graph =
     t_lst := (id, task) :: !t_lst
   done;
   !t_lst
+
+
+let opam_install state p v =
+  let graph = resolve ~bare:false state (p ^ "." ^ v) in
+  let nb_action = OpamSolver.ActionGraph.nb_vertex graph in
+  if nb_action <> 1 then return (state, `Fail "dependency incomplet")
+  else begin
+      let nv =
+        let name = OpamPackage.Name.of_string p in
+        let version = OpamPackage.Version.of_string v in
+        OpamPackage.create name version in
+      try
+        OpamAction.download_package state nv;
+        OpamAction.build_and_install_package state ~metadata:true nv;
+        let installed, installed_roots, reinstall = OpamState.Types.(
+          state.installed, state.installed_roots, state.reinstall) in
+        let new_state =
+          OpamAction.update_metadata state ~installed_roots ~reinstall
+            ~installed:(OpamPackage.Set.add nv installed) in
+        return (new_state, `Success);
+      with _ -> return (state, `Fail "opam build") end
+
+
+let opam_uninstall state p v =
+  let nv =
+    let name = OpamPackage.Name.of_string p in
+    let version = OpamPackage.Version.of_string v in
+    OpamPackage.create name version in
+  OpamAction.remove_package state ~metadata:true nv
+
+
+let update_metadata state dir file =
+  let rec packages_of_file acc ic =
+    Lwt_io.read_line_opt ic >>= function
+      | None -> return acc
+      | Some line ->
+         let pos = Re_str.search_forward (Re_str.regexp_string " ") line 0 in
+         let name = String.sub line 0 pos |> OpamPackage.Name.of_string in
+         let version = String.sub line (pos + 1) (String.length line - pos - 1)
+                       |> OpamPackage.Version.of_string in
+         let nv = OpamPackage.create name version in
+         packages_of_file (nv :: acc) ic in
+
+  let path = Filename.concat dir "installed" in
+  Lwt_io.with_file Lwt_io.input path (packages_of_file []) >>= fun pkg_lst ->
+  let installed_roots = state.OpamState.Types.installed_roots in
+  let reinstall = state.OpamState.Types.reinstall in
+  let installed =
+    List.fold_left (fun set p -> OpamPackage.Set.add p set)
+      state.OpamState.Types.installed pkg_lst in
+  OpamAction.update_metadata state ~installed ~installed_roots ~reinstall
+  |> return
 
 (*
 let str = Arg.(
