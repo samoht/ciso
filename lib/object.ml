@@ -1,12 +1,12 @@
 open Sexplib.Std
 
 type t = {
-  id : Common_types.id;       (* object is referenced by id in scheduler *)
-  result : [`Success |`Fail]; (* result of opam build *)
+  id : Common_types.id;            (* object is referenced by id in scheduler *)
+  result : [`Success |`Fail of string];               (* result of opam build *)
   output: string list;      (* relative paths of stdout and stderr in archive *)
-  installed : string list;  (* relative paths of installed files in archive *)
+  installed : string list;    (* relative paths of installed files in archive *)
   archive: string * string;
-  (* archive who holds output and installed files, name * content *)
+              (* archive who holds output and installed files, name * content *)
 } with sexp
 
 let id_of_t {id} = id

@@ -12,7 +12,7 @@ exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16
 let c_tbl : checkin_tbl = Hashtbl.create 16
-let check_round = 5.0
+let check_round = 7.0
 let worker_cnt = ref 0
 
 let log handler worker_id info =

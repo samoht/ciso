@@ -34,7 +34,7 @@ Executable worker
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str, opam-lib.client
 
 Executable master
   Path: lib
@@ -42,4 +42,4 @@ Executable master
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, opam-lib.solver, opam-lib.client, github.unix, nocrypto, irmin.unix
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto, irmin.unix, opam-lib.client

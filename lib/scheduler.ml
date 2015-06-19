@@ -170,7 +170,8 @@ let bootstrap () =
   return ()
 
 let resolve_and_add ?pull pkg =
-  let action_graph = Ci_opam.resolve pkg in
+  let state = Ci_opam.load_state () in
+  let action_graph = Ci_opam.resolve state pkg in
 
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
   Lwt_list.filter_p (fun (id, _) ->
