@@ -12,7 +12,7 @@ exception WrongMessage of string
 
 let w_tbl : worker_tbl = Hashtbl.create 16
 let c_tbl : checkin_tbl = Hashtbl.create 16
-let check_round = 7.0
+let check_round = 15.0
 let worker_cnt = ref 0
 
 let log handler worker_id info =
@@ -118,8 +118,8 @@ let heartbeat_handler groups headers body =
           | None -> Ack_heartbeat
           | Some (jid, tdesp) -> New_job (jid, tdesp))
       | Heartbeat (Some jid) ->
-         let info = Scheduler.task_info jid in
-         log "heartbeat" id ("working job " ^ info);
+         (* let info = Scheduler.task_info jid in
+          log "heartbeat" id ("working job " ^ info); *)
          Message.Ack_heartbeat
       | Register | Publish _ -> failwith "wrong message for heartbeat") in
 
@@ -132,16 +132,19 @@ let publish_handler groups headers body =
   let id = int_of_string (groups.(1)) in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
-  if token <> Hashtbl.find w_tbl id then failwith "fake worker";
+  if token <> Hashtbl.find w_tbl id then failwith "fake worker"
+  else worker_checkin id;
 
   message_of_body body >>= fun m ->
-  let jid = Message.(match m with
-      | Publish id -> id
+  let result, jid = Message.(match m with
+      | Publish (result, id) -> result, id
       | Register | Heartbeat _ -> failwith "wrong message for publish") in
-    log "publish" id ("object " ^ (Scheduler.task_info jid));
-    Scheduler.publish_object token jid >>= fun () ->
+  let r = match result with `Success -> "SUCCESS" | `Fail f -> "FAIL: " ^ f in
+  log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
+  Scheduler.publish_object token result jid >>= fun () ->
 
-    empty_response Code.(`Created)
+  empty_response Code.(`Created)
+
 
 let github_hook_handler groups headers body =
   let pr_num = int_of_string (groups.(1)) in

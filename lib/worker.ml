@@ -22,7 +22,7 @@ exception WrongResponse of string * string
 
 let idle_sleep = 3.0
 let working_sleep = 5.0
-let master_timeout = 3.0
+let master_timeout = 15.0
 
 let sub len str = String.sub str 0 len
 let sub_abbr = sub 5
@@ -137,10 +137,10 @@ let with_client_request tag request =
 
 
 (* POST base/worker<id>/objects -> `Created *)
-let worker_publish base {id; token} oid obj =
+let worker_publish base {id; token} result oid obj =
   log "send" "publish" ~info:("object " ^ (sub_abbr oid));
   let headers = Cohttp.Header.of_list ["worker", token] in
-  let m = Message.Publish oid in
+  let m = Message.Publish (result, oid) in
   let body = body_of_message m in
   let uri_path = Printf.sprintf "worker%d/objects" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
@@ -174,10 +174,10 @@ let worker_register base build_store =
 
        local_retrieve_all store >>= fun tups ->
        if tups = [] then return worker
-       else Lwt_list.iter_p (fun (id, o) ->
+       else Lwt_list.iter_s (fun (id, o) ->
            Store.publish_object token id o >>= fun () ->
            Store.unlog_job id >>= fun () ->
-           worker_publish base worker id o) tups >>= fun () ->
+           worker_publish base worker `Success id o) tups >>= fun () ->
            return worker
   else fail exn
 
@@ -188,7 +188,7 @@ let worker_heartbeat base { id; token; status } =
   let m =
     match status with
     | Working jid ->
-       log "send" "heartbeat" ~info:("working " ^ (sub_abbr jid));
+       (* log "send" "heartbeat" ~info:("working " ^ (sub_abbr jid)); *)
        Heartbeat (Some jid)
     | Idle ->
        log "send" "heartbeat" ~info:"idle";
@@ -224,7 +224,7 @@ let worker_request_object base worker oid =
       log "send" "object" ~info;
       Store.retrieve_object oid >>= fun obj ->
       choose [local_publish store oid obj;
-              worker_publish base worker oid obj] >>= fun () ->
+              worker_publish base worker `Success oid obj] >>= fun () ->
       return obj
     end
 
@@ -256,7 +256,7 @@ let install_archive (name, content) =
     Lwt_io.fprint oc content in
   Lwt_io.with_file ~mode:Lwt_io.output tmp write_content
   >>= fun () ->
-  log "apply" "archive" ~info:tmp;
+  (* log "apply" "archive" ~info:tmp; *)
   return tmp
 
 
@@ -265,8 +265,8 @@ let extract_files tar =
     raise (Invalid_argument tar);
   let comm = Printf.sprintf "tar -xzf %s -C /" tar in
   let fail () = return (log "extract" tar ~info:"failed") in
-  let success () = return (log "extract" tar ~info:"OK") in
-  with_lwt_comm ~fail ~success comm
+  (* let success () = return (log "extract" tar ~info:"OK") in *)
+  with_lwt_comm ~fail comm
 
 
 let install_files ~src ~dst files =
@@ -307,13 +307,15 @@ let apply_object state prefix obj =
   let installed, archive = Object.apply_info obj in
   install_archive archive >>= fun arch_path ->
   extract_files arch_path >>= fun () ->
-  (* name.tar.gz *)
 
+  (* name.tar.gz *)
   let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
-  let files = List.filter (fun f -> f <> "installed" ) installed in
+  let installed, files =
+    List.partition (fun f -> f = "installed") installed in
   install_files ~src ~dst:prefix files >>= fun () ->
-  (* clean_tmp "apply" (fst archive) >>= fun () -> *)
-  if List.mem "installed" files then Ci_opam.update_metadata state prefix "installed"
+  if installed <> [] then begin
+      log "execute" "apply" ~info:"update metadata";
+      Ci_opam.update_metadata state src "installed"; end
   else return state
 
 
@@ -330,7 +332,6 @@ let hash str =
 
 
 let fs_snapshots dir =
-  log "execute" "snapshot" ~info:dir;
   let checksum_of_file file =
     let checksum_of_ic ic =
       Lwt_io.read ic >>= fun content ->
@@ -350,43 +351,8 @@ let fs_snapshots dir =
            |> Array.to_list
            |> List.rev_map (fun f -> Filename.concat path f) in
          loop checksums (List.rev_append files tl) in
+
   loop [] [dir]
-
-
-let opam_install p v =
-  let null = Lwt_process.(`Dev_null) in
-  let cmd = Printf.sprintf "opam install --show-actions %s.%s" p v in
-  let pred_comm = Lwt_process.shell cmd in
-  let check_dependency pi =
-    let stdout = pi#stdout in
-    Lwt_io.read_line stdout >>= fun header -> (* throw away the header *)
-    Lwt_io.read_line stdout >>= fun action ->
-    let predict = Printf.sprintf "install %s %s" p v in
-    let rx = Re_str.regexp_string predict in
-    try
-      ignore (Re_str.search_forward rx action 0);
-      return true;
-    with Not_found -> return false >>= fun catched ->
-    Lwt_io.read_line_opt stdout >>= fun line_opt ->
-    return (catched && (line_opt = None)) in
-  Lwt_process.with_process_in ~stderr:null pred_comm check_dependency
-
-  (* TODO: install external dependencies *)
-  >>= fun checked ->
-  log "execute" "install"
-      ~info:("dependency installed: " ^ string_of_bool checked);
-  if not checked then return `Fail
-  else begin
-      let comm = Lwt_process.shell (Printf.sprintf "opam install %s.%s" p v) in
-      let get_result proc = Lwt_process.(
-        let rec result = function
-          | Running -> Lwt_unix.sleep 0.5 >>= fun () -> result proc#state
-          | Exited (Lwt_unix.WEXITED rc) when rc = 0 -> return `Success
-          | Exited (Lwt_unix.WSIGNALED _)
-          | Exited (Lwt_unix.WSTOPPED _)
-          | Exited (Lwt_unix.WEXITED _)-> return `Fail in
-        result proc#state) in
-      Lwt_process.with_process_none comm get_result end
 
 
 let collect_output prefix p v = function
@@ -449,18 +415,26 @@ let job_execute base worker jid job =
     worker_request_object base worker input >>= fun obj ->
     apply_object s prefix obj) state inputs >>= fun state ->
 
+  log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
   Ci_opam.opam_install state p v >>= fun (state, result) ->
+  (match result with
+   | `Success -> log "execute" p ~info:"SUCCESS"
+   | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
+  return_unit >>= fun () ->
+
+  log "execute" "snapshot" ~info:(prefix ^ " AFTER");
   fs_snapshots prefix >>= fun after_build ->
   collect_output prefix p v result >>= fun output ->
   collect_installed prefix before_build after_build >>= fun installed ->
   create_archive prefix jid output installed >>= fun archive ->
 
+  Ci_opam.opam_uninstall state p v >>= fun _ ->
   clean_tmp "execute" (fst archive) >>= fun () ->
-  return (Object.create jid result output installed archive)
+  return (result, (Object.create jid result output installed archive))
 
 
 let rec execution_loop base worker cond =
@@ -470,11 +444,16 @@ let rec execution_loop base worker cond =
   else begin
       let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
       worker.status <- Working id;
-      job_execute base worker id job >>= fun obj ->
-      Store.publish_object worker.token id obj >>= fun () ->
-      Store.unlog_job id >>= fun () ->
-      join [worker_publish base worker id obj;
-            local_publish worker.store id obj] >>= fun () ->
+      job_execute base worker id job >>= fun (result, obj) ->
+      (match result with
+       | `Success ->
+          Store.publish_object worker.token id obj >>= fun () ->
+          Store.unlog_job id >>= fun () ->
+          join [worker_publish base worker result id obj;
+                local_publish worker.store id obj]
+       | `Fail f ->
+          Store.publish_object worker.token id obj >>= fun () ->
+          worker_publish base worker result id obj) >>= fun () ->
       worker.status <- Idle;
       execution_loop base worker cond
     end

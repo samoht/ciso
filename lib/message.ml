@@ -4,7 +4,7 @@ open Common_types
 type worker_msg =
   | Register
   | Heartbeat of id option
-  | Publish of id
+  | Publish of [`Success | `Fail of string] * id
   with sexp
 
 type master_msg =

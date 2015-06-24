@@ -25,6 +25,13 @@ let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
 
+let sub_abbr str = String.sub str 0 5
+
+let log action func ~info =
+  let title = Printf.sprintf "%s@%s" action func in
+  if info = "" then Printf.eprintf "[%s]\n%!" title
+  else Printf.eprintf "\t[%s]: %s\n%!" title info
+
 
 let task_info id =
   let sub = String.sub id 0 5 in
@@ -37,6 +44,8 @@ let task_info id =
 
 
 let register_token wtoken =
+  Printf.eprintf "\t[scheduler@register]: new worker %s\n%!"
+                 (String.sub wtoken 0 5);
   w_map := LogMap.add wtoken IdSet.empty !w_map
 
 
@@ -66,8 +75,7 @@ let find_job wtoken =
           let d = IdSet.cardinal (IdSet.inter wset dset) in
           if d > n then tid, d else i, n) ("", (-1)) runnables in
       Hashtbl.replace s_tbl id (`Dispatched wtoken);
-      Printf.eprintf "\t[scheduler@find_job]: [%s] -> %s\n%!"
-        (String.concat " " (List.rev_map task_info runnables)) (task_info id);
+      Printf.eprintf "\t[scheduler@find_job]: -> %s\n%!" (task_info id);
 
       let job = Hashtbl.find j_tbl id in
       let desp = Sexplib.Sexp.to_string (Task.sexp_of_job job) in
@@ -78,28 +86,59 @@ let publish_object_hook id =
   if not (Hashtbl.mem h_tbl id) then return ()
   else begin
       let ids = Hashtbl.find_all h_tbl id in
-      let tups = List.rev_map (fun i -> i, Hashtbl.find j_tbl i) ids in
-      Lwt_list.iter_p (fun (i, job) ->
-        let state = Hashtbl.find s_tbl i in
-        let inputs = Task.inputs_of_job job in
-        if state <> `Pending then return () else
-          Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
-          >>= fun runnable ->
-          if runnable then return (Hashtbl.replace s_tbl i `Runnable)
-          else return ()) tups
+      let tups = List.rev_map (fun i -> i,
+          try Hashtbl.find j_tbl i with Not_found ->
+            let info = "Not_found J_TBL " ^ (sub_abbr i) in
+            log "scheduler" "publish_hook" ~info;
+            raise Not_found) ids in
+
+      Lwt_list.fold_left_s (fun cache (i, job) ->
+        let state =
+          try Hashtbl.find s_tbl i with Not_found ->
+            let info = "Not_found S_TBL " ^ (sub_abbr i) in
+            log "scheduler" "publish_hook" ~info;
+            raise Not_found in
+
+        if state <> `Pending then return cache
+        else begin
+          let inputs = Task.inputs_of_job job in
+          let cached, store = List.partition (fun input ->
+              List.mem_assoc input cache) inputs in
+
+          if List.exists (fun input -> false = List.assoc input cache) cached
+          then return cache else
+            Lwt_list.rev_map_s (fun input -> Store.query_object input) store
+            >>= fun store_results ->
+            let store_tups = List.combine store (List.rev store_results) in
+            Lwt_list.fold_left_s (fun acc tup ->
+                return (tup :: acc)) cache store_tups
+            >>= fun new_cache ->
+            if List.for_all (fun re -> re = true) store_results then
+              Hashtbl.replace s_tbl i `Runnable;
+            return new_cache end) [] tups
+      >>= fun _ -> return ()
     end
 
 
-let publish_object wtoken id =
-  let wset = LogMap.find wtoken !w_map in
-  let n_wset = IdSet.add id wset in
-  w_map := LogMap.add wtoken n_wset !w_map;
-  Hashtbl.replace s_tbl id `Completed;
-  publish_object_hook id >>= fun () ->
+let publish_object wtoken result id =
+  (match result with
+   | `Success ->
+      let wset = LogMap.find wtoken !w_map in
+      let n_wset = IdSet.add id wset in
+      w_map := LogMap.add wtoken n_wset !w_map;
+      Hashtbl.replace s_tbl id `Completed;
+      Printf.eprintf "\t[scheduler@publish]: %s completed\n%!"
+        (String.sub id 0 5);
+      publish_object_hook id
+   | `Fail _ -> begin
+       Hashtbl.replace s_tbl id `Runnable;
+       return_unit end) >>= fun () ->
+
+  Printf.eprintf "\t[scheduler@publish]: publish hook completed\n%!";
   let runnables = Hashtbl.fold (fun oid state acc ->
       if state = `Runnable then oid :: acc else acc) s_tbl [] in
-  let str = String.concat " " (List.rev_map task_info runnables) in
-  Printf.eprintf "\t[scheduler@publish]: %s -> [%s]\n%!" (task_info id) str;
+  let str = String.concat " ; " (List.rev_map task_info runnables) in
+  Printf.eprintf "\t[scheduler@publish]: {%s}\n%!" str;
   return ()
 
 

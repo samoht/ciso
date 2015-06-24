@@ -18,7 +18,8 @@ val worker_heartbeat: Uri.t -> t -> (id * description) option Lwt.t
 (** [worker_publish master_uri worker object]:
     if produces a new object or get a copy from other workers,
     publish it to master in the object tables *)
-val worker_publish: Uri.t -> t -> id -> Object.t -> unit Lwt.t
+val worker_publish: Uri.t -> t -> [`Success | `Fail of string]
+                    -> id -> Object.t -> unit Lwt.t
 
 
 (** [worker_request_object master_uri worker obj_id]:

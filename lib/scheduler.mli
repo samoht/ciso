@@ -28,7 +28,8 @@ type state_tbl
 val find_job: worker_token -> (id * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
-val publish_object: worker_token -> id -> unit Lwt.t
+val publish_object: worker_token -> [`Success | `Fail of string]
+                    -> id -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
 val task_info: id -> string
