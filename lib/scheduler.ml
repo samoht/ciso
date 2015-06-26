@@ -14,6 +14,7 @@ module LogMap = Map.Make(struct
 end)
 
 type job_tbl = (id, Task.job) Hashtbl.t
+type deps_tbl = (id, id list) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
@@ -21,6 +22,7 @@ type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
 type state_tbl = (id, state) Hashtbl.t
 
 let j_tbl : job_tbl = Hashtbl.create 16
+let d_tbl : deps_tbl = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
@@ -66,19 +68,21 @@ let find_job wtoken =
   if runnables = [] then None
   else begin
       let wset = LogMap.find wtoken !w_map in
-      let to_depset inputs = List.fold_left (fun set input ->
-          IdSet.add input set) IdSet.empty inputs in
+      let to_depset deps = List.fold_left (fun set input ->
+          IdSet.add input set) IdSet.empty deps in
       let id, _ = List.fold_left (fun (i, n) tid ->
-          let job = Hashtbl.find j_tbl tid in
-          let inputs = Task.inputs_of_job job in
-          let dset = to_depset inputs in
+          let deps = Hashtbl.find d_tbl tid in
+          let dset = to_depset deps in
           let d = IdSet.cardinal (IdSet.inter wset dset) in
           if d > n then tid, d else i, n) ("", (-1)) runnables in
       Hashtbl.replace s_tbl id (`Dispatched wtoken);
       Printf.eprintf "\t[scheduler@find_job]: -> %s\n%!" (task_info id);
 
       let job = Hashtbl.find j_tbl id in
-      let desp = Sexplib.Sexp.to_string (Task.sexp_of_job job) in
+      let deps = Hashtbl.find d_tbl id in
+      let desp = Task.make_job_entry job deps
+                 |> Task.sexp_of_job_entry
+                 |> Sexplib.Sexp.to_string in
       Some (id, desp) end
 
 
@@ -186,17 +190,26 @@ let pull_info token num = Github.Monad.(
 
 
 let update_tables new_tasks =
-  Lwt_list.iter_p (fun (id, t) ->
-      Store.log_job id t >>= fun () ->
+  Lwt_list.fold_left_s (fun cache (id, t, deps) ->
+      Store.log_job id (t, deps) >>= fun () ->
       Hashtbl.replace j_tbl id t;
+      Hashtbl.replace d_tbl id deps;
+
       let inputs = Task.inputs_of_job t in
-      Lwt_list.for_all_p (fun input -> Store.query_object input) inputs
-      >>= fun runnable ->
-      (if runnable then Hashtbl.replace s_tbl id `Runnable
+      let cached, store =
+        List.partition (fun i -> List.mem_assoc i cache) inputs in
+
+      Lwt_list.rev_map_s (fun input -> Store.query_object input) store
+      >>= fun store_results ->
+      let new_cache = List.combine store (List.rev store_results) in
+      let cache = List.rev_append new_cache cache in
+      (if List.for_all (fun i -> true = List.assoc i cache) inputs then
+         Hashtbl.replace s_tbl id `Runnable
        else begin
            List.iter (fun input -> Hashtbl.add h_tbl input id) inputs;
            Hashtbl.replace s_tbl id `Pending; end);
-      return ()) new_tasks
+      return cache) [] new_tasks
+  >>= fun _ -> return_unit
 
 
 let bootstrap () =
@@ -213,7 +226,7 @@ let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve state pkg in
 
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
-  Lwt_list.filter_p (fun (id, _) ->
+  Lwt_list.filter_p (fun (id, _, _) ->
       Store.query_object id >>= fun in_store ->
       return (not (in_store || Hashtbl.mem j_tbl id))) jobs
   >>= update_tables
