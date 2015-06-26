@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9862ddd83584e792b0a8c6aac6c4df3d)
+# DO NOT EDIT (digest: a63226ee169465f6cf64bb66fd0b57e1)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,6 +16,7 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Library ci_basic
 "lib/ci_basic.cmxs": use_ci_basic
+<lib/*.ml{,i,y}>: pkg_sexplib
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
 # Library ci_store
 "lib/ci_store.cmxs": use_ci_store

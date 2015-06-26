@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: f680c0c83eadfdb0096ea75690396830)
+# DO NOT EDIT (digest: c48bc5cbd00206cc6d833441594356f6)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
-requires = "sexplib.syntax"
+requires = "sexplib.syntax sexplib"
 archive(byte) = "ci_basic.cma"
 archive(byte, plugin) = "ci_basic.cma"
 archive(native) = "ci_basic.cmxa"

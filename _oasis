@@ -11,7 +11,7 @@ Library ci_basic
   Path: lib
   Install: false
   Modules: Object, Task, Message, Host, Common_types
-  BuildDepends: sexplib.syntax
+  BuildDepends: sexplib.syntax, sexplib
 
 Library ci_store
   Path: lib
