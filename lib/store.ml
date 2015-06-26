@@ -77,10 +77,11 @@ let invalidate_token token =
 let jpath_of_id id =
   ["job"; id]
 
-let log_job id job =
+let log_job id (job, deps) =
   get_store () >>= fun t ->
   let path = jpath_of_id id in
-  let content = Sexplib.Sexp.to_string (Task.sexp_of_job job) in
+  let entry = Task.make_job_entry job deps in
+  let content = Sexplib.Sexp.to_string (Task.sexp_of_job_entry entry) in
   Irmin.update (t ("log job " ^ id)) path content
 
 let unlog_job id =
@@ -96,10 +97,12 @@ let retrieve_jobs () =
     | [id] -> id
     | _ :: tl -> id_of_path tl
     | [] -> raise (Invalid_argument "empty path") in
-  let job_of_content c =
-    Task.job_of_sexp (Sexplib.Sexp.of_string c) in
+  let entry_of_content c =
+    Task.job_entry_of_sexp (Sexplib.Sexp.of_string c) in
   Lwt_list.rev_map_p (fun p ->
       let id = id_of_path p in
       Irmin.read (t ("retrieve job" ^ id)) p >>= function
       | None -> fail (raise Not_found)
-      | Some c -> return (id, job_of_content c)) paths
+      | Some c ->
+         let job, deps = Task.unwrap_entry (entry_of_content c) in
+         return (id, job, deps)) paths

@@ -14,8 +14,8 @@ val retrieve_object: id -> Object.t Lwt.t
 
 
 
-val log_job: id -> Task.job -> unit Lwt.t
+val log_job: id -> Task.job * (id list) -> unit Lwt.t
 
 val unlog_job: id -> unit Lwt.t
 
-val retrieve_jobs: unit -> (id * Task.job) list Lwt.t
+val retrieve_jobs: unit -> (id * Task.job * (id list)) list Lwt.t
