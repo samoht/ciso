@@ -311,9 +311,10 @@ let apply_object state prefix obj =
   (* name.tar.gz *)
   let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
    install_files ~src ~dst:prefix installed >>= fun () ->
-   (* clean_tmp "apply" (fst archive) >>= fun () -> *)
-   Ci_opam.update_metadata ~install:true state (Filename.concat src "installed")
 
+   Ci_opam.update_metadata ~install:true state (Filename.concat src "installed")
+   >>= fun ns -> clean_tmp "apply" (fst archive)
+   >>= fun () -> return ns
 
 let hash str =
   let hex_of_cs cs =
@@ -442,7 +443,7 @@ let job_execute base worker jid job deps =
   let state = Ci_opam.load_state () in
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
-    apply_object s prefix obj) state deps >>= fun state ->
+    apply_object s prefix obj) state deps >>= fun s ->
 
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->
@@ -450,7 +451,7 @@ let job_execute base worker jid job deps =
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.opam_install state p v >>= fun (n_state, result) ->
+  Ci_opam.opam_install s p v >>= fun result ->
   (match result with
    | `Success -> log "execute" p ~info:"SUCCESS"
    | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
@@ -466,16 +467,7 @@ let job_execute base worker jid job deps =
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
 
-  Ci_opam.opam_uninstall n_state p v >>= fun () ->
-  Lwt_list.fold_left_s (fun s dep ->
-      local_retrieve worker.store dep >>= fun obj ->
-      clean_object prefix obj;
-
-      let _, (name, _) = Object.apply_info obj in
-      let path = Filename.concat "/tmp" name
-                 |> Filename.chop_extension |> Filename.chop_extension
-                 |> (fun dir -> Filename.concat dir "installed") in
-      Ci_opam.update_metadata ~install:false s path) n_state deps >>= fun _ ->
+  Ci_opam.opam_uninstall p v >>= fun () ->
   return (result, (Object.create jid result output installed archive))
 
 

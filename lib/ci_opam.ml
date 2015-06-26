@@ -160,7 +160,7 @@ let installed_of_state s =
     s.OpamState.Types.installed []
   |> String.concat " ; "
 
-
+(*
 let opam_install state p v =
   let nv =
     let name = OpamPackage.Name.of_string p in
@@ -198,18 +198,29 @@ let opam_uninstall state p v =
     OpamAction.remove_all_packages ~metadata:true state solution in
   match result with
   | `Successful () -> return_unit
-  | `Exception exn -> fail exn
+  | `Exception exn -> fail exn *)
+
+let opam_install state p v =
+  let graph = resolve ~bare:false state (p ^ "." ^ v) in
+  let nb_action = OpamSolver.ActionGraph.nb_vertex graph in
+  if nb_action <> 1 then return (`Fail "dependency incomplet")
+  else begin
+      let str = p ^ "." ^ v in
+      let atom = parse str in
+      OpamGlobals.yes := true;
+      try
+        OpamClient.SafeAPI.install [atom] None false;
+        return `Success
+      with _ -> return (`Fail "opam install")
+    end
 
 
-(*
 let opam_uninstall p v =
-  let name, version = OpamPackage.(Name.of_string p, Version.of_string v) in
-  let pkg = OpamPackage.create name version in
-
-  let state = load_state () in
-  OpamAction.remove_package state ~metadata:true pkg;
-  OpamAction.cleanup_package_artefacts state pkg;
-  return_unit *)
+  let str = p ^ "." ^ v in
+  let atom = parse str in
+  OpamGlobals.yes := true;
+  OpamClient.SafeAPI.remove ~autoremove:true ~force:true [atom];
+  return_unit
 
 
 let update_metadata ~install state file =
