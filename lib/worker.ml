@@ -215,13 +215,13 @@ let worker_request_object base worker oid =
   let store = worker.store in
   local_query store oid >>= fun exist ->
   if exist then begin
-      log "send" "object"
+      log "requst" "object"
           ~info:(Printf.sprintf "get object %s locally" (sub_abbr oid));
       local_retrieve store oid
     end
   else begin
-      let info = Printf.sprintf "get object %s from data store" (sub_abbr oid) in
-      log "send" "object" ~info;
+      let info = Printf.sprintf "get object%s from data store" (sub_abbr oid) in
+      log "request" "object" ~info;
       Store.retrieve_object oid >>= fun obj ->
       choose [local_publish store oid obj;
               worker_publish base worker `Success oid obj] >>= fun () ->
@@ -260,7 +260,7 @@ let install_archive (name, content) =
   return tmp
 
 
-let extract_files tar =
+let extract_archive tar =
   if not (Filename.check_suffix tar ".tar.gz") then
     raise (Invalid_argument tar);
   let comm = Printf.sprintf "tar -xzf %s -C /" tar in
@@ -306,17 +306,13 @@ let clean_tmp action name =
 let apply_object state prefix obj =
   let installed, archive = Object.apply_info obj in
   install_archive archive >>= fun arch_path ->
-  extract_files arch_path >>= fun () ->
+  extract_archive arch_path >>= fun () ->
 
   (* name.tar.gz *)
   let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
-  let installed, files =
-    List.partition (fun f -> f = "installed") installed in
-  install_files ~src ~dst:prefix files >>= fun () ->
-  if installed <> [] then begin
-      log "execute" "apply" ~info:"update metadata";
-      Ci_opam.update_metadata state src "installed"; end
-  else return state
+   install_files ~src ~dst:prefix installed >>= fun () ->
+   (* clean_tmp "apply" (fst archive) >>= fun () -> *)
+   Ci_opam.update_metadata ~install:true state (Filename.concat src "installed")
 
 
 let hash str =
@@ -352,7 +348,23 @@ let fs_snapshots dir =
            |> List.rev_map (fun f -> Filename.concat path f) in
          loop checksums (List.rev_append files tl) in
 
-  loop [] [dir]
+  let sub_dirs =
+    let white_list = ["lib"; "bin"; "sbin"; "doc"; "share";
+                      "etc"; "man"] in
+    Sys.readdir dir |> Array.to_list
+    |> List.filter (fun n -> List.mem n white_list)
+    |> List.rev_map (fun n -> Filename.concat dir n) in
+  loop [] sub_dirs
+
+
+let read_installed dir =
+  let path = Filename.concat dir "installed" in
+  assert (Sys.file_exists path);
+  let rec collect_lines acc ic =
+    Lwt_io.read_line_opt ic >>= function
+    | None -> return acc
+    | Some l -> collect_lines (l :: acc) ic in
+  Lwt_io.with_file Lwt_io.input path (collect_lines [])
 
 
 let collect_output prefix p v = function
@@ -388,13 +400,20 @@ let collect_installed prefix before after =
   return (List.rev_map chop_prefix installed)
 
 
-let create_archive prefix id output installed =
+let create_archive prefix id output installed old nw =
   let dir = Filename.concat "/tmp" (sub_abbr id) in
   (if Sys.file_exists dir then with_lwt_comm ("rm -r " ^ dir)
    else return ()) >>= fun () ->
   Lwt_unix.mkdir dir 0o770 >>= fun () ->
   (List.rev_append output installed
    |> install_files ~src:prefix ~dst:dir) >>= fun () ->
+
+  let pkg_file = Filename.concat dir "installed" in
+  let write_pkgs old nw oc =
+    let installed_pkgs = List.filter (fun p -> not (List.mem p old)) nw in
+    let content = String.concat "\n" installed_pkgs in
+    Lwt_io.write oc content in
+  Lwt_io.with_file Lwt_io.output pkg_file (write_pkgs old nw) >>= fun () ->
 
   let name = (sub_abbr id) ^ ".tar.gz" in
   let path = Filename.concat "/tmp" name in
@@ -404,23 +423,34 @@ let create_archive prefix id output installed =
   return (name, content)
 
 
-let job_execute base worker jid job =
-  let inputs = Task.inputs_of_job job in
-  let info = Printf.sprintf "of total %d" (List.length inputs) in
-  log "execute" "inputs" ~info;
+let clean_object prefix obj =
+  (* "installed" are all files, there are no directory *)
+  let installed = Object.installed_of_t obj in
+  let files = List.rev_map (fun f -> Filename.concat prefix f) installed in
+
+  List.iter (fun f -> if Sys.file_exists f then Sys.remove f) files;
+  let id = Object.id_of_t obj in
+  let info = Printf.sprintf "clean object %s" (sub_abbr id) in
+  log "execute" "clean" ~info
+
+let job_execute base worker jid job deps =
+  (* let inputs = Task.inputs_of_job job in *)
+  let info = Printf.sprintf "of total %d" (List.length deps) in
+  log "execute" "dependency" ~info;
 
   get_opam_var "prefix" >>= fun prefix ->
   let state = Ci_opam.load_state () in
-  Lwt_list.fold_left_s (fun s input ->
-    worker_request_object base worker input >>= fun obj ->
-    apply_object s prefix obj) state inputs >>= fun state ->
+  Lwt_list.fold_left_s (fun s dep ->
+    worker_request_object base worker dep >>= fun obj ->
+    apply_object s prefix obj) state deps >>= fun state ->
 
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->
+  read_installed prefix >>= fun old_pkgs ->
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.opam_install state p v >>= fun (state, result) ->
+  Ci_opam.opam_install state p v >>= fun (n_state, result) ->
   (match result with
    | `Success -> log "execute" p ~info:"SUCCESS"
    | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
@@ -428,12 +458,24 @@ let job_execute base worker jid job =
 
   log "execute" "snapshot" ~info:(prefix ^ " AFTER");
   fs_snapshots prefix >>= fun after_build ->
+  read_installed prefix >>= fun new_pkgs ->
   collect_output prefix p v result >>= fun output ->
   collect_installed prefix before_build after_build >>= fun installed ->
-  create_archive prefix jid output installed >>= fun archive ->
 
-  Ci_opam.opam_uninstall state p v >>= fun _ ->
+  create_archive prefix jid output installed old_pkgs new_pkgs
+  >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
+
+  Ci_opam.opam_uninstall n_state p v >>= fun () ->
+  Lwt_list.fold_left_s (fun s dep ->
+      local_retrieve worker.store dep >>= fun obj ->
+      clean_object prefix obj;
+
+      let _, (name, _) = Object.apply_info obj in
+      let path = Filename.concat "/tmp" name
+                 |> Filename.chop_extension |> Filename.chop_extension
+                 |> (fun dir -> Filename.concat dir "installed") in
+      Ci_opam.update_metadata ~install:false s path) n_state deps >>= fun _ ->
   return (result, (Object.create jid result output installed archive))
 
 
@@ -442,9 +484,11 @@ let rec execution_loop base worker cond =
   local_query worker.store id >>= fun completed ->
   if completed then execution_loop base worker cond
   else begin
-      let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
+      let job, deps = Sexplib.Sexp.of_string desp
+                      |> Task.job_entry_of_sexp
+                      |> Task.unwrap_entry in
       worker.status <- Working id;
-      job_execute base worker id job >>= fun (result, obj) ->
+      job_execute base worker id job deps >>= fun (result, obj) ->
       (match result with
        | `Success ->
           Store.publish_object worker.token id obj >>= fun () ->
