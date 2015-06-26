@@ -11,6 +11,7 @@ type t = {
 
 let id_of_t {id} = id
 let apply_info {installed; archive} = installed, archive
+let installed_of_t {installed} = installed
 
 let create id result output installed archive =
   {id; result; output; installed; archive}

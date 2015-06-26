@@ -19,6 +19,11 @@ type job = {
   task : task;
 } with sexp
 
+type job_entry = {
+  job : job;
+  dependencies : id list;
+} with sexp
+
 let id_of_job {id} = id
 let inputs_of_job {inputs} = inputs
 let task_of_job {task} = task
@@ -38,3 +43,8 @@ let make_job ?pull id package version inputs compiler host =
     | Some pull -> Github (package, version, pull)
     | None -> Package (package, version) in
   {id; inputs; compiler; host; task;}
+
+let make_job_entry job dependencies = {
+  job; dependencies}
+
+let unwrap_entry {job; dependencies} = job, dependencies
