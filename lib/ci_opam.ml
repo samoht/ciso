@@ -70,10 +70,18 @@ let load_state () =
 let modify_state state =
   let open OpamState.Types in
   let base = OpamState.base_packages in
+  let ocamlfind =
+    let name = OpamPackage.Name.of_string "ocamlfind" in
+    let version = OpamPackage.Version.of_string "1.5.5" in
+    OpamPackage.create name version in
   let is_base pkg = List.mem (OpamPackage.name pkg) base in
+
+  let open OpamPackage.Set.Op in
   { state with
-    installed = OpamPackage.Set.filter is_base state.installed;
-    installed_roots = OpamPackage.Set.filter is_base state.installed_roots;
+    installed = OpamPackage.Set.filter is_base state.installed
+                ++ OpamPackage.Set.singleton ocamlfind;
+    installed_roots = OpamPackage.Set.filter is_base state.installed_roots
+                      ++ OpamPackage.Set.singleton ocamlfind;
     pinned = OpamPackage.Name.Map.empty; }
 
 let resolve ?(bare = true) state str =
