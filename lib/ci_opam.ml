@@ -209,18 +209,31 @@ let opam_uninstall state p v =
   | `Exception exn -> fail exn *)
 
 let opam_install state p v =
+  let install p v =
+    let str = p ^ "." ^ v in
+    let atom = parse str in
+    OpamGlobals.yes := true;
+    try
+      OpamClient.SafeAPI.install [atom] None false;
+      return `Success
+    with _ -> return (`Fail "opam install") in
+
   let graph = resolve ~bare:false state (p ^ "." ^ v) in
   let nb_action = OpamSolver.ActionGraph.nb_vertex graph in
-  if nb_action <> 1 then return (`Fail "dependency incomplet")
-  else begin
-      let str = p ^ "." ^ v in
-      let atom = parse str in
-      OpamGlobals.yes := true;
-      try
-        OpamClient.SafeAPI.install [atom] None false;
-        return `Success
-      with _ -> return (`Fail "opam install")
-    end
+  if nb_action <> 1 then begin
+    OpamSolver.ActionGraph.fold_vertex (fun v acc ->
+        (match v with
+         | To_change (origin, target) ->
+            Printf.sprintf "%s -> %s"
+              (match origin with Some o -> package o | None -> "none")
+              (package target)
+         | To_delete p -> Printf.sprintf "delete %s" (package p)
+         | To_recompile p -> Printf.sprintf "recompile %s" (package p)) :: acc)
+      graph []
+    |> String.concat " ; "
+    |> fun info ->
+       Printf.eprintf "[%s@warning]: %s\n%!" p info end;
+  install p v
 
 
 let opam_uninstall p v =
