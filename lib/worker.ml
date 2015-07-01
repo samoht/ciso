@@ -23,6 +23,7 @@ exception WrongResponse of string * string
 let idle_sleep = 3.0
 let working_sleep = 5.0
 let master_timeout = 15.0
+let opam_root = ref ""
 
 let sub len str = String.sub str 0 len
 let sub_abbr = sub 5
@@ -228,13 +229,13 @@ let worker_request_object base worker oid =
       return obj
     end
 
-
+(*
 let get_opam_var var =
   let comm = Lwt_process.shell ("opam config var " ^ var) in
   let null = Lwt_process.(`Dev_null) in
   let proc_in = Lwt_process.open_process_in ~stdin:null ~stderr:null comm in
   let ic = proc_in#stdout in
-  Lwt_io.read_line ic
+  Lwt_io.read_line ic *)
 
 
 let with_lwt_comm ?fail ?success comm =
@@ -434,13 +435,15 @@ let clean_object prefix obj =
   let info = Printf.sprintf "clean object %s" (sub_abbr id) in
   log "execute" "clean" ~info
 
+
 let job_execute base worker jid job deps =
   (* let inputs = Task.inputs_of_job job in *)
   let info = Printf.sprintf "of total %d" (List.length deps) in
   log "execute" "dependency" ~info;
 
-  get_opam_var "prefix" >>= fun prefix ->
-  let state = Ci_opam.load_state () in
+  let state = Ci_opam.load_state ~root:!opam_root () in
+  let prefix = Ci_opam.get_opam_var "prefix" in
+  log "execute" "prefix" ~info:prefix;
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
@@ -451,7 +454,16 @@ let job_execute base worker jid job deps =
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.opam_install s p v >>= fun result ->
+  Ci_opam.lock () >>= fun lock ->
+  catch
+    (fun () ->
+     Ci_opam.opam_install s p v >>= fun result ->
+     Ci_opam.unlock lock >>= fun () ->
+     return result)
+    (fun exn ->
+     Ci_opam.unlock lock >>= fun () ->
+     fail exn) >>= fun result ->
+
   (match result with
    | `Success -> log "execute" p ~info:"SUCCESS"
    | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
@@ -467,7 +479,14 @@ let job_execute base worker jid job deps =
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
 
-  Ci_opam.opam_uninstall p v >>= fun () ->
+  Ci_opam.lock () >>= fun lock ->
+  catch
+    (fun () ->
+     Ci_opam.opam_uninstall p v >>= fun () ->
+     Ci_opam.unlock lock)
+    (fun exn ->
+     Ci_opam.unlock lock >>= fun () ->
+     fail exn) >>= fun () ->
   return (result, (Object.create jid result output installed archive))
 
 
@@ -511,16 +530,17 @@ let rec heartbeat_loop base worker cond =
      >>= fun () -> heartbeat_loop base worker cond
 
 
-let worker base_str store_str ip port fresh =
+let worker base_str store_str root ip port fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
 
   let base = Uri.of_string base_str in
+  let () = opam_root := root in
   let build_store = local_store ~fresh in
   worker_register base build_store >>= fun worker ->
 
-    let cond = Lwt_condition.create () in
-    pick [heartbeat_loop base worker cond;
-          execution_loop base worker cond;])
+  let cond = Lwt_condition.create () in
+  pick [heartbeat_loop base worker cond;
+        execution_loop base worker cond;])
   |> Lwt_main.run
 
 let base = Cmdliner.Arg.(
@@ -531,6 +551,10 @@ let store = Cmdliner.Arg.(
   required & pos 1 (some string) None & info []
     ~docv:"STORE" ~doc:"the uri string of data store")
 
+let root = Cmdliner.Arg.(
+  required & pos 2 (some string) None & info []
+    ~docv:"OPAMROOT" ~doc:"the opam root path relative to HOME fot the worker")
+
 let ip = Cmdliner.Arg.(
   value & opt string "127.0.0.1" & info ["ip"]
     ~doc:"the ip address of this worker")
@@ -539,16 +563,12 @@ let port = Cmdliner.Arg.(
   value & opt int 8000 & info ["port"]
     ~doc:"the port number of this worker")
 
-let test = Cmdliner.Arg.(
-  value & flag & info ["test"; "t"]
-    ~doc:"when set, data store will be installed in the current directory")
-
 let fresh = Cmdliner.Arg.(
   value & flag & info ["fresh"; "f"]
     ~doc:"start with a fresh new local store")
 
 let () = Cmdliner.Term.(
   let worker_cmd =
-    pure worker $ base $store $ ip $ port $ fresh,
+    pure worker $ base $store $ root $ ip $ port $ fresh,
     info ~doc:"start a worker" "worker" in
   match eval worker_cmd with `Error _ -> exit 1 | _ -> exit 0)
