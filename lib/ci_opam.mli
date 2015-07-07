@@ -16,10 +16,11 @@ val jobs_of_graph: ?pull:Task.pull -> OpamSolver.ActionGraph.t ->
    most code copied from opamConfigCommand.ml*)
 val get_opam_var: string -> string
 
-(* [load_state ?root ()]
-   root is for $OPAMROOT, load opam state *)
-val load_state: ?root:string -> unit -> OpamState.state
+(* [load_state ?switch ()]
+   load opam state, if [switch] is given, set the switch within opamGlobals *)
+val load_state: ?switch:string -> unit -> OpamState.state
 
+(*
 (* [lock ()]
    for multiple workers test on one machine,
    during package build/remove, only one worker could patch its packages dir
@@ -31,7 +32,13 @@ val lock: unit -> ocamlfind_lock Lwt.t
    unlock the ocamlfind configuration file, allow other workers to build/remove
    their packages, assign the origin values to `destdir` and `path` by the
    values retained in the lock *)
-val unlock: ocamlfind_lock -> unit Lwt.t
+val unlock: ocamlfind_lock -> unit Lwt.t *)
+
+
+(* [findlib_conf prefix]
+   if ocamlfind is installed under the current switch, ensure that the search
+   and install path in the configuration file point to local lib/ *)
+val findlib_conf: string -> unit Lwt.t
 
 (** [opam_install n v]
     install package with name [n] and version [v] using OpamClient.SafeAPI *)

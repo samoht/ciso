@@ -23,7 +23,7 @@ exception WrongResponse of string * string
 let idle_sleep = 3.0
 let working_sleep = 5.0
 let master_timeout = 15.0
-let opam_root = ref ""
+let opam_switch = ref ""
 
 let sub len str = String.sub str 0 len
 let sub_abbr = sub 5
@@ -317,6 +317,31 @@ let apply_object state prefix obj =
    >>= fun ns -> clean_tmp "apply" (fst archive)
    >>= fun () -> return ns
 
+
+let patch_ocamlfind prefix =
+  let bin_path = Filename.concat prefix "bin/ocamlfind" in
+  if not (Sys.file_exists bin_path) then ()
+  else begin
+      let ic = open_in bin_path in
+      let buf = Buffer.create 5120 in
+      let () = Buffer.add_channel buf ic (in_channel_length ic) in
+      let c = Buffer.contents buf in
+      let () = close_in ic in
+
+      let open Re in
+      let re = compile (seq [str ".opam/";
+                             rep1 (compl [char '/']);
+                             str "/lib/findlib.conf"]) in
+      let nc =
+        let by = Printf.sprintf ".opam/%s/lib/findlib.conf"
+          (Filename.basename prefix) in
+        replace_string re ~by c in
+
+      let oc = open_out bin_path in
+      let () = output_string oc nc in
+      close_out oc end
+
+
 let hash str =
   let hex_of_cs cs =
     let buf = Buffer.create 16 in
@@ -441,12 +466,15 @@ let job_execute base worker jid job deps =
   let info = Printf.sprintf "of total %d" (List.length deps) in
   log "execute" "dependency" ~info;
 
-  let state = Ci_opam.load_state ~root:!opam_root () in
+  let state = Ci_opam.load_state ~switch:!opam_switch () in
   let prefix = Ci_opam.get_opam_var "prefix" in
   log "execute" "prefix" ~info:prefix;
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
+  Ci_opam.findlib_conf prefix >>= fun () ->
+  log "execute" "patch" ~info:(prefix ^ "/bin/ocamlfind");
+  patch_ocamlfind prefix;
 
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->
@@ -454,16 +482,7 @@ let job_execute base worker jid job deps =
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.lock () >>= fun lock ->
-  catch
-    (fun () ->
-     Ci_opam.opam_install s p v >>= fun result ->
-     Ci_opam.unlock lock >>= fun () ->
-     return result)
-    (fun exn ->
-     Ci_opam.unlock lock >>= fun () ->
-     fail exn) >>= fun result ->
-
+  Ci_opam.opam_install s p v >>= fun result ->
   (match result with
    | `Success -> log "execute" p ~info:"SUCCESS"
    | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
@@ -479,14 +498,7 @@ let job_execute base worker jid job deps =
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
 
-  Ci_opam.lock () >>= fun lock ->
-  catch
-    (fun () ->
-     Ci_opam.opam_uninstall p v >>= fun () ->
-     Ci_opam.unlock lock)
-    (fun exn ->
-     Ci_opam.unlock lock >>= fun () ->
-     fail exn) >>= fun () ->
+  Ci_opam.opam_uninstall p v >>= fun () ->
   return (result, (Object.create jid result output installed archive))
 
 
@@ -530,11 +542,11 @@ let rec heartbeat_loop base worker cond =
      >>= fun () -> heartbeat_loop base worker cond
 
 
-let worker base_str store_str root ip port fresh =
+let worker base_str store_str switch fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
 
   let base = Uri.of_string base_str in
-  let () = opam_root := root in
+  let () = opam_switch := switch in
   let build_store = local_store ~fresh in
   worker_register base build_store >>= fun worker ->
 
@@ -551,17 +563,9 @@ let store = Cmdliner.Arg.(
   required & pos 1 (some string) None & info []
     ~docv:"STORE" ~doc:"the uri string of data store")
 
-let root = Cmdliner.Arg.(
+let switch = Cmdliner.Arg.(
   required & pos 2 (some string) None & info []
-    ~docv:"OPAMROOT" ~doc:"the opam root path relative to HOME fot the worker")
-
-let ip = Cmdliner.Arg.(
-  value & opt string "127.0.0.1" & info ["ip"]
-    ~doc:"the ip address of this worker")
-
-let port = Cmdliner.Arg.(
-  value & opt int 8000 & info ["port"]
-    ~doc:"the port number of this worker")
+    ~docv:"SWITCH" ~doc:"the opam switch name for the worker")
 
 let fresh = Cmdliner.Arg.(
   value & flag & info ["fresh"; "f"]
@@ -569,6 +573,6 @@ let fresh = Cmdliner.Arg.(
 
 let () = Cmdliner.Term.(
   let worker_cmd =
-    pure worker $ base $store $ root $ ip $ port $ fresh,
+    pure worker $ base $store $ switch $ fresh,
     info ~doc:"start a worker" "worker" in
   match eval worker_cmd with `Error _ -> exit 1 | _ -> exit 0)

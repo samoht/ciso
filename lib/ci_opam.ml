@@ -67,18 +67,12 @@ let print_edges vx vy =
 let modify_state state =
   let open OpamState.Types in
   let base = OpamState.base_packages in
-  let ocamlfind =
-    let name = OpamPackage.Name.of_string "ocamlfind" in
-    let version = OpamPackage.Version.of_string "1.5.5" in
-    OpamPackage.create name version in
   let is_base pkg = List.mem (OpamPackage.name pkg) base in
 
   let open OpamPackage.Set.Op in
   { state with
-    installed = OpamPackage.Set.filter is_base state.installed
-                ++ OpamPackage.Set.singleton ocamlfind;
-    installed_roots = OpamPackage.Set.filter is_base state.installed_roots
-                      ++ OpamPackage.Set.singleton ocamlfind;
+    installed = OpamPackage.Set.filter is_base state.installed;
+    installed_roots = OpamPackage.Set.filter is_base state.installed_roots;
     pinned = OpamPackage.Name.Map.empty; }
 
 let resolve ?(bare = true) state str =
@@ -198,16 +192,13 @@ let get_opam_var variable =
   |> OpamVariable.string_of_variable_contents
 
 
-let load_state ?root () =
+let load_state ?switch () =
+  OpamGlobals.root_dir := OpamGlobals.default_opam_dir;
   begin
-    match root with
-    | None -> OpamGlobals.root_dir := OpamGlobals.default_opam_dir
-    | Some r ->
-       let home = Sys.getenv "HOME" in
-       let root = Filename.concat home r in
-       assert (Sys.file_exists root && Sys.is_directory root);
-       OpamGlobals.root_dir := root end;
-
+    match switch with
+    | None -> ()
+    | Some s -> OpamGlobals.switch := `Env s
+  end;
   OpamState.load_state "state"
 
 
@@ -233,14 +224,14 @@ let read_conf conf =
     | Some line ->
        let eg = String.index line '=' in
        let name = String.sub line 0 eg in
-       let value = String.sub line (eg + 1) (String.length line - eg - 1) in
+       let value = String.sub line (eg + 2) (String.length line - eg - 3) in
        read_conf_aux ((name, value) :: acc) ic in
   Lwt_io.with_file Lwt_io.input conf (read_conf_aux [])
 
 
 let write_conf conf tups =
   let write_conf_aux oc =
-    List.rev_map (fun (n, v) -> Printf.sprintf "%s=%s" n v) tups
+    List.rev_map (fun (n, v) -> Printf.sprintf "%s=\"%s\"" n v) tups
     |> String.concat "\n"
     |> Lwt_io.write oc in
   Lwt_io.with_file Lwt_io.output conf write_conf_aux
@@ -252,22 +243,32 @@ let modify_conf conf ~destdir ~path =
       List.remove_assoc name tups
     else tups in
   let add_tup name value tups =
-    (name, value) :: tups in
+    let ntups = remove_tup name tups in
+    (name, value) :: ntups in
 
-  read_conf conf >>= (fun tups ->
+  read_conf conf >>= fun tups ->
   let d = List.assoc "destdir" tups in
   let p = List.assoc "path" tups in
 
-  tups
-  |> remove_tup "destdir"
-  |> remove_tup "path"
-  |> add_tup "destdir" destdir
-  |> add_tup "path" path
-  |> fun n -> return (d, p, n)) >>= fun (d, p, n_tups) ->
-  write_conf conf n_tups >>= fun () ->
-  return (d, p)
+  if d = destdir && p = path then return_unit
+  else
+    tups
+    |> remove_tup "destdir"
+    |> remove_tup "path"
+    |> add_tup "destdir" destdir
+    |> add_tup "path" path
+    |> write_conf conf
 
 
+let findlib_conf prefix =
+  let conf = Filename.concat prefix "lib/findlib.conf" in
+  if not (Sys.file_exists conf) then return_unit
+  else begin
+      let destdir = Filename.concat prefix "lib" in
+      let path = Filename.concat prefix "lib" in
+      modify_conf conf ~destdir ~path
+    end
+(*
 let lock_file () =
   let home = Sys.getenv "HOME" in
   let file = Filename.concat home ".ci_lock" in
@@ -294,7 +295,7 @@ let unlock (destdir, path, fd) =
   Lwt_unix.lockf fd Lwt_unix.F_ULOCK 0 >>= fun () ->
   Lwt_unix.close fd
 
-(*
+
 let opam_install state p v =
   let install p v =
     let str = p ^ "." ^ v in
