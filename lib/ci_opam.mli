@@ -35,10 +35,10 @@ val lock: unit -> ocamlfind_lock Lwt.t
 val unlock: ocamlfind_lock -> unit Lwt.t *)
 
 
-(* [findlib_conf prefix]
+(* [findlib_conf prefix dest_path]
    if ocamlfind is installed under the current switch, ensure that the search
    and install path in the configuration file point to local lib/ *)
-val findlib_conf: string -> unit Lwt.t
+val findlib_conf: string -> string -> unit Lwt.t
 
 (** [opam_install n v]
     install package with name [n] and version [v] using OpamClient.SafeAPI *)

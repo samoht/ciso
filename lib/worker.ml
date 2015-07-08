@@ -320,26 +320,36 @@ let apply_object state prefix obj =
 
 let patch_ocamlfind prefix =
   let bin_path = Filename.concat prefix "bin/ocamlfind" in
-  if not (Sys.file_exists bin_path) then ()
+  if not (Sys.file_exists bin_path) then return ""
   else begin
-      let ic = open_in bin_path in
-      let buf = Buffer.create 5120 in
-      let () = Buffer.add_channel buf ic (in_channel_length ic) in
-      let c = Buffer.contents buf in
-      let () = close_in ic in
+      log "execute" "patch" ~info:(prefix ^ "/bin/ocamlfind");
+      Lwt_io.open_file Lwt_io.input bin_path >>= fun ic ->
+      Lwt_io.read ic >>= fun c ->
+      Lwt_io.close ic >>= fun () ->
 
       let open Re in
       let re = compile (seq [str ".opam/";
-                             rep1 (compl [char '/']);
+                             group (rep1 (compl [char '/']));
                              str "/lib/findlib.conf"]) in
-      let nc =
-        let by = Printf.sprintf ".opam/%s/lib/findlib.conf"
-          (Filename.basename prefix) in
-        replace_string re ~by c in
+      let subs = exec re c in
+      let sb, se = get_ofs subs 1 in
+      let switch = Filename.basename prefix in
+      for i = 0 to (se - sb - 1) do
+        let char = try String.get switch i
+                   with _ -> '_' in
+        let pos = sb + i in
+        String.set c pos char;
+      done;
 
-      let oc = open_out bin_path in
-      let () = output_string oc nc in
-      close_out oc end
+      let pb, pe = get_ofs subs 0 in
+      let conf_path = String.sub c pb (pe - pb) in
+      log "findlib.conf" "path" ~info:conf_path;
+
+      Lwt_io.open_file Lwt_io.output bin_path >>= fun oc ->
+      Lwt_io.write oc c >>= fun () ->
+      Lwt_io.close oc >>= fun () ->
+
+      return (Filename.concat (Sys.getenv "HOME") conf_path) end
 
 
 let hash str =
@@ -472,9 +482,9 @@ let job_execute base worker jid job deps =
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
-  Ci_opam.findlib_conf prefix >>= fun () ->
-  log "execute" "patch" ~info:(prefix ^ "/bin/ocamlfind");
-  patch_ocamlfind prefix;
+  patch_ocamlfind prefix >>= fun conf_path ->
+  (if conf_path = "" then return_unit
+   else Ci_opam.findlib_conf prefix conf_path) >>= fun () ->
 
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->

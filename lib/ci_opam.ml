@@ -230,14 +230,34 @@ let read_conf conf =
 
 
 let write_conf conf tups =
+  (* make all the non-existent parent directories *)
+  let prepare conf =
+    let rec base acc path =
+      if not (Sys.file_exists path) then
+        let basename = Filename.basename path in
+        let dir = Filename.dirname path in
+        base (basename :: acc) dir
+      else acc, path in
+    let rec prepare_dir path = Lwt_unix.(function
+      | [] -> return_unit
+      | [f] ->
+         openfile f [O_RDWR; O_CREAT] 0o664 >>= fun fd -> close fd
+      | hd :: tl ->
+         (let new_dir = Filename.concat path hd in
+          mkdir new_dir 0o775 >>= fun () ->
+          prepare_dir new_dir tl)) in
+    let names, dir = base [] conf in
+    prepare_dir dir names in
+
   let write_conf_aux oc =
     List.rev_map (fun (n, v) -> Printf.sprintf "%s=\"%s\"" n v) tups
     |> String.concat "\n"
     |> Lwt_io.write oc in
+  prepare conf >>= fun () ->
   Lwt_io.with_file Lwt_io.output conf write_conf_aux
 
 
-let modify_conf conf ~destdir ~path =
+let modify_conf conf conf_path ~destdir ~path =
   let remove_tup name tups =
     if List.mem_assoc name tups then
       List.remove_assoc name tups
@@ -257,16 +277,16 @@ let modify_conf conf ~destdir ~path =
     |> remove_tup "path"
     |> add_tup "destdir" destdir
     |> add_tup "path" path
-    |> write_conf conf
+    |> write_conf conf_path
 
 
-let findlib_conf prefix =
+let findlib_conf prefix conf_path =
   let conf = Filename.concat prefix "lib/findlib.conf" in
   if not (Sys.file_exists conf) then return_unit
   else begin
       let destdir = Filename.concat prefix "lib" in
       let path = Filename.concat prefix "lib" in
-      modify_conf conf ~destdir ~path
+      modify_conf conf conf_path ~destdir ~path
     end
 (*
 let lock_file () =
