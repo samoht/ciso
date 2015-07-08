@@ -482,9 +482,9 @@ let job_execute base worker jid job deps =
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
-  patch_ocamlfind prefix >>= fun conf_path ->
-  (if conf_path = "" then return_unit
-   else Ci_opam.findlib_conf prefix conf_path) >>= fun () ->
+  patch_ocamlfind prefix >>= fun write_path ->
+  (if write_path = "" then return_unit
+   else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
 
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
   fs_snapshots prefix >>= fun before_build ->

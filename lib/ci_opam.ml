@@ -280,13 +280,13 @@ let modify_conf conf conf_path ~destdir ~path =
     |> write_conf conf_path
 
 
-let findlib_conf prefix conf_path =
+let findlib_conf ~prefix ~write_path =
   let conf = Filename.concat prefix "lib/findlib.conf" in
   if not (Sys.file_exists conf) then return_unit
   else begin
       let destdir = Filename.concat prefix "lib" in
       let path = Filename.concat prefix "lib" in
-      modify_conf conf conf_path ~destdir ~path
+      modify_conf conf write_path ~destdir ~path
     end
 (*
 let lock_file () =
