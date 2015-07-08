@@ -313,7 +313,8 @@ let apply_object state prefix obj =
   let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
    install_files ~src ~dst:prefix installed >>= fun () ->
 
-   Ci_opam.update_metadata ~install:true state (Filename.concat src "installed")
+   let path = Filename.concat src "installed" in
+   Ci_opam.update_metadata ~install:true state ~path
    >>= fun ns -> clean_tmp "apply" (fst archive)
    >>= fun () -> return ns
 
@@ -492,7 +493,7 @@ let job_execute base worker jid job deps =
   let p, v = Task.info_of_task (Task.task_of_job job) in
   log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.opam_install s p v >>= fun result ->
+  Ci_opam.opam_install s ~name:p ~version:v >>= fun result ->
   (match result with
    | `Success -> log "execute" p ~info:"SUCCESS"
    | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
@@ -508,7 +509,7 @@ let job_execute base worker jid job deps =
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
 
-  Ci_opam.opam_uninstall p v >>= fun () ->
+  Ci_opam.opam_uninstall ~name:p ~version:v >>= fun () ->
   return (result, (Object.create jid result output installed archive))
 
 

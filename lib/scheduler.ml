@@ -250,5 +250,5 @@ let github_hook num =
   >>= fun pull -> Github.Monad.run (packages_of_pull token num)
   >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add ~pull) pkgs
 
-let user_demand pkg =
+let user_demand ~pkg =
   resolve_and_add pkg

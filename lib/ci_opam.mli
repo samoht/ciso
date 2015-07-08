@@ -42,13 +42,13 @@ val findlib_conf: prefix:string -> write_path:string -> unit Lwt.t
 
 (** [opam_install n v]
     install package with name [n] and version [v] using OpamClient.SafeAPI *)
-val opam_install: OpamState.state -> string -> string ->
+val opam_install: OpamState.state -> name:string -> version:string ->
                   [> `Fail of string | `Success ] Lwt.t
 
 (** [opam_uninstall n v]
     uninstall package with name [n] and version [v] using OpamClient.SafeAPI *)
-val opam_uninstall: string -> string -> unit Lwt.t
+val opam_uninstall: name:string -> version:string -> unit Lwt.t
 
 
-val update_metadata: install:bool -> OpamState.state -> string ->
+val update_metadata: install:bool -> OpamState.state -> path:string ->
                      OpamState.state Lwt.t

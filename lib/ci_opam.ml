@@ -344,10 +344,10 @@ let opam_install state p v =
   install p v *)
 
 
-let opam_install state p v =
+let opam_install state ~name ~version =
   let nv =
-    let name = OpamPackage.Name.of_string p in
-    let version = OpamPackage.Version.of_string v in
+    let name = OpamPackage.Name.of_string name in
+    let version = OpamPackage.Version.of_string version in
     OpamPackage.create name version in
   try
     OpamAction.download_package state nv;
@@ -361,8 +361,8 @@ let opam_install state p v =
   with _ -> return (`Fail "opam build")
 
 
-let opam_uninstall p v =
-  let str = p ^ "." ^ v in
+let opam_uninstall ~name ~version =
+  let str = name ^ "." ^ version in
   let atom = parse str in
   OpamGlobals.yes := true;
   OpamClient.SafeAPI.remove ~autoremove:true ~force:true [atom];
@@ -392,7 +392,7 @@ let opam_uninstall state p v =
   | `Exception exn -> fail exn *)
 
 
-let update_metadata ~install state file =
+let update_metadata ~install state ~path =
   let rec packages_of_file acc ic =
     Lwt_io.read_line_opt ic >>= function
       | None -> return acc
@@ -403,7 +403,7 @@ let update_metadata ~install state file =
                        |> OpamPackage.Version.of_string in
          let nv = OpamPackage.create name version in
          packages_of_file (nv :: acc) ic in
-  Lwt_io.with_file Lwt_io.input file (packages_of_file []) >>= fun pkg_lst ->
+  Lwt_io.with_file Lwt_io.input path (packages_of_file []) >>= fun pkg_lst ->
 
   let installed =
     List.fold_left (fun set p ->

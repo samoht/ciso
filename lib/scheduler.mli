@@ -49,6 +49,6 @@ val invalidate_token: worker_token -> unit
    and add tasks into task table *)
 val github_hook : int -> unit Lwt.t
 
-(* given a package number with version constraint probably, resolve the task
+(* given a package name with version constraint probably, resolve the task
    and add tasks into task table *)
-val user_demand: string -> unit Lwt.t
+val user_demand: pkg:string -> unit Lwt.t
