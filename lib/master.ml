@@ -3,7 +3,6 @@ open Common_types
 
 module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
-module Code = Cohttp.Code
 
 let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in
@@ -36,7 +35,7 @@ let register_handler groups headers body =
   Store.register_token token >>= fun () ->
 
   let m = Message.Ack_register (id, token) in
-  let resp = Response.make ~status:Code.(`Created) () in
+  let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
   return (resp, body)
 
@@ -61,7 +60,7 @@ let heartbeat_handler groups headers body =
       | Register _ | Publish _ | Spawn_jobs _ ->
          failwith "wrong message for heartbeat") in
 
-  let resp = Response.make ~status:Code.(`OK) () in
+  let resp = Response.make ~status:`OK () in
   let body = body_of_message resp_m in
   return (resp, body)
 
@@ -85,7 +84,7 @@ let publish_handler groups headers body =
   if result = `Success then Monitor.publish_object jid token;
   Scheduler.publish_object token result jid >>= fun () ->
 
-  empty_response Code.(`Created)
+  empty_response `Created
 
 
 let spawn_handler groups headers body =
@@ -105,29 +104,29 @@ let spawn_handler groups headers body =
       jid, job, deps) m_job_lst in
   Scheduler.update_tables job_lst >>= fun () ->
 
-  empty_response Code.(`Created)
+  empty_response `Created
 
 
 let github_hook_handler groups headers body =
   let pr_num = int_of_string (groups.(1)) in
   Scheduler.github_hook pr_num
   >>= fun () ->
-  empty_response Code.(`Accepted)
+  empty_response `Accepted
 
 
 let user_demand_handler groups headers body =
-  let pkg = groups.(1) in
+  let name = groups.(1) in
   let env_lst = Monitor.worker_environments () in
   let job_lst = List.rev_map (fun (c, h) ->
-    let id = Task.hash_id pkg "" [] c h in
-    let job = Task.make_job id pkg "" [] c h in
+    let id = Task.hash_id ~name [] c h in
+    let job = Task.make_job id ~name [] c h in
     id, job, []) env_lst in
   Scheduler.update_tables job_lst >>= fun () ->
-  empty_response Code.(`Accepted)
+  empty_response `Accepted
 
 
 let handler_route_table = Re.(
-  let post = Code.(`POST) in
+  let post = `POST in
   [(post,
     str "/worker/registration"),
     register_handler;
@@ -169,7 +168,7 @@ let callback conn req body =
   let path = Uri.path uri in
   let handler = route_handler meth path in
 
-  if List.length handler <> 1 then empty_response Code.(`Not_found)
+  if List.length handler <> 1 then empty_response `Not_found
   else
     let handler = List.hd handler in
     let err_handler exn =
@@ -178,7 +177,7 @@ let callback conn req body =
         | Failure str -> Printf.sprintf "Error: %s %s -> %s \n%!" meth path str
         | _ -> Printf.sprintf "Error: %s %s -> unknown \n%!" meth path in
       prerr_endline err_m;
-      empty_response Code.(`No_content) in
+      empty_response `No_content in
     catch (fun () -> handler headers body) err_handler
 
 

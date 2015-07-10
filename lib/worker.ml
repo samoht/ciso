@@ -121,7 +121,7 @@ let local_retrieve_all t =
 let with_client_request tag request =
   let timeout_response () =
     Lwt_unix.sleep master_timeout >>= fun () ->
-    let resp = Response.make ~status:Code.(`I_m_a_teapot) () in
+    let resp = Response.make ~status:`I_m_a_teapot () in
     let body = Body.empty in
     return (resp, body) in
 
@@ -132,7 +132,7 @@ let with_client_request tag request =
     return (exit 1) in
   catch (fun () ->
       pick [timeout_response (); request] >>= fun ((resp, _) as r) ->
-      if Response.status resp = Code.(`I_m_a_teapot)
+      if Response.status resp = `I_m_a_teapot
       then fail_with ("master timeout " ^ tag)
       else return r) err_handler
 
@@ -149,7 +149,7 @@ let worker_publish base {id; token} result oid obj =
   with_client_request "publish" (Client.post ~headers ~body uri)
   >>= fun (resp, _) ->
   let status = Response.status resp in
-  if status = Code.(`Created) then return ()
+  if status = `Created then return ()
   else fail (WrongResponse (Code.string_of_status status, "publish"))
 
 
@@ -165,7 +165,7 @@ let worker_register base build_store =
   message_of_body body >>= fun m ->
   let status = Response.status resp in
   let exn = WrongResponse (Cohttp.Code.string_of_status status, "register") in
-  if status = Code.(`Created) then
+  if status = `Created then
     match m with
     | Ack_heartbeat | New_job _ -> fail exn
     | Ack_register (id, token) ->
@@ -205,7 +205,7 @@ let worker_heartbeat base { id; token; status } =
   message_of_body body >>= fun m ->
   let status = Response.status resp in
   let exn = WrongResponse (Code.string_of_status status, "heartbeat") in
-  if status = Code.(`OK) then
+  if status = `OK then
     match m with
     | Ack_heartbeat -> return None
     | New_job (id, jdesp) -> return (Some (id, jdesp))
@@ -228,7 +228,7 @@ let worker_spawn base {id; token} job_lst =
   >>= fun (resp, body) ->
   let status = Response.status resp in
   let exn = WrongResponse (Code.string_of_status status, "spawn") in
-  if status = Code.(`Created) then return_unit
+  if status = `Created then return_unit
   else fail exn
 
 
@@ -528,24 +528,26 @@ let job_execute base worker jid job deps =
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
-  let p, v = Task.info_of_task (Task.task_of_job job) in
+  let name, version = Task.info_of_task (Task.task_of_job job) in
 
-  let is_resolvable, graph = Ci_opam.resolvable s p v in
+  let is_resolvable, graph = Ci_opam.resolvable ~name ?version s in
   if is_resolvable then
     let job_lst = Ci_opam.jobs_of_graph graph in
     worker_spawn base worker job_lst >>= fun () ->
 
     let delegate_id =
       List.fold_left (fun acc (id, job, _) ->
-          let p', _ = Task.info_of_task (Task.task_of_job job) in
-          if p' = p then id :: acc
+          let name', _ = Task.info_of_task (Task.task_of_job job) in
+          if name' = name then id :: acc
           else acc) [] job_lst
       |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
     let result = `Delegate delegate_id in
     let obj = Object.create jid result [] [] ("", "") in
     return (result, obj)
   else
-    job_build s prefix jid p v >>= fun (result, output, installed, archive) ->
+    let v = match version with Some v -> v | None -> assert false in
+    job_build s prefix jid name v
+    >>= fun (result, output, installed, archive) ->
     let obj = Object.create jid result output installed archive in
     return (result, obj)
 

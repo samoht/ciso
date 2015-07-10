@@ -15,7 +15,7 @@ val jobs_of_graph: ?pull:Task.pull -> OpamSolver.ActionGraph.t ->
                     (Common_types.id * Task.job * (Common_types.id list)) list
 
 
-val resolvable: OpamState.state -> name:string -> version:string ->
+val resolvable: name:string -> ?version:string -> OpamState.state ->
                 bool * OpamSolver.ActionGraph.t
 
 (* [get_opam_var v]

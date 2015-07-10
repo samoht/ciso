@@ -2,8 +2,8 @@ open Sexplib.Std
 open Common_types
 
 type task =
-  | Github of string * string * pull   (* package name * version * pull *)
-  | Package of string * string         (* package name * version *)
+  | Github of string * string option * pull  (* package name * version * pull *)
+  | Package of string * string option        (* package name * version *)
 and pull = {
     pull_num : int;
     repo_url : string;
@@ -41,24 +41,20 @@ let make_pull num url base head = {
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
-let hash_id pkg v inputs compiler host =
-  let str = pkg ^ v ^ (String.concat ";" inputs) ^ compiler ^ host in
-  let hash str =
-    let hex_of_cs cs =
-      let buf = Buffer.create 16 in
-      Cstruct.hexdump_to_buffer buf cs;
-      Buffer.contents buf in
-    let stripe_nl_space s = Re.(
-      let re = compile (alt [compl [notnl]; space]) in
-      replace_string re ~by:"" s) in
-    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
-    |> hex_of_cs |> stripe_nl_space in
-  hash str
+let hash_id ~name ?version inputs compiler host =
+  let pkg = match version with None -> name | Some v -> name ^ v in
+  let str = pkg ^ (String.concat ";" inputs) ^ compiler ^ host in
+  let `Hex h =
+    str
+    |> Cstruct.of_string
+    |> Nocrypto.Hash.SHA1.digest
+    |> Hex.of_cstruct in
+  h
 
-let make_job ?pull id package version inputs compiler host =
+let make_job ?pull id ~name ?version inputs compiler host =
   let task = match pull with
-    | Some pull -> Github (package, version, pull)
-    | None -> Package (package, version) in
+    | Some pull -> Github (name, version, pull)
+    | None -> Package (name, version) in
   {id; inputs; compiler; host; task;}
 
 let make_job_entry job dependencies = {

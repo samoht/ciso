@@ -27,22 +27,18 @@ let worker_cnt = ref 0
 let w_map = ref LogMap.empty
 
 
-let hash_sha1 str =
-  let hex_of_cs cs =
-    let buf = Buffer.create 16 in
-    Cstruct.hexdump_to_buffer buf cs;
-    Buffer.contents buf in
-  let stripe_nl_space s = Re.(
-    let re = compile (alt [compl [notnl]; space]) in
-    replace_string re ~by:"" s) in
-  str |> Cstruct.of_string |>
-  Nocrypto.Hash.SHA1.digest |>
-  hex_of_cs |> stripe_nl_space
+let hash_token str =
+  let `Hex h =
+    str
+    |> Cstruct.of_string
+    |> Nocrypto.Hash.SHA1.digest
+    |> Hex.of_cstruct in
+  h
 
 
 let new_token info =
   let time = string_of_float (Sys.time ()) in
-  hash_sha1 (info ^ time)
+  hash_token (info ^ time)
 
 
 let worker_checkin id =

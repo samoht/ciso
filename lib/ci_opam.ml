@@ -124,11 +124,11 @@ let jobs_of_graph ?pull graph =
 
     let compiler = compiler () in
     let host = Host.detect () |> Host.to_string in
-    let id = Task.hash_id name version inputs compiler host in
+    let id = Task.hash_id ~name ~version inputs compiler host in
     let job =
       if Graph.out_degree graph v <> 0 then
-        Task.make_job ?pull:None id name version inputs compiler host
-      else Task.make_job ?pull id name version inputs compiler host in
+        Task.make_job ?pull:None id ~name ~version inputs compiler host
+      else Task.make_job ?pull id ~name ~version inputs compiler host in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
@@ -137,8 +137,8 @@ let jobs_of_graph ?pull graph =
   !j_lst
 
 
-let resolvable state ~name ~version =
-  let str = if version = "" then name else name ^ "." ^ version in
+let resolvable ~name ?version state =
+  let str = match version with None -> name | Some v -> name ^ "." ^ v in
   let graph = resolve ~bare:false state str in
   if 1 = OpamSolver.ActionGraph.nb_vertex graph then false, graph
   else true, graph

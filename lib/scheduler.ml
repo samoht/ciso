@@ -28,8 +28,8 @@ let task_info id =
   let sub = String.sub id 0 5 in
   try
     let job = Hashtbl.find j_tbl id in
-    let p, v = Task.(task_of_job job |> info_of_task) in
-     sub ^ ":" ^ p ^ "." ^ v
+    let name, version = Task.(task_of_job job |> info_of_task) in
+    sub ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
   with Not_found -> Printf.sprintf "Object %s not in the j_tbl" sub
      | e -> raise e
 
