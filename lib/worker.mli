@@ -14,13 +14,16 @@ val worker_register: Uri.t -> (string -> store Lwt.t) -> t Lwt.t
     Some (A.id, a.id) *)
 val worker_heartbeat: Uri.t -> t -> (id * description) option Lwt.t
 
-
 (** [worker_publish master_uri worker object]:
     if produces a new object or get a copy from other workers,
     publish it to master in the object tables *)
 val worker_publish: Uri.t -> t -> [`Success | `Fail of string | `Delegate of id]
                     -> id -> Object.t -> unit Lwt.t
 
+(** [worker_spawn master_uri worker job_lst]:
+    when a job fetched can be resolved,
+    worker post the resolved jobs to master *)
+val worker_spawn: Uri.t -> t -> (id * Task.job * (id list)) list -> unit Lwt.t
 
 (** [worker_request_object master_uri worker obj_id]:
     before task execution, the worker will gather all the dependencies by this

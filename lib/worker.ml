@@ -213,6 +213,25 @@ let worker_heartbeat base { id; token; status } =
   else fail exn
 
 
+let worker_spawn base {id; token} job_lst =
+  let headers = Cohttp.Header.of_list ["worker", token] in
+  let m_job_lst = List.rev_map (fun (id, job, deps) ->
+      let desp = Task.sexp_of_job job
+                 |> Sexplib.Sexp.to_string in
+      id, desp, deps)job_lst in
+  let m = Message.Spawn_jobs m_job_lst in
+  let body = body_of_message m in
+  let uri_path = Printf.sprintf "worker%d/newjobs" id in
+  let uri = Uri.resolve "" base (Uri.of_string uri_path) in
+
+  with_client_request "spawn" (Client.post ~headers ~body uri)
+  >>= fun (resp, body) ->
+  let status = Response.status resp in
+  let exn = WrongResponse (Code.string_of_status status, "spawn") in
+  if status = Code.(`Created) then return_unit
+  else fail exn
+
+
 (* GET worker_ip:port/path -> `OK *)
 let worker_request_object base worker oid =
   let store = worker.store in
@@ -231,9 +250,6 @@ let worker_request_object base worker oid =
       return obj
     end
 
-
-let worker_spawn base worker job_lst =
-return_unit
 
 let with_lwt_comm ?fail ?success comm =
   let fail = match fail with

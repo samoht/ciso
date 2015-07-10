@@ -30,7 +30,8 @@ let register_handler groups headers body =
   message_of_body body >>= fun m ->
   let compiler, host = Message.(match m with
       | Register (c, h) -> c, h
-      | Heartbeat _ | Publish _ -> failwith "Wrong message for register") in
+      | Heartbeat _ | Publish _ | Spawn_jobs _ ->
+         failwith "Wrong message for register") in
   let id, token = Monitor.new_worker compiler host in
   Store.register_token token >>= fun () ->
 
@@ -57,7 +58,7 @@ let heartbeat_handler groups headers body =
          (* let info = Scheduler.task_info jid in
           log "heartbeat" id ("working job " ^ info); *)
          Message.Ack_heartbeat
-      | Register (_, _) | Publish _ ->
+      | Register _ | Publish _ | Spawn_jobs _ ->
          failwith "wrong message for heartbeat") in
 
   let resp = Response.make ~status:Code.(`OK) () in
@@ -74,7 +75,7 @@ let publish_handler groups headers body =
   message_of_body body >>= fun m ->
   let result, jid = Message.(match m with
       | Publish (result, id) -> result, id
-      | Register (_, _) | Heartbeat _ ->
+      | Register _ | Heartbeat _ | Spawn_jobs _ ->
          failwith "wrong message for publish") in
   let r = match result with
       | `Success -> "SUCCESS"
@@ -83,6 +84,26 @@ let publish_handler groups headers body =
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
   if result = `Success then Monitor.publish_object jid token;
   Scheduler.publish_object token result jid >>= fun () ->
+
+  empty_response Code.(`Created)
+
+
+let spawn_handler groups headers body =
+  let id = int_of_string (groups.(1)) in
+  let token = match Cohttp.Header.get headers "worker" with
+    | Some t -> t | None -> "" in
+  Monitor.verify_worker id token;
+
+  message_of_body body >>= fun m ->
+  let m_job_lst = Message.(match m with
+      | Spawn_jobs job_lst -> job_lst
+      | Publish _ | Register _ | Heartbeat _ ->
+         failwith "wrong message for spawn") in
+  let job_lst = List.rev_map (fun (jid, desp, deps) ->
+      let job = Sexplib.Sexp.of_string desp
+                |> Task.job_of_sexp in
+      jid, job, deps) m_job_lst in
+  Scheduler.update_tables job_lst >>= fun () ->
 
   empty_response Code.(`Created)
 
@@ -97,11 +118,11 @@ let github_hook_handler groups headers body =
 let user_demand_handler groups headers body =
   let pkg = groups.(1) in
   let env_lst = Monitor.worker_environments () in
-  let jobs = List.rev_map (fun (c, h) ->
+  let job_lst = List.rev_map (fun (c, h) ->
     let id = Task.hash_id pkg "" [] c h in
     let job = Task.make_job id pkg "" [] c h in
     id, job, []) env_lst in
-  Scheduler.update_tables jobs >>= fun () ->
+  Scheduler.update_tables job_lst >>= fun () ->
   empty_response Code.(`Accepted)
 
 
@@ -116,6 +137,9 @@ let handler_route_table = Re.(
    (post,
     seq [str "/worker"; group (rep1 digit); str "/objects"]),
     publish_handler;
+   (post,
+    seq [str "/worker"; group (rep1 digit); str "/newjobs"]),
+    spawn_handler;
    (post,
     seq [str "/github/"; group (rep1 digit); eos]),
     github_hook_handler;

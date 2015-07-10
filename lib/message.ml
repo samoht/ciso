@@ -5,6 +5,7 @@ type worker_msg =
   | Register of compiler * host
   | Heartbeat of id option
   | Publish of [`Success | `Fail of string | `Delegate of id] * id
+  | Spawn_jobs of (id * description * (id list)) list
   with sexp
 
 type master_msg =
