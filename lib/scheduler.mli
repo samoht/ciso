@@ -37,9 +37,6 @@ val task_info: id -> string
 (* pickup any uncompleted tasks due to master failure *)
 val bootstrap: unit -> unit Lwt.t
 
-(* add a new worker's token to the worker log map *)
-val register_token: worker_token -> unit
-
 (* eliminate a worker's token when worker is down*)
 val invalidate_token: worker_token -> unit
 

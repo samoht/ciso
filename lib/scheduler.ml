@@ -1,18 +1,6 @@
 open Lwt
 open Common_types
 
-(* set of task/object ids*)
-module IdSet = Set.Make(struct
-  type t = id
-  let compare = String.compare
-end)
-
-(* map from worker token to tasks completed by that worker as IdSet.t *)
-module LogMap = Map.Make(struct
-  type t = worker_token
-  let compare = String.compare
-end)
-
 type job_tbl = (id, Task.job) Hashtbl.t
 type deps_tbl = (id, id list) Hashtbl.t
 
@@ -25,12 +13,11 @@ let j_tbl : job_tbl = Hashtbl.create 16
 let d_tbl : deps_tbl = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
-let w_map = ref LogMap.empty
 
 let sub_abbr str = String.sub str 0 5
 
-let log action func ~info =
-  let title = Printf.sprintf "%s@%s" action func in
+let log subject func ~info =
+  let title = Printf.sprintf "%s@%s" subject func in
   if info = "" then Printf.eprintf "[%s]\n%!" title
   else Printf.eprintf "\t[%s]: %s\n%!" title info
 
@@ -45,36 +32,35 @@ let task_info id =
      | e -> raise e
 
 
-let register_token wtoken =
-  Printf.eprintf "\t[scheduler@register]: new worker %s\n%!"
-                 (String.sub wtoken 0 5);
-  w_map := LogMap.add wtoken IdSet.empty !w_map
+let get_runnables () =
+  Hashtbl.fold (fun id _ acc ->
+      if `Runnable = Hashtbl.find s_tbl id then id :: acc
+      else acc) j_tbl []
+
+
+let count_runnables () =
+  let r = get_runnables () in
+  List.length r, Hashtbl.length j_tbl
 
 
 let invalidate_token wtoken =
   Hashtbl.iter (fun id s ->
       if s = (`Dispatched wtoken)
       then Hashtbl.replace s_tbl id `Runnable) s_tbl;
-  Printf.eprintf "\t[scheduler@invalidate]: %d/%d jobs\n%!"
-   (Hashtbl.fold (fun id _ acc ->
-         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
-   (Hashtbl.length j_tbl);
-  w_map := LogMap.remove wtoken !w_map
+
+  let r, sum = count_runnables () in
+  let info = Printf.sprintf "%d/%d jobs" r sum in
+  log "scheduler" "invalidate" ~info
 
 
 let find_job wtoken =
-  let runnables = Hashtbl.fold (fun id state acc ->
-      if state = `Runnable then id :: acc else acc) s_tbl [] in
+  let runnables = get_runnables () in
   if runnables = [] then None
   else begin
-      let wset = LogMap.find wtoken !w_map in
-      let to_depset deps = List.fold_left (fun set input ->
-          IdSet.add input set) IdSet.empty deps in
-      let id, _ = List.fold_left (fun (i, n) tid ->
+      let id, _ = List.fold_left (fun (i, max_r) tid ->
           let deps = Hashtbl.find d_tbl tid in
-          let dset = to_depset deps in
-          let d = IdSet.cardinal (IdSet.inter wset dset) in
-          if d > n then tid, d else i, n) ("", (-1)) runnables in
+          let r = Monitor.job_rank wtoken deps in
+          if r > max_r then tid, r else i, max_r) ("", (-1)) runnables in
       Hashtbl.replace s_tbl id (`Dispatched wtoken);
       Printf.eprintf "\t[scheduler@find_job]: -> %s\n%!" (task_info id);
 
@@ -127,23 +113,18 @@ let publish_object_hook id =
 let publish_object wtoken result id =
   (match result with
    | `Success ->
-      let wset = LogMap.find wtoken !w_map in
-      let n_wset = IdSet.add id wset in
-      w_map := LogMap.add wtoken n_wset !w_map;
+      Monitor.publish_object wtoken id;
       Hashtbl.replace s_tbl id `Completed;
-      Printf.eprintf "\t[scheduler@publish]: %s completed\n%!"
-        (String.sub id 0 5);
+      log "scheduler" "publish" ~info:((sub_abbr id) ^ " completed");
       publish_object_hook id
    | `Fail _ -> begin
        Hashtbl.replace s_tbl id `Runnable;
        return_unit end) >>= fun () ->
 
-  Printf.eprintf "\t[scheduler@publish]: publish hook completed\n%!";
-  let runnables = Hashtbl.fold (fun oid state acc ->
-      if state = `Runnable then oid :: acc else acc) s_tbl [] in
-  let str = String.concat " ; " (List.rev_map task_info runnables) in
-  Printf.eprintf "\t[scheduler@publish]: {%s}\n%!" str;
-  return ()
+  log "scheduler" "publish" ~info:"publish hook completed";
+  let info = Printf.sprintf "{%s}" (String.concat " ; " (get_runnables ())) in
+  log "scheduler" "publish" ~info;
+  return_unit
 
 
 let user = "ocaml"

@@ -2,7 +2,7 @@ open Sexplib.Std
 open Common_types
 
 type worker_msg =
-  | Register
+  | Register of compiler * host
   | Heartbeat of id option
   | Publish of [`Success | `Fail of string] * id
   with sexp

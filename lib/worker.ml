@@ -155,7 +155,9 @@ let worker_publish base {id; token} result oid obj =
 
 (* POST base/worker/registration -> `Created *)
 let worker_register base build_store =
-  let body = body_of_message Message.Register in
+  let compiler = Ci_opam.compiler () in
+  let host = Host.detect () |> Host.to_string in
+  let body = body_of_message (Message.Register (compiler, host)) in
   let uri_path = "worker/registration" in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 

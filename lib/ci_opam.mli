@@ -1,4 +1,7 @@
-type ocamlfind_lock
+(* [compiler ()]:
+   detect current using ocaml compiler version *)
+val compiler: unit -> Common_types.compiler
+
 
 (* given a package name with version constraint probably,
    produce an action graph based on the host's opam configuration but with
