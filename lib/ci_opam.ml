@@ -10,23 +10,6 @@ let compiler () =
     | Some v -> OpamCompiler.Version.to_string v
 
 
-(* return a deterministic id, based on pakcage name, version, and dependencies
-   could add os and architecture later *)
-let hash_id pkg v inputs compiler host =
-  let str = pkg ^ v ^ (String.concat ";" inputs) ^ compiler ^ host in
-  let hash str =
-    let hex_of_cs cs =
-      let buf = Buffer.create 16 in
-      Cstruct.hexdump_to_buffer buf cs;
-      Buffer.contents buf in
-    let stripe_nl_space s = Re.(
-      let re = compile (alt [compl [notnl]; space]) in
-      replace_string re ~by:"" s) in
-    Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
-    |> hex_of_cs |> stripe_nl_space in
-  hash str
-
-
 (* copied from opam/src/client/opamArg.ml *)
 let parse str =
   let re = Re_str.regexp
@@ -74,6 +57,7 @@ let modify_state state =
     installed = OpamPackage.Set.filter is_base state.installed;
     installed_roots = OpamPackage.Set.filter is_base state.installed_roots;
     pinned = OpamPackage.Name.Map.empty; }
+
 
 let resolve ?(bare = true) state str =
   let state = if bare then modify_state state else state in
@@ -123,7 +107,7 @@ let jobs_of_graph ?pull graph =
       let to_list s = fold (fun e acc -> e :: acc) s [] end in
   let id_map = ref Pkg.Map.empty in
   let deps_map = ref Pkg.Map.empty in
-  let t_lst = ref [] in
+  let j_lst = ref [] in
   while not (Stack.is_empty add_stack) do
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
@@ -140,18 +124,24 @@ let jobs_of_graph ?pull graph =
 
     let compiler = compiler () in
     let host = Host.detect () |> Host.to_string in
-    let id = hash_id name version inputs compiler host in
-    let task =
+    let id = Task.hash_id name version inputs compiler host in
+    let job =
       if Graph.out_degree graph v <> 0 then
         Task.make_job ?pull:None id name version inputs compiler host
       else Task.make_job ?pull id name version inputs compiler host in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
-    t_lst := (id, task, IdSet.to_list deps) :: !t_lst
+    j_lst := (id, job, IdSet.to_list deps) :: !j_lst
   done;
-  !t_lst
+  !j_lst
 
+
+let resolvable state ~name ~version =
+  let str = if version = "" then name else name ^ "." ^ version in
+  let graph = resolve ~bare:false state str in
+  if 1 = OpamSolver.ActionGraph.nb_vertex graph then false, graph
+  else true, graph
 
 
 let package p = OpamPackage.((name_to_string p) ^ "." ^ (version_to_string p))

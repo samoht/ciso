@@ -6,7 +6,9 @@ type deps_tbl = (id, id list) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
-type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
+type state = [`Pending | `Runnable | `Completed
+              | `Dispatched of worker_token
+              | `Continuation of id]
 type state_tbl = (id, state) Hashtbl.t
 
 let j_tbl : job_tbl = Hashtbl.create 16
@@ -32,9 +34,14 @@ let task_info id =
      | e -> raise e
 
 
-let get_runnables () =
-  Hashtbl.fold (fun id _ acc ->
-      if `Runnable = Hashtbl.find s_tbl id then id :: acc
+let get_runnables ?worker_env () =
+  let is_env_match jenv = function
+    | None -> true
+    | Some env -> env = jenv in
+  Hashtbl.fold (fun id j acc ->
+      if `Runnable = Hashtbl.find s_tbl id
+         && is_env_match (Task.env_of_job j) worker_env
+      then id :: acc
       else acc) j_tbl []
 
 
@@ -54,7 +61,8 @@ let invalidate_token wtoken =
 
 
 let find_job wtoken =
-  let runnables = get_runnables () in
+  let worker_env = Monitor.worker_env wtoken in
+  let runnables = get_runnables ~worker_env () in
   if runnables = [] then None
   else begin
       let id, _ = List.fold_left (fun (i, max_r) tid ->
@@ -62,7 +70,7 @@ let find_job wtoken =
           let r = Monitor.job_rank wtoken deps in
           if r > max_r then tid, r else i, max_r) ("", (-1)) runnables in
       Hashtbl.replace s_tbl id (`Dispatched wtoken);
-      Printf.eprintf "\t[scheduler@find_job]: -> %s\n%!" (task_info id);
+      log "scheduler" "find_job" ~info:(" -> " ^ (task_info id));
 
       let job = Hashtbl.find j_tbl id in
       let deps = Hashtbl.find d_tbl id in
@@ -112,14 +120,16 @@ let publish_object_hook id =
 
 let publish_object wtoken result id =
   (match result with
+   | `Delegate d ->
+      Hashtbl.replace s_tbl id (`Continuation d);
+      return_unit
    | `Success ->
-      Monitor.publish_object wtoken id;
       Hashtbl.replace s_tbl id `Completed;
       log "scheduler" "publish" ~info:((sub_abbr id) ^ " completed");
       publish_object_hook id
-   | `Fail _ -> begin
+   | `Fail _ ->
        Hashtbl.replace s_tbl id `Runnable;
-       return_unit end) >>= fun () ->
+       return_unit) >>= fun () ->
 
   log "scheduler" "publish" ~info:"publish hook completed";
   let info = Printf.sprintf "{%s}" (String.concat " ; " (get_runnables ())) in
@@ -170,53 +180,59 @@ let pull_info token num = Github.Monad.(
     |> return)
 
 
-let update_tables new_tasks =
-  Lwt_list.fold_left_s (fun cache (id, t, deps) ->
-      Store.log_job id (t, deps) >>= fun () ->
-      Hashtbl.replace j_tbl id t;
+let update_tables jobs =
+  Lwt_list.filter_p (fun (id, _, _) ->
+      Store.query_object id >>= fun in_store ->
+      return (not (in_store || Hashtbl.mem j_tbl id))) jobs
+  >>=fun new_jobs ->
+  (* cache contains the results of Store.query_object,
+     it can answer whether a previously queried dep
+     is in the data store or not *)
+  Lwt_list.fold_left_s (fun cache (id, j, deps) ->
+      Store.log_job id (j, deps) >>= fun () ->
+      Hashtbl.replace j_tbl id j;
       Hashtbl.replace d_tbl id deps;
 
-      let inputs = Task.inputs_of_job t in
-      let cached, store =
-        List.partition (fun i -> List.mem_assoc i cache) inputs in
-
-      Lwt_list.rev_map_s (fun input -> Store.query_object input) store
-      >>= fun store_results ->
-      let new_cache = List.combine store (List.rev store_results) in
+      let cached, to_lookup =
+        List.partition (fun d -> List.mem_assoc d cache) deps in
+      Lwt_list.rev_map_s (fun d -> Store.query_object d) to_lookup
+      >>= fun lookup_results ->
+      let new_cache = List.combine to_lookup (List.rev lookup_results) in
       let cache = List.rev_append new_cache cache in
-      (if List.for_all (fun i -> true = List.assoc i cache) inputs then
+
+      let in_store d = List.assoc d cache in
+      (if List.for_all (fun d -> in_store d) deps then
          Hashtbl.replace s_tbl id `Runnable
        else begin
-           List.iter (fun input -> Hashtbl.add h_tbl input id) inputs;
+           let hooks = List.filter (fun i -> not (in_store i))
+             (Task.inputs_of_job j) in
+           List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
            Hashtbl.replace s_tbl id `Pending; end);
-      return cache) [] new_tasks
+      return cache) [] new_jobs
   >>= fun _ -> return_unit
 
 
 let bootstrap () =
   Store.retrieve_jobs ()
   >>= update_tables >>= fun () ->
-  Printf.eprintf "\t[scheduler@bootstrap]: %d/%d jobs\n%!"
-   (Hashtbl.fold (fun id _ acc ->
-         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
-   (Hashtbl.length j_tbl);
-  return ()
+  let r, sum = count_runnables () in
+  let info = Printf.sprintf "%d/%d jobs" r sum in
+  log "scheduler" "bootstrap" ~info;
+  return_unit
+
 
 let resolve_and_add ?pull pkg =
   let state = Ci_opam.load_state () in
   let action_graph = Ci_opam.resolve state pkg in
 
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
-  Lwt_list.filter_p (fun (id, _, _) ->
-      Store.query_object id >>= fun in_store ->
-      return (not (in_store || Hashtbl.mem j_tbl id))) jobs
-  >>= update_tables
-  >>= fun () ->
-  Printf.eprintf "\t[scheduler@resolve]: %d/%d jobs\n%!"
-    (Hashtbl.fold (fun id _ acc ->
-         if `Runnable = Hashtbl.find s_tbl id then succ acc else acc) j_tbl 0)
-    (Hashtbl.length j_tbl);
-  return ()
+  update_tables jobs >>= fun () ->
+
+  let r, sum = count_runnables () in
+  let info = Printf.sprintf "%d/%d jobs" r sum in
+  log "scheduler" "resolve" ~info;
+  return_unit
+
 
 let github_hook num =
   (match !token with

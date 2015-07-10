@@ -14,7 +14,9 @@ type job_tbl
 type hook_tbl
 
 (* task state *)
-type state = [`Pending | `Dispatched of worker_token | `Runnable | `Completed]
+type state = [`Pending | `Runnable | `Completed
+              | `Dispatched of worker_token
+              | `Continuation of id]
 
 (* object id -> task state
    if task A is supposed to produce object a,
@@ -28,7 +30,7 @@ type state_tbl
 val find_job: worker_token -> (id * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
-val publish_object: worker_token -> [`Success | `Fail of string]
+val publish_object: worker_token -> [`Success | `Fail of string | `Delegate of id]
                     -> id -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
@@ -40,6 +42,8 @@ val bootstrap: unit -> unit Lwt.t
 (* eliminate a worker's token when worker is down*)
 val invalidate_token: worker_token -> unit
 
+(* add new jobs into jobs/tables*)
+val update_tables: (id * Task.job * id list) list -> unit Lwt.t
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task

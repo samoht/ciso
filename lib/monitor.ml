@@ -81,6 +81,19 @@ let job_rank token deps =
   IdSet.cardinal (IdSet.inter pkgs_set deps_set)
 
 
+let worker_environments () =
+  Hashtbl.fold (fun _ (_, c, h) acc ->
+      if List.mem (c, h) acc then acc
+      else (c, h) :: acc) w_tbl []
+
+
+let worker_env token =
+  Hashtbl.fold (fun _ (t, c, h) acc ->
+      if t = token then (c, h) :: acc
+      else acc) w_tbl []
+  |> (fun lst -> assert (1 = List.length lst); List.hd lst)
+
+
 let eliminate_workers workers =
   if workers = [] then return () else
     let eliminate_one (id, token) =

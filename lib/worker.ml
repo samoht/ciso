@@ -231,14 +231,9 @@ let worker_request_object base worker oid =
       return obj
     end
 
-(*
-let get_opam_var var =
-  let comm = Lwt_process.shell ("opam config var " ^ var) in
-  let null = Lwt_process.(`Dev_null) in
-  let proc_in = Lwt_process.open_process_in ~stdin:null ~stderr:null comm in
-  let ic = proc_in#stdout in
-  Lwt_io.read_line ic *)
 
+let worker_spawn base worker job_lst =
+return_unit
 
 let with_lwt_comm ?fail ?success comm =
   let fail = match fail with
@@ -408,6 +403,7 @@ let read_installed dir =
 
 
 let collect_output prefix p v = function
+  | `Delegate _ -> assert false
   | `Success -> return []
   | `Fail _ ->
      let relative_path = ["build"; p ^ "." ^ v] |> String.concat "/" in
@@ -474,6 +470,37 @@ let clean_object prefix obj =
   log "execute" "clean" ~info
 
 
+let job_build state prefix jid name version =
+  patch_ocamlfind prefix >>= fun write_path ->
+  (if write_path = "" then return_unit
+   else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
+
+  log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
+  fs_snapshots prefix >>= fun before_build ->
+  read_installed prefix >>= fun old_pkgs ->
+  log "execute" "FOR REAL" ~info:(name ^ "." ^  version);
+
+  Ci_opam.opam_install state ~name ~version >>= fun result ->
+  (match result with
+   | `Delegate _ -> assert false
+   | `Success -> log "execute" name ~info:"SUCCESS"
+   | `Fail f -> log "execute" name ~info:("FAIL: " ^ f));
+  return_unit >>= fun () ->
+
+  log "execute" "snapshot" ~info:(prefix ^ " AFTER");
+  fs_snapshots prefix >>= fun after_build ->
+  read_installed prefix >>= fun new_pkgs ->
+  collect_output prefix name version result >>= fun output ->
+  collect_installed prefix before_build after_build >>= fun installed ->
+
+  create_archive prefix jid output installed old_pkgs new_pkgs
+  >>= fun archive ->
+  clean_tmp "execute" (fst archive) >>= fun () ->
+
+  Ci_opam.opam_uninstall ~name ~version >>= fun () ->
+  return (result, output, installed, archive)
+
+
 let job_execute base worker jid job deps =
   (* let inputs = Task.inputs_of_job job in *)
   let info = Printf.sprintf "of total %d" (List.length deps) in
@@ -485,34 +512,26 @@ let job_execute base worker jid job deps =
   Lwt_list.fold_left_s (fun s dep ->
     worker_request_object base worker dep >>= fun obj ->
     apply_object s prefix obj) state deps >>= fun s ->
-  patch_ocamlfind prefix >>= fun write_path ->
-  (if write_path = "" then return_unit
-   else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
-
-  log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
-  fs_snapshots prefix >>= fun before_build ->
-  read_installed prefix >>= fun old_pkgs ->
   let p, v = Task.info_of_task (Task.task_of_job job) in
-  log "execute" "FOR REAL" ~info:(p ^ "." ^  v);
 
-  Ci_opam.opam_install s ~name:p ~version:v >>= fun result ->
-  (match result with
-   | `Success -> log "execute" p ~info:"SUCCESS"
-   | `Fail f -> log "execute" p ~info:("FAIL: " ^ f));
-  return_unit >>= fun () ->
+  let is_resolvable, graph = Ci_opam.resolvable s p v in
+  if is_resolvable then
+    let job_lst = Ci_opam.jobs_of_graph graph in
+    worker_spawn base worker job_lst >>= fun () ->
 
-  log "execute" "snapshot" ~info:(prefix ^ " AFTER");
-  fs_snapshots prefix >>= fun after_build ->
-  read_installed prefix >>= fun new_pkgs ->
-  collect_output prefix p v result >>= fun output ->
-  collect_installed prefix before_build after_build >>= fun installed ->
-
-  create_archive prefix jid output installed old_pkgs new_pkgs
-  >>= fun archive ->
-  clean_tmp "execute" (fst archive) >>= fun () ->
-
-  Ci_opam.opam_uninstall ~name:p ~version:v >>= fun () ->
-  return (result, (Object.create jid result output installed archive))
+    let delegate_id =
+      List.fold_left (fun acc (id, job, _) ->
+          let p', _ = Task.info_of_task (Task.task_of_job job) in
+          if p' = p then id :: acc
+          else acc) [] job_lst
+      |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
+    let result = `Delegate delegate_id in
+    let obj = Object.create jid result [] [] ("", "") in
+    return (result, obj)
+  else
+    job_build s prefix jid p v >>= fun (result, output, installed, archive) ->
+    let obj = Object.create jid result output installed archive in
+    return (result, obj)
 
 
 let rec execution_loop base worker cond =
@@ -526,6 +545,10 @@ let rec execution_loop base worker cond =
       worker.status <- Working id;
       job_execute base worker id job deps >>= fun (result, obj) ->
       (match result with
+       | `Delegate _ ->
+          Store.publish_object worker.token id obj >>= fun () ->
+          Store.unlog_job id >>= fun () ->
+          worker_publish base worker result id obj
        | `Success ->
           Store.publish_object worker.token id obj >>= fun () ->
           Store.unlog_job id >>= fun () ->

@@ -2,7 +2,8 @@ open Sexplib.Std
 
 type t = {
   id : Common_types.id;            (* object is referenced by id in scheduler *)
-  result : [`Success |`Fail of string];               (* result of opam build *)
+  result : [`Success |`Fail of string
+           |`Delegate of Common_types.id];            (* result of opam build *)
   output: string list;      (* relative paths of stdout and stderr in archive *)
   installed : string list;    (* relative paths of installed files in archive *)
   archive: string * string;

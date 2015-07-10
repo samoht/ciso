@@ -14,6 +14,10 @@ val resolve : ?bare:bool -> OpamState.state -> string -> OpamSolver.ActionGraph.
 val jobs_of_graph: ?pull:Task.pull -> OpamSolver.ActionGraph.t ->
                     (Common_types.id * Task.job * (Common_types.id list)) list
 
+
+val resolvable: OpamState.state -> name:string -> version:string ->
+                bool * OpamSolver.ActionGraph.t
+
 (* [get_opam_var v]
    as the command line `opam config var v`, to retrieve the variable `prefix`,
    most code copied from opamConfigCommand.ml*)
@@ -46,7 +50,7 @@ val findlib_conf: prefix:string -> write_path:string -> unit Lwt.t
 (** [opam_install n v]
     install package with name [n] and version [v] using OpamClient.SafeAPI *)
 val opam_install: OpamState.state -> name:string -> version:string ->
-                  [> `Fail of string | `Success ] Lwt.t
+                  [> `Fail of string | `Success | `Delegate of Common_types.id] Lwt.t
 
 (** [opam_uninstall n v]
     uninstall package with name [n] and version [v] using OpamClient.SafeAPI *)

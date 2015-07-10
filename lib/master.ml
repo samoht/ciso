@@ -76,7 +76,10 @@ let publish_handler groups headers body =
       | Publish (result, id) -> result, id
       | Register (_, _) | Heartbeat _ ->
          failwith "wrong message for publish") in
-  let r = match result with `Success -> "SUCCESS" | `Fail f -> "FAIL: " ^ f in
+  let r = match result with
+      | `Success -> "SUCCESS"
+      | `Fail f -> "FAIL: " ^ f
+      | `Delegate d -> "DELEGATE: " ^ Scheduler.task_info d in
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
   if result = `Success then Monitor.publish_object jid token;
   Scheduler.publish_object token result jid >>= fun () ->
@@ -93,8 +96,12 @@ let github_hook_handler groups headers body =
 
 let user_demand_handler groups headers body =
   let pkg = groups.(1) in
-  Scheduler.user_demand pkg
-  >>= fun () ->
+  let env_lst = Monitor.worker_environments () in
+  let jobs = List.rev_map (fun (c, h) ->
+    let id = Task.hash_id pkg "" [] c h in
+    let job = Task.make_job id pkg "" [] c h in
+    id, job, []) env_lst in
+  Scheduler.update_tables jobs >>= fun () ->
   empty_response Code.(`Accepted)
 
 
