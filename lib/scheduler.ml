@@ -11,10 +11,15 @@ type state = [`Pending | `Runnable | `Completed
               | `Continuation of id]
 type state_tbl = (id, state) Hashtbl.t
 
+type fail_tbl = (id, int) Hashtbl.t
+
 let j_tbl : job_tbl = Hashtbl.create 16
 let d_tbl : deps_tbl = Hashtbl.create 16
 let h_tbl : hook_tbl = Hashtbl.create 16
 let s_tbl : state_tbl = Hashtbl.create 16
+
+let fail_limit = 2
+let f_tbl : fail_tbl = Hashtbl.create 16
 
 let sub_abbr str = String.sub str 0 5
 
@@ -125,11 +130,18 @@ let publish_object wtoken result id =
       return_unit
    | `Success ->
       Hashtbl.replace s_tbl id `Completed;
-      log "scheduler" "publish" ~info:((sub_abbr id) ^ " completed");
       publish_object_hook id
    | `Fail _ ->
-       Hashtbl.replace s_tbl id `Runnable;
-       return_unit) >>= fun () ->
+      let cnt = try Hashtbl.find f_tbl id with Not_found -> 0 in
+      let n_cnt = succ cnt in
+      if n_cnt >= fail_limit then
+        (log "scheduler" "publish" ~info:"Fail -> FAIL";
+         Hashtbl.replace s_tbl id `Completed)
+      else
+        (log "schduer" "publish" ~info:"Fail -> RETRY";
+         Hashtbl.replace f_tbl id n_cnt;
+         Hashtbl.replace s_tbl id `Runnable);
+      return_unit) >>= fun () ->
 
   log "scheduler" "publish" ~info:"publish hook completed";
   let info_lst = List.rev_map task_info (get_runnables ()) in
@@ -211,6 +223,25 @@ let update_tables jobs =
            Hashtbl.replace s_tbl id `Pending; end);
       return cache) [] new_jobs
   >>= fun _ -> return_unit
+
+
+let rec query_state id =
+  let query_store id =
+    Store.query_object id >>= fun in_store ->
+    if in_store then
+      (Store.retrieve_object id >>= fun obj ->
+       match Object.result_of_t obj with
+       | `Success -> return "Success"
+       | `Fail f -> return ("Fail: " ^ f)
+       | `Delegate d -> query_state d)
+    else return "Not found" in
+
+  if Hashtbl.mem s_tbl id then
+    match Hashtbl.find s_tbl id with
+    | `Pending | `Runnable | `Dispatched _ -> return "Working"
+    | `Continuation c -> query_state c
+    | `Completed -> query_store id
+  else query_store id
 
 
 let bootstrap () =

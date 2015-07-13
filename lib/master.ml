@@ -129,6 +129,16 @@ let user_demand_handler groups headers body =
   return (resp, body)
 
 
+let user_query_handler groups headers body =
+  let id = groups.(1) in
+  Scheduler.query_state id >>= fun s_str ->
+  let info = Scheduler.task_info id in
+  let body_str = Printf.sprintf "%s: %s\n" info s_str in
+  let body = Body.of_string body_str in
+  let resp = Response.make ~status:`OK () in
+  return (resp, body)
+
+
 let handler_route_table = Re.(
   let post = `POST in
   [(post,
@@ -148,7 +158,10 @@ let handler_route_table = Re.(
     github_hook_handler;
    (post,
     seq [str "/package/"; group (rep1 any); eos]),
-    user_demand_handler])
+    user_demand_handler;
+   (post,
+    seq [str "/object/"; group (rep1 any); eos]),
+    user_query_handler])
 
 
 let route_handler meth path = Re.(

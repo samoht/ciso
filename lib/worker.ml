@@ -522,34 +522,47 @@ let job_execute base worker jid job deps =
   let info = Printf.sprintf "of total %d" (List.length deps) in
   log "execute" "dependency" ~info;
 
+  let name, version = Task.info_of_task (Task.task_of_job job) in
   let state = Ci_opam.load_state ~switch:!opam_switch () in
   let prefix = Ci_opam.get_opam_var "prefix" in
   log "execute" "prefix" ~info:prefix;
-  Lwt_list.fold_left_s (fun s dep ->
-    worker_request_object base worker dep >>= fun obj ->
-    apply_object s prefix obj) state deps >>= fun s ->
-  let name, version = Task.info_of_task (Task.task_of_job job) in
 
-  let is_resolvable, graph = Ci_opam.resolvable ~name ?version s in
-  if is_resolvable then
-    let job_lst = Ci_opam.jobs_of_graph graph in
-    worker_spawn base worker job_lst >>= fun () ->
+  catch (fun () ->
+    Lwt_list.fold_left_s (fun s dep ->
+        worker_request_object base worker dep >>= fun obj ->
+        match Object.result_of_t obj with
+        | `Success -> apply_object s prefix obj
+        | `Fail _ ->
+           let dep_id = Object.id_of_t obj in
+           fail_with ("dependency broken: " ^ dep_id)
+        | `Delegate _ -> fail_with "delegate in deps") state deps
 
-    let delegate_id =
-      List.fold_left (fun acc (id, job, _) ->
-          let name', _ = Task.info_of_task (Task.task_of_job job) in
-          if name' = name then id :: acc
-          else acc) [] job_lst
-      |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
-    let result = `Delegate delegate_id in
+    >>= fun s ->
+    let is_resolvable, graph = Ci_opam.resolvable ~name ?version s in
+    if is_resolvable then
+      let job_lst = Ci_opam.jobs_of_graph graph in
+      worker_spawn base worker job_lst >>= fun () ->
+
+      let delegate_id =
+        List.fold_left (fun acc (id, job, _) ->
+            let name', _ = Task.info_of_task (Task.task_of_job job) in
+            if name' = name then id :: acc
+            else acc) [] job_lst
+        |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
+      let result = `Delegate delegate_id in
+      let obj = Object.create jid result [] [] ("", "") in
+      return (result, obj)
+    else
+      let v = match version with Some v -> v | None -> assert false in
+      job_build s prefix jid name v
+      >>= fun (result, output, installed, archive) ->
+      let obj = Object.create jid result output installed archive in
+      return (result, obj)) (fun exn ->
+    let result = match exn with
+      | Failure f -> `Fail f
+      | _ -> `Fail "unknow execution failure" in
     let obj = Object.create jid result [] [] ("", "") in
-    return (result, obj)
-  else
-    let v = match version with Some v -> v | None -> assert false in
-    job_build s prefix jid name v
-    >>= fun (result, output, installed, archive) ->
-    let obj = Object.create jid result output installed archive in
-    return (result, obj)
+    return (result, obj))
 
 
 let rec execution_loop base worker cond =
