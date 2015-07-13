@@ -132,7 +132,8 @@ let publish_object wtoken result id =
        return_unit) >>= fun () ->
 
   log "scheduler" "publish" ~info:"publish hook completed";
-  let info = Printf.sprintf "{%s}" (String.concat " ; " (get_runnables ())) in
+  let info_lst = List.rev_map task_info (get_runnables ()) in
+  let info = Printf.sprintf "{%s}" (String.concat " ; " info_lst) in
   log "scheduler" "publish" ~info;
   return_unit
 

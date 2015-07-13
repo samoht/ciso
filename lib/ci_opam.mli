@@ -2,11 +2,16 @@
    detect current using ocaml compiler version *)
 val compiler: unit -> Common_types.compiler
 
+(* [parse_user_demand demand]:
+   parse the user demand string [demand] into a package name string and
+   package version string option *)
+val parse_user_demand: string -> string * string option
 
 (* given a package name with version constraint probably,
    produce an action graph based on the host's opam configuration but with
    no installed packages, nor pinned packages *)
-val resolve : ?bare:bool -> OpamState.state -> string -> OpamSolver.ActionGraph.t
+val resolve : ?bare:bool -> OpamState.state -> string ->
+              OpamSolver.ActionGraph.t
 
 (* [tasks_of_graph ?pull graph]
    given the action graph from resolv and return the id of corresponding

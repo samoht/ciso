@@ -30,6 +30,12 @@ let parse str =
     with Failure msg -> failwith msg
 
 
+let parse_user_demand pkg =
+  match parse pkg with
+  | name, None -> OpamPackage.Name.to_string name, None
+  | name, Some (_, v) -> OpamPackage.Name.to_string name,
+                         Some (OpamPackage.Version.to_string v)
+
 let print_edges vx vy =
   let string_of_action v =
     let action, pkg = match v with

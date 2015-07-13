@@ -54,8 +54,6 @@ let heartbeat_handler groups headers body =
           | None -> Ack_heartbeat
           | Some (jid, tdesp) -> New_job (jid, tdesp))
       | Heartbeat (Some jid) ->
-         (* let info = Scheduler.task_info jid in
-          log "heartbeat" id ("working job " ^ info); *)
          Message.Ack_heartbeat
       | Register _ | Publish _ | Spawn_jobs _ ->
          failwith "wrong message for heartbeat") in
@@ -115,14 +113,20 @@ let github_hook_handler groups headers body =
 
 
 let user_demand_handler groups headers body =
-  let name = groups.(1) in
+  let pkg = groups.(1) in
+  let name, version = Ci_opam.parse_user_demand pkg in
   let env_lst = Monitor.worker_environments () in
   let job_lst = List.rev_map (fun (c, h) ->
-    let id = Task.hash_id ~name [] c h in
-    let job = Task.make_job id ~name [] c h in
+    let id = Task.hash_id ~name ?version [] c h in
+    let job = Task.make_job id ~name ?version [] c h in
     id, job, []) env_lst in
   Scheduler.update_tables job_lst >>= fun () ->
-  empty_response `Accepted
+
+  let resp = Response.make ~status:`Accepted () in
+  let ids = List.rev_map (fun (id, _, _) -> id) job_lst in
+  let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
+  let body = Body.of_string body_str in
+  return (resp, body)
 
 
 let handler_route_table = Re.(
