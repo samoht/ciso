@@ -23,7 +23,6 @@ exception WrongResponse of string * string
 let idle_sleep = 3.0
 let working_sleep = 5.0
 let master_timeout = 15.0
-let opam_switch = ref ""
 
 let sub len str = String.sub str 0 len
 let sub_abbr = sub 5
@@ -154,8 +153,9 @@ let worker_publish base {id; token} result oid obj =
 
 
 (* POST base/worker/registration -> `Created *)
-let worker_register base build_store =
-  let compiler = Ci_opam.compiler () in
+let worker_register base ~switch build_store =
+  let state = Ci_opam.load_state ~switch () in
+  let compiler = Ci_opam.compiler ~state () in
   let host = Host.detect () |> Host.to_string in
   let body = body_of_message (Message.Register (compiler, host)) in
   let uri_path = "worker/registration" in
@@ -523,7 +523,7 @@ let job_execute base worker jid job deps =
   log "execute" "dependency" ~info;
 
   let name, version = Task.info_of_task (Task.task_of_job job) in
-  let state = Ci_opam.load_state ~switch:!opam_switch () in
+  let state = Ci_opam.load_state () in
   let prefix = Ci_opam.get_opam_var "prefix" in
   log "execute" "prefix" ~info:prefix;
 
@@ -613,9 +613,8 @@ let worker base_str store_str switch fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
 
   let base = Uri.of_string base_str in
-  let () = opam_switch := switch in
   let build_store = local_store ~fresh in
-  worker_register base build_store >>= fun worker ->
+  worker_register base ~switch build_store >>= fun worker ->
 
   let cond = Lwt_condition.create () in
   pick [heartbeat_loop base worker cond;

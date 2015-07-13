@@ -222,7 +222,11 @@ let update_tables jobs =
            List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
            Hashtbl.replace s_tbl id `Pending; end);
       return cache) [] new_jobs
-  >>= fun _ -> return_unit
+  >>= fun _ ->
+  let run, sum = count_runnables () in
+  let info = Printf.sprintf "%d/%d jobs" run sum in
+  log "scheduler" "update" ~info;
+  return_unit
 
 
 let rec query_state id =

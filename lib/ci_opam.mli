@@ -1,6 +1,6 @@
 (* [compiler ()]:
    detect current using ocaml compiler version *)
-val compiler: unit -> Common_types.compiler
+val compiler: ?state:OpamState.state -> unit -> Common_types.compiler
 
 (* [parse_user_demand demand]:
    parse the user demand string [demand] into a package name string and

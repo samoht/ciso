@@ -1,14 +1,6 @@
 open OpamTypes
 open Lwt
 
-type ocamlfind_lock = string * string * Lwt_unix.file_descr
-
-let compiler () =
-  OpamCompiler.Version.current ()
-  |> function
-    | None -> "Unknown"
-    | Some v -> OpamCompiler.Version.to_string v
-
 
 (* copied from opam/src/client/opamArg.ml *)
 let parse str =
@@ -91,6 +83,26 @@ let resolve ?(bare = true) state str =
   (* OpamSolver.ActionGraph.iter_edges print_edges graph *)
 
 
+let load_state ?switch () =
+  OpamGlobals.root_dir := OpamGlobals.default_opam_dir;
+  begin
+    match switch with
+    | None -> ()
+    | Some s -> OpamGlobals.switch := `Env s
+  end;
+  OpamState.load_state "state"
+
+
+let rec compiler ?state () =
+  match state with
+  | Some s ->
+     s.OpamState.Types.compiler
+     |> OpamCompiler.to_string
+  | None ->
+     let state = load_state () in
+     compiler ~state ()
+
+
 let jobs_of_graph ?pull graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
@@ -108,6 +120,8 @@ let jobs_of_graph ?pull graph =
     Stack.push v add_stack;
   done;
 
+  let compiler = compiler () in
+  let host = Host.detect () |> Host.to_string in
   let module IdSet = struct
       include Set.Make(String)
       let to_list s = fold (fun e acc -> e :: acc) s [] end in
@@ -128,8 +142,6 @@ let jobs_of_graph ?pull graph =
         IdSet.union d (IdSet.add pred_id pred_deps))
       graph v ([], IdSet.empty) in
 
-    let compiler = compiler () in
-    let host = Host.detect () |> Host.to_string in
     let id = Task.hash_id ~name ~version inputs compiler host in
     let job =
       if Graph.out_degree graph v <> 0 then
@@ -186,16 +198,6 @@ let get_opam_var variable =
           OpamMisc.Option.default (S "#undefined")
             (OpamState.contents_of_variable t OpamVariable.Map.empty v))
   |> OpamVariable.string_of_variable_contents
-
-
-let load_state ?switch () =
-  OpamGlobals.root_dir := OpamGlobals.default_opam_dir;
-  begin
-    match switch with
-    | None -> ()
-    | Some s -> OpamGlobals.switch := `Env s
-  end;
-  OpamState.load_state "state"
 
 
 let conf_file ()=
