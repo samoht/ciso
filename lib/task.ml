@@ -4,6 +4,7 @@ open Common_types
 type task =
   | Github of string * string option * pull  (* package name * version * pull *)
   | Package of string * string option        (* package name * version *)
+  | Compiler of string                       (* compiler version[+tag] *)
 and pull = {
     pull_num : int;
     repo_url : string;
@@ -31,7 +32,9 @@ let env_of_job {compiler; host} = (compiler, host)
 
 let info_of_task task =
   match task with
-  | Github (p, v, _) | Package (p, v) -> p, v
+  | Github (p, v, _)
+  | Package (p, v) -> p, v
+  | Compiler c -> c, None
 
 let make_pull num url base head = {
     pull_num = num;
@@ -41,9 +44,17 @@ let make_pull num url base head = {
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
-let hash_id ~name ?version inputs compiler host =
-  let pkg = match version with None -> name | Some v -> name ^ v in
-  let str = pkg ^ (String.concat ";" inputs) ^ compiler ^ host in
+let hash_id task inputs compiler host =
+  let task_str = match task with
+    | Compiler c -> c
+    | Package (n, v_opt) ->
+       let v_str = match v_opt with None -> "" | Some v -> v in
+       n ^ v_str
+    | Github (n, v_opt, pull) ->
+       let v_str = match v_opt with None -> "" | Some v -> v in
+       let pull_str = string_of_int pull.pull_num in
+       n ^ v_str ^ pull_str in
+  let str = task_str ^ (String.concat ";" inputs) ^ compiler ^ host in
   let `Hex h =
     str
     |> Cstruct.of_string
@@ -51,10 +62,15 @@ let hash_id ~name ?version inputs compiler host =
     |> Hex.of_cstruct in
   h
 
-let make_job ?pull id ~name ?version inputs compiler host =
-  let task = match pull with
-    | Some pull -> Github (name, version, pull)
-    | None -> Package (name, version) in
+
+let make_pkg_task ~name ?version () = Package (name, version)
+
+let make_compiler_task compiler = Compiler compiler
+
+let make_gh_task ~name ?version pull = Github (name, version, pull)
+
+
+let make_job id inputs compiler host task =
   {id; inputs; compiler; host; task;}
 
 let make_job_entry job dependencies = {

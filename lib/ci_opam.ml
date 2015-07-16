@@ -132,6 +132,11 @@ let jobs_of_graph ?pull graph =
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
     let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
+    let task =
+      if Graph.out_degree graph v = 0 && pull <> None then
+        let pull = match pull with None -> assert false | Some p -> p in
+        Task.make_gh_task ~name ~version pull
+      else Task.make_pkg_task ~name ~version () in
 
     let inputs, deps = Graph.fold_pred (fun pred (i, d) ->
         let pred_pkg = package_of_action pred in
@@ -142,11 +147,8 @@ let jobs_of_graph ?pull graph =
         IdSet.union d (IdSet.add pred_id pred_deps))
       graph v ([], IdSet.empty) in
 
-    let id = Task.hash_id ~name ~version inputs compiler host in
-    let job =
-      if Graph.out_degree graph v <> 0 then
-        Task.make_job ?pull:None id ~name ~version inputs compiler host
-      else Task.make_job ?pull id ~name ~version inputs compiler host in
+    let id = Task.hash_id task inputs compiler host in
+    let job = Task.make_job id inputs compiler host task in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
@@ -414,6 +416,29 @@ let update_metadata ~install state ~path =
       state.OpamState.Types.reinstall in
   OpamAction.update_metadata state ~installed ~installed_roots ~reinstall
   |> return
+
+
+let opam_install_switch ~compiler =
+  let state = load_state () in
+
+  let aliase_p = OpamPath.aliases state.OpamState.Types.root in
+  let aliase = OpamFile.Aliases.read aliase_p in
+  let is_installed_switch s =
+    let switch = OpamSwitch.of_string s in
+    OpamSwitch.Map.mem switch aliase in
+  let rec switch s_name =
+    if not (is_installed_switch s_name) then OpamSwitch.of_string s_name
+    else switch (s_name ^ "_") in
+
+  let switch = switch "ci_switch" in
+  let compiler = OpamCompiler.of_string compiler in
+
+  OpamSwitchCommand.install ~quiet:false ~warning:false ~update_config:false
+                            switch compiler;
+
+  (* clean aliase *)
+  OpamFile.Aliases.write aliase_p aliase;
+  OpamSwitch.to_string switch
 
 (*
 let str = Arg.(

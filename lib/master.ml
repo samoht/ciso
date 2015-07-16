@@ -112,13 +112,15 @@ let github_hook_handler groups headers body =
   empty_response `Accepted
 
 
-let user_demand_handler groups headers body =
+let user_pkg_demand_handler groups headers body =
   let pkg = groups.(1) in
   let name, version = Ci_opam.parse_user_demand pkg in
+  let task = Task.make_pkg_task ~name ?version () in
+
   let env_lst = Monitor.worker_environments () in
   let job_lst = List.rev_map (fun (c, h) ->
-    let id = Task.hash_id ~name ?version [] c h in
-    let job = Task.make_job id ~name ?version [] c h in
+    let id = Task.hash_id task [] c h in
+    let job = Task.make_job id [] c h task in
     id, job, []) env_lst in
   Scheduler.update_tables job_lst >>= fun () ->
 
@@ -127,6 +129,23 @@ let user_demand_handler groups headers body =
   let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
   let body = Body.of_string body_str in
   return (resp, body)
+
+
+let user_compiler_demand_handler groups headers body =
+  let c = groups.(1) in
+  let task = Task.make_compiler_task c in
+
+  let env_lst = Monitor.worker_environments () in
+  if env_lst = [] then empty_response `OK
+  else
+    let c, h = List.hd env_lst in
+    let id = Task.hash_id task [] c h in
+    let job = Task.make_job id [] c h task in
+    Scheduler.update_tables [id, job, []] >>= fun () ->
+
+    let resp = Response.make ~status:`Accepted () in
+    let body = Body.of_string (Printf.sprintf "%s\n" id) in
+    return (resp, body)
 
 
 let user_query_handler groups headers body =
@@ -158,7 +177,10 @@ let handler_route_table = Re.(
     github_hook_handler;
    (post,
     seq [str "/package/"; group (rep1 any); eos]),
-    user_demand_handler;
+    user_pkg_demand_handler;
+   (post,
+    seq [str "/compiler/"; group (rep1 any); eos]),
+    user_compiler_demand_handler;
    (post,
     seq [str "/object/"; group (rep1 any); eos]),
     user_query_handler])

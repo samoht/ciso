@@ -378,7 +378,7 @@ let hash str =
   |> hex_of_cs |> stripe_nl_space
 
 
-let fs_snapshots dir =
+let fs_snapshots ?white_list dir =
   let checksum_of_file file =
     let checksum_of_ic ic =
       Lwt_io.read ic >>= fun content ->
@@ -400,10 +400,11 @@ let fs_snapshots dir =
          loop checksums (List.rev_append files tl) in
 
   let sub_dirs =
-    let white_list = ["lib"; "bin"; "sbin"; "doc"; "share";
-                      "etc"; "man"] in
     Sys.readdir dir |> Array.to_list
-    |> List.filter (fun n -> List.mem n white_list)
+    |> (fun lst ->
+       match white_list with
+       | Some wl -> List.filter (fun n -> List.mem n wl) lst
+       | None -> lst)
     |> List.rev_map (fun n -> Filename.concat dir n) in
   loop [] sub_dirs
 
@@ -491,8 +492,9 @@ let job_build state prefix jid name version =
   (if write_path = "" then return_unit
    else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
 
+  let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"] in
   log "execute" "snapshot" ~info:(prefix ^ " BEFORE");
-  fs_snapshots prefix >>= fun before_build ->
+  fs_snapshots ~white_list prefix >>= fun before_build ->
   read_installed prefix >>= fun old_pkgs ->
   log "execute" "FOR REAL" ~info:(name ^ "." ^  version);
 
@@ -504,7 +506,7 @@ let job_build state prefix jid name version =
   return_unit >>= fun () ->
 
   log "execute" "snapshot" ~info:(prefix ^ " AFTER");
-  fs_snapshots prefix >>= fun after_build ->
+  fs_snapshots ~white_list prefix >>= fun after_build ->
   read_installed prefix >>= fun new_pkgs ->
   collect_output prefix name version result >>= fun output ->
   collect_installed prefix before_build after_build >>= fun installed ->
@@ -517,7 +519,7 @@ let job_build state prefix jid name version =
   return (result, output, installed, archive)
 
 
-let job_execute base worker jid job deps =
+let pkg_job_execute base worker jid job deps =
   (* let inputs = Task.inputs_of_job job in *)
   let info = Printf.sprintf "of total %d" (List.length deps) in
   log "execute" "dependency" ~info;
@@ -550,19 +552,49 @@ let job_execute base worker jid job deps =
             else acc) [] job_lst
         |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
       let result = `Delegate delegate_id in
-      let obj = Object.create jid result [] [] ("", "") in
+      let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
       return (result, obj)
     else
       let v = match version with Some v -> v | None -> assert false in
       job_build s prefix jid name v
       >>= fun (result, output, installed, archive) ->
-      let obj = Object.create jid result output installed archive in
+      let obj = Object.make_obj jid result ~output ~installed archive in
       return (result, obj)) (fun exn ->
     let result = match exn with
       | Failure f -> `Fail f
       | _ -> `Fail "unknow execution failure" in
-    let obj = Object.create jid result [] [] ("", "") in
+    let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
     return (result, obj))
+
+
+let compiler_job_execute base worker jid job =
+  let task = Task.task_of_job job in
+  let comp = Task.(match task with
+    | Compiler c -> c
+    | Package _ | Github _ -> failwith "not compiler build task") in
+  log "execute" "compiler" ~info:("build compiler: " ^ comp);
+
+  try
+    let switch = Ci_opam.opam_install_switch ~compiler:comp in
+
+    let prefix = Ci_opam.get_opam_var "prefix" in
+    let path = Filename.concat (Filename.dirname prefix) switch in
+    log "execute" "snapshot" ~info:(path ^ " AFTER");
+    read_installed path >>= fun new_pkgs ->
+    fs_snapshots path >>= fun after_build ->
+
+    collect_installed path [] after_build >>= fun installed ->
+    create_archive path jid [] installed [] new_pkgs >>= fun archive ->
+
+    clean_tmp "compiler" (fst archive) >>= fun () ->
+    let result = `Success in
+    log "execute" "compiler" ~info:"create object";
+    let obj = Object.make_obj jid result ~output:[] ~installed archive in
+    return (result, obj)
+  with _ ->
+       let result = `Fail (comp ^ " build fail") in
+       let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
+       return (result, obj)
 
 
 let rec execution_loop base worker cond =
@@ -570,11 +602,18 @@ let rec execution_loop base worker cond =
   local_query worker.store id >>= fun completed ->
   if completed then execution_loop base worker cond
   else begin
+      worker.status <- Working id;
+
       let job, deps = Sexplib.Sexp.of_string desp
                       |> Task.job_entry_of_sexp
                       |> Task.unwrap_entry in
-      worker.status <- Working id;
-      job_execute base worker id job deps >>= fun (result, obj) ->
+      let task = Task.task_of_job job in
+      Task.(match task with
+       | Package _ -> pkg_job_execute base worker id job deps
+       | Compiler _ -> compiler_job_execute base worker id job
+       | Github _ -> fail_with "to be implemented")
+
+      >>= fun (result, obj) ->
       (match result with
        | `Delegate _ ->
           Store.publish_object worker.token id obj >>= fun () ->

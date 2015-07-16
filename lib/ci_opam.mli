@@ -64,3 +64,5 @@ val opam_uninstall: name:string -> version:string -> unit Lwt.t
 
 val update_metadata: install:bool -> OpamState.state -> path:string ->
                      OpamState.state Lwt.t
+
+val opam_install_switch: compiler:string -> string
