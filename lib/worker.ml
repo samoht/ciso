@@ -53,16 +53,14 @@ let working_directory ?(test = true) id () =
 
 
 let clean_up t =
-  let print_kv k =
+  let print_path k =
     let path = String.concat "/" k in
-    Irmin.read (t "read value") k >>= (function
-    | None -> return "none" | Some v -> return "value") >>= fun value ->
-    Lwt_io.printf "%s -> %s\n%!" path value  in
-  let remove_kv k =
-    Irmin.read (t "read value") k >>= function
-    | None -> return ()
-    | Some _ -> print_kv k >>= fun () ->
-                Irmin.remove (t "remove kv") k in
+    Lwt_io.printf "%s -> value\n%!" path  in
+  let remove_kv k v_t =
+    v_t >>= fun _ ->
+    print_path k >>= fun () ->
+    let p = String.concat "/" k in
+    Irmin.remove (t ("remove " ^ p)) k in
   Irmin.iter (t "iter kv") remove_kv
 
 
@@ -108,11 +106,12 @@ let local_retrieve t id =
 
 let local_retrieve_all t =
   let tups = ref [] in
-  let iter k =
-    Irmin.read (t "read object") k >>= function
-      | None -> return ()
-      | Some v -> tups := (id_of_path k, Object.t_of_string v) :: !tups;
-                  return () in
+  let iter k v_t =
+    v_t >>= fun v ->
+    let id = id_of_path k in
+    let obj = Object.t_of_string v in
+    tups := (id, obj) :: !tups;
+    return () in
   Irmin.iter (t "retrieve all objects") iter >>= fun () ->
   return (!tups)
 
