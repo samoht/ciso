@@ -366,15 +366,12 @@ let patch_ocamlfind prefix =
 
 
 let hash str =
-  let hex_of_cs cs =
-    let buf = Buffer.create 16 in
-    Cstruct.hexdump_to_buffer buf cs;
-    Buffer.contents buf in
-  let stripe_nl_space s = Re.(
-    let re = compile (alt [compl [notnl]; space]) in
-    replace_string re ~by:"" s) in
-  Cstruct.of_string str |> Nocrypto.Hash.SHA1.digest
-  |> hex_of_cs |> stripe_nl_space
+  let `Hex h =
+    str
+    |> Cstruct.of_string
+    |> Nocrypto.Hash.SHA1.digest
+    |> Hex.of_cstruct in
+  h
 
 
 let fs_snapshots ?white_list dir =
