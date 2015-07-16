@@ -420,25 +420,33 @@ let update_metadata ~install state ~path =
 
 let opam_install_switch ~compiler =
   let state = load_state () in
-
   let aliase_p = OpamPath.aliases state.OpamState.Types.root in
   let aliase = OpamFile.Aliases.read aliase_p in
   let is_installed_switch s =
     let switch = OpamSwitch.of_string s in
     OpamSwitch.Map.mem switch aliase in
+
   let rec switch s_name =
     if not (is_installed_switch s_name) then OpamSwitch.of_string s_name
     else switch (s_name ^ "_") in
-
   let switch = switch "ci_switch" in
   let compiler = OpamCompiler.of_string compiler in
 
-  OpamSwitchCommand.install ~quiet:false ~warning:false ~update_config:false
-                            switch compiler;
+  let open Lwt_unix in
+  match Lwt_unix.fork () with
+  | 0 ->
+     OpamSwitchCommand.install ~quiet:false ~warning:false ~update_config:false
+                               switch compiler;
+     (* clean aliase *)
+     OpamFile.Aliases.write aliase_p aliase;
+     exit 0
+  | pid ->
+     Lwt_unix.waitpid [] pid >>= fun (_, stat) ->
+         match stat with
+         | WEXITED i when i = 0 -> return (OpamSwitch.to_string switch)
+         | WEXITED i | WSIGNALED i | WSTOPPED i ->
+            fail_with (Printf.sprintf "exited %d" i)
 
-  (* clean aliase *)
-  OpamFile.Aliases.write aliase_p aliase;
-  OpamSwitch.to_string switch
 
 (*
 let str = Arg.(

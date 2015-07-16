@@ -574,7 +574,7 @@ let compiler_job_execute base worker jid job =
   log "execute" "compiler" ~info:("build compiler: " ^ comp);
 
   try
-    let switch = Ci_opam.opam_install_switch ~compiler:comp in
+    Ci_opam.opam_install_switch ~compiler:comp >>= fun switch ->
 
     let prefix = Ci_opam.get_opam_var "prefix" in
     let path = Filename.concat (Filename.dirname prefix) switch in
