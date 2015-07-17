@@ -150,10 +150,8 @@ let user_compiler_demand_handler groups headers body =
 
 let user_query_handler groups headers body =
   let id = groups.(1) in
-  Scheduler.query_state id >>= fun s_str ->
-  let info = Scheduler.task_info id in
-  let body_str = Printf.sprintf "%s: %s\n" info s_str in
-  let body = Body.of_string body_str in
+  Scheduler.progress_info id >>= fun str ->
+  let body = Body.of_string str in
   let resp = Response.make ~status:`OK () in
   return (resp, body)
 

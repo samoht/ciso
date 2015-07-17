@@ -14,9 +14,7 @@ type job_tbl
 type hook_tbl
 
 (* task state *)
-type state = [`Pending | `Runnable | `Completed
-              | `Dispatched of worker_token
-              | `Continuation of id]
+type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
 
 (* object id -> task state
    if task A is supposed to produce object a,
@@ -39,14 +37,14 @@ val task_info: id -> string
 (* pickup any uncompleted tasks due to master failure *)
 val bootstrap: unit -> unit Lwt.t
 
-(* query the state of a specific object/job *)
-val query_state: id -> string Lwt.t
-
 (* eliminate a worker's token when worker is down*)
 val invalidate_token: worker_token -> unit
 
 (* add new jobs into jobs/tables*)
 val update_tables: (id * Task.job * id list) list -> unit Lwt.t
+
+(* get related jobs of an id and the corresponding state *)
+val progress_info: id -> string Lwt.t
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task

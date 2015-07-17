@@ -6,9 +6,7 @@ type deps_tbl = (id, id list) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
-type state = [`Pending | `Runnable | `Completed
-              | `Dispatched of worker_token
-              | `Continuation of id]
+type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
 type state_tbl = (id, state) Hashtbl.t
 
 type fail_tbl = (id, int) Hashtbl.t
@@ -125,10 +123,7 @@ let publish_object_hook id =
 
 let publish_object wtoken result id =
   (match result with
-   | `Delegate d ->
-      Hashtbl.replace s_tbl id (`Continuation d);
-      return_unit
-   | `Success ->
+   | `Delegate _ | `Success ->
       Hashtbl.replace s_tbl id `Completed;
       publish_object_hook id
    | `Fail _ ->
@@ -229,25 +224,6 @@ let update_tables jobs =
   return_unit
 
 
-let rec query_state id =
-  let query_store id =
-    Store.query_object id >>= fun in_store ->
-    if in_store then
-      (Store.retrieve_object id >>= fun obj ->
-       match Object.result_of_t obj with
-       | `Success -> return "Success"
-       | `Fail f -> return ("Fail: " ^ f)
-       | `Delegate d -> query_state d)
-    else return "Not found" in
-
-  if Hashtbl.mem s_tbl id then
-    match Hashtbl.find s_tbl id with
-    | `Pending | `Runnable | `Dispatched _ -> return "Working"
-    | `Continuation c -> query_state c
-    | `Completed -> query_store id
-  else query_store id
-
-
 let bootstrap () =
   Store.retrieve_jobs ()
   >>= update_tables >>= fun () ->
@@ -255,6 +231,57 @@ let bootstrap () =
   let info = Printf.sprintf "%d/%d jobs" r sum in
   log "scheduler" "bootstrap" ~info;
   return_unit
+
+
+let state_of_id id =
+  if Hashtbl.mem s_tbl id then
+    return (Hashtbl.find s_tbl id)
+  else
+    Store.query_object id >>= fun in_store ->
+    if in_store then return `Completed
+    else fail (raise Not_found)
+
+
+let progress_of_id id =
+  (if Hashtbl.mem d_tbl id then
+     return (Hashtbl.find d_tbl id)
+   else
+     Store.retrieve_job id >>= fun (_, deps) -> return deps)
+  >>= fun deps ->
+  Lwt_list.rev_map_s (fun d -> state_of_id d >>= fun s -> return (d, s)) deps
+  >>= fun dep_states ->
+  state_of_id id >>= fun s ->
+  return ((id, s) :: dep_states)
+
+
+let get_progress id =
+  state_of_id id >>= fun s ->
+  if s <> `Completed then progress_of_id id
+  else
+    Store.retrieve_object id >>= fun obj ->
+    match Object.result_of_t obj with
+    | `Delegate del ->
+       progress_of_id del >>= fun delegates ->
+       return ((id, `Pending) :: delegates)
+    | `Success | `Fail _ -> progress_of_id id
+
+
+let string_of_state = function
+  | `Completed -> "Completed"
+  | `Pending -> "Pending"
+  | `Runnable -> "Runnalbe"
+  | `Dispatched _ -> "Dispatched"
+
+
+let progress_info id =
+  get_progress id >>= fun progress ->
+  List.rev_map (fun (_id, s) ->
+                let format = if _id = id then Printf.sprintf " -> %s %s"
+                   else Printf.sprintf "    %s %s" in
+      format (task_info _id) (string_of_state s)) progress
+  |> List.rev
+  |> fun str_lst ->
+     return (Printf.sprintf "%s\n" (String.concat "\n" str_lst))
 
 
 let resolve_and_add ?pull pkg =
