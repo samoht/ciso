@@ -74,6 +74,10 @@ let invalidate_token token =
 let jpath_of_id id =
   ["job"; id]
 
+let apath_of_id id =
+  let dir = String.sub id 0 2 in
+  ["archive"; dir; id]
+
 let log_job id (job, deps) =
   get_store () >>= fun t ->
   let path = jpath_of_id id in
@@ -81,10 +85,38 @@ let log_job id (job, deps) =
   let content = Sexplib.Sexp.to_string (Task.sexp_of_job_entry entry) in
   Irmin.update (t ("log job " ^ id)) path content
 
+let archive_job id =
+  get_store () >>= fun t ->
+  let path = jpath_of_id id in
+  Irmin.read (t ("retrieve job " ^ id)) path >>= function
+  | None -> fail (raise Not_found)
+  | Some c ->
+     let arc_path = apath_of_id id in
+     Irmin.update (t ("archive job" ^ id)) arc_path c
+
 let unlog_job id =
+  archive_job id >>= fun () ->
   get_store () >>= fun t ->
   let path = jpath_of_id id in
   Irmin.remove (t ("unlog job" ^ id)) path
+
+let retrieve_job id =
+  get_store () >>= fun t ->
+  let jpath = jpath_of_id id in
+  let apath = apath_of_id id in
+  let read_job_content c =
+    c |> Sexplib.Sexp.of_string
+    |> Task.job_entry_of_sexp
+    |> Task.unwrap_entry in
+
+  Irmin.mem (t ("query job " ^ id)) jpath >>= fun is_jpath ->
+  Irmin.mem (t ("query archive " ^ id)) apath >>= fun is_apath ->
+  let path = if is_jpath then jpath
+             else if is_apath then apath
+             else [] in
+  Irmin.read (t ("get job entry for " ^ id)) path >>= function
+  | Some c -> return (read_job_content c)
+  | None -> fail_with "job missing"
 
 let retrieve_jobs () =
   get_store () >>= fun t ->
