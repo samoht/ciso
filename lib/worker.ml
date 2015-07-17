@@ -581,11 +581,12 @@ let compiler_job_execute base worker jid job =
 
     collect_installed path [] after_build >>= fun installed ->
     create_archive path jid [] installed [] new_pkgs >>= fun archive ->
-
-    clean_tmp "compiler" (fst archive) >>= fun () ->
     let result = `Success in
     log "execute" "compiler" ~info:"create object";
     let obj = Object.make_obj jid result ~output:[] ~installed archive in
+
+    clean_tmp "compiler" (fst archive) >>= fun () ->
+    Ci_opam.opam_remove_switch ~switch >>= fun () ->
     return (result, obj)
   with _ ->
        let result = `Fail (comp ^ " build fail") in

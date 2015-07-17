@@ -435,10 +435,8 @@ let opam_install_switch ~compiler =
   let open Lwt_unix in
   match Lwt_unix.fork () with
   | 0 ->
-     OpamSwitchCommand.install ~quiet:false ~warning:false ~update_config:false
-                               switch compiler;
-     (* clean aliase *)
-     OpamFile.Aliases.write aliase_p aliase;
+     OpamSwitchCommand.install
+       ~quiet:false ~warning:false ~update_config:false switch compiler;
      exit 0
   | pid ->
      Lwt_unix.waitpid [] pid >>= fun (_, stat) ->
@@ -447,6 +445,11 @@ let opam_install_switch ~compiler =
          | WEXITED i | WSIGNALED i | WSTOPPED i ->
             fail_with (Printf.sprintf "exited %d" i)
 
+
+let opam_remove_switch ~switch =
+  let switch = OpamSwitch.of_string switch in
+  OpamSwitchCommand.remove switch;
+  return_unit
 
 (*
 let str = Arg.(
