@@ -262,7 +262,10 @@ let get_progress id =
     match Object.result_of_t obj with
     | `Delegate del ->
        progress_of_id del >>= fun delegates ->
-       return ((id, `Pending) :: delegates)
+       let delegate_state = List.assoc del delegates in
+       let state = if delegate_state <> `Completed then `Pending
+                   else `Completed in
+       return ((id, state) :: delegates)
     | `Success | `Fail _ -> progress_of_id id
 
 
