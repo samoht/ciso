@@ -19,11 +19,18 @@ type worker_tbl = (worker_id, worker_token * compiler * host) Hashtbl.t
 (* id -> check in times *)
 type checkin_tbl = (worker_id, int) Hashtbl.t
 
+(* id -> worker status *)
+type worker_status = Idle | Working of id
+type status_tbl = (worker_token, worker_status) Hashtbl.t
+
+
 let check_round = 25.0
+let worker_cnt = ref 0
+
 
 let w_tbl : worker_tbl = Hashtbl.create 16
 let c_tbl : checkin_tbl = Hashtbl.create 16
-let worker_cnt = ref 0
+let s_tbl : status_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
 
 
@@ -51,6 +58,7 @@ let new_worker c h =
   let info = (string_of_int id) ^ c ^ h in
   let token = new_token info in
   w_map := LogMap.add token IdSet.empty !w_map;
+  Hashtbl.replace s_tbl token Idle;
   Hashtbl.replace w_tbl id (token, c, h);
   Hashtbl.replace c_tbl id (-1);
   worker_checkin id;
@@ -64,10 +72,33 @@ let verify_worker id token =
   else failwith "fake worker"
 
 
+let new_job id token =
+  let status = Hashtbl.find s_tbl token in
+  assert (status = Idle);
+  Hashtbl.replace s_tbl token (Working id)
+
+
+let job_completed id token =
+  let status = Hashtbl.find s_tbl token in
+  if status = Working id then Hashtbl.replace s_tbl token Idle
+
+
 let publish_object id token =
   let pkgs_set = LogMap.find token !w_map in
   let n_set = IdSet.add id pkgs_set in
-  w_map := LogMap.add token n_set !w_map
+  w_map := LogMap.add token n_set !w_map;
+  job_completed id token
+
+
+let worker_statuses () =
+  Hashtbl.fold (fun id (token, _, _) acc ->
+      let status = Hashtbl.find s_tbl token in
+      (id, token, status) :: acc) w_tbl []
+
+
+let info_of_status = function
+  | Idle -> "Idle", None
+  | Working id -> "Working", Some id
 
 
 let job_rank token deps =
@@ -96,6 +127,7 @@ let eliminate_workers workers =
       Hashtbl.remove w_tbl id;
       Hashtbl.remove c_tbl id;
       w_map := LogMap.remove token !w_map;
+      Hashtbl.remove s_tbl token;
       Store.invalidate_token token in
     Lwt_list.iter_p eliminate_one workers >>= fun () ->
 

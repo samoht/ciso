@@ -52,7 +52,8 @@ let heartbeat_handler groups headers body =
          log "heartbeat" id "idle";
          (match Scheduler.find_job token with
           | None -> Ack_heartbeat
-          | Some (jid, tdesp) -> New_job (jid, tdesp))
+          | Some (jid, tdesp) -> Monitor.new_job jid token;
+                                 New_job (jid, tdesp))
       | Heartbeat (Some jid) ->
          Message.Ack_heartbeat
       | Register _ | Publish _ | Spawn_jobs _ ->
@@ -75,11 +76,12 @@ let publish_handler groups headers body =
       | Register _ | Heartbeat _ | Spawn_jobs _ ->
          failwith "wrong message for publish") in
   let r = match result with
-      | `Success -> "SUCCESS"
-      | `Fail f -> "FAIL: " ^ f
-      | `Delegate d -> "DELEGATE: " ^ Scheduler.task_info d in
+      | `Success ->
+         Monitor.publish_object jid token; "SUCCESS"
+      | `Delegate d ->
+         Monitor.job_completed jid token; "DELEGATE: " ^ Scheduler.task_info d
+      | `Fail f -> "FAIL: " ^ f in
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
-  if result = `Success then Monitor.publish_object jid token;
   Scheduler.publish_object token result jid >>= fun () ->
 
   empty_response `Created
@@ -148,7 +150,7 @@ let user_compiler_demand_handler groups headers body =
     return (resp, body)
 
 
-let user_query_handler groups headers body =
+let user_job_query_handler groups headers body =
   let id = groups.(1) in
   Scheduler.progress_info id >>= fun str ->
   let body = Body.of_string str in
@@ -156,8 +158,24 @@ let user_query_handler groups headers body =
   return (resp, body)
 
 
+let user_worker_query_handler groups headers body =
+  let statuses = Monitor.worker_statuses () in
+  let info = List.rev_map (fun (wid, token, status) ->
+      let status_str = match Monitor.info_of_status status with
+        | s, None -> s
+        | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
+      let c, h = Monitor.worker_env token in
+      Printf.sprintf "worker %d, %s %s, %s" wid c h status_str) statuses in
+  let str = Printf.sprintf "%s\n"
+      (if info <> [] then (String.concat "\n" info) else "No alive workers") in
+
+  let resp = Response.make ~status:`OK () in
+  let body = Body.of_string str in
+  return (resp, body)
+
+
 let handler_route_table = Re.(
-  let post = `POST in
+  let post, get = `POST, `GET in
   [(post,
     str "/worker/registration"),
     register_handler;
@@ -179,9 +197,12 @@ let handler_route_table = Re.(
    (post,
     seq [str "/compiler/"; group (rep1 any); eos]),
     user_compiler_demand_handler;
-   (post,
+   (get,
     seq [str "/object/"; group (rep1 any); eos]),
-    user_query_handler])
+    user_job_query_handler;
+   (get,
+    seq [str "/worker/statuses"]),
+    user_worker_query_handler])
 
 
 let route_handler meth path = Re.(
