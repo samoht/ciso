@@ -38,13 +38,19 @@ val worker_request_object: Uri.t -> t -> id -> Object.t Lwt.t
 
 (******************************************************************************)
 
-(** [execution_loop master_uri worker cond]:
-    infinite loop to execute tasks, the conditional variable this function waits
-    for is task_id and obj_id *)
-val execution_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+(** [execution_loop master_uri worker receive]:
+    infinite loop to execute tasks,
+    call [receive] to get job id and description from heartbeat process *)
+val execution_loop: Uri.t -> t
+                    -> (unit -> (id * description) Lwt.t)
+                    -> (id -> unit)
+                    ->'a Lwt.t
 
-(** [heartbeat_loop master_uri worker cond]:
+(** [heartbeat_loop master_uri worker send]:
     infinite loop to send out heartbeats to master,
     under the idle state, if gets the response of Some (task_id, obj_id),
-    the function will send a signl to the conditional variable cond *)
-val heartbeat_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+    call [send] to send information to execution process *)
+val heartbeat_loop: Uri.t -> t
+                    -> (unit -> id option Lwt.t)
+                    -> (id * description -> unit)
+                    -> 'a Lwt.t

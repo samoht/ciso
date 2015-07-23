@@ -34,7 +34,7 @@ Executable worker
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str, opam-lib.client
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str, opam-lib.client, ezjsonm, unix
 
 Executable master
   Path: lib

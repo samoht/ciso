@@ -41,6 +41,7 @@ let register_handler groups headers body =
 
 
 let heartbeat_handler groups headers body =
+  log "heartbeat" (-1) "in heartbeat handler";
   let id = int_of_string (groups.(1)) in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
@@ -83,11 +84,11 @@ let publish_handler groups headers body =
       | `Fail f -> "FAIL: " ^ f in
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
   Scheduler.publish_object token result jid >>= fun () ->
-
   empty_response `Created
 
 
 let spawn_handler groups headers body =
+  log "spawn" (-1) "in spawn handler";
   let id = int_of_string (groups.(1)) in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in

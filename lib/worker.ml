@@ -130,10 +130,14 @@ let with_client_request tag request =
     return (exit 1) in
   catch (fun () ->
       pick [timeout_response (); request] >>= fun ((resp, _) as r) ->
+      log "with_request" tag ~info:"returned";
       if Response.status resp = `I_m_a_teapot
       then fail_with ("master timeout " ^ tag)
       else return r) err_handler
 
+let with_client_request tag request =
+  log "in" "client_request" ~info:tag;
+  request
 
 (* POST base/worker<id>/objects -> `Created *)
 let worker_publish base {id; token} result oid obj =
@@ -193,14 +197,15 @@ let worker_heartbeat base { id; token; status } =
        (* log "send" "heartbeat" ~info:("working " ^ (sub_abbr jid)); *)
        Heartbeat (Some jid)
     | Idle ->
-       log "send" "heartbeat" ~info:"idle";
        Heartbeat None in
   let body = body_of_message m in
   let uri_path = Printf.sprintf "worker%d/state" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
+  log "before" "with_client_request" ~info:"heartbeat";
   with_client_request "heartbeat" (Client.post ~headers ~body uri)
   >>= fun (resp, body) ->
+  log "after" "with_client_request" ~info:"heartbeat";
   message_of_body body >>= fun m ->
   let status = Response.status resp in
   let exn = WrongResponse (Code.string_of_status status, "heartbeat") in
@@ -540,7 +545,7 @@ let pkg_job_execute base worker jid job deps =
     if is_resolvable then
       let job_lst = Ci_opam.jobs_of_graph graph in
       worker_spawn base worker job_lst >>= fun () ->
-
+      log "after" "worker_spawn" ~info:"";
       let delegate_id =
         List.fold_left (fun acc (id, job, _) ->
             let name', _ = Task.info_of_task (Task.task_of_job job) in
@@ -594,13 +599,14 @@ let compiler_job_execute base worker jid job =
        return (result, obj)
 
 
-let rec execution_loop base worker cond =
-  Lwt_condition.wait cond >>= fun (id, desp) ->
-  local_query worker.store id >>= fun completed ->
-  if completed then execution_loop base worker cond
+let rec execution_loop base worker r_job s_status =
+  r_job () >>= fun (id, desp) ->
+  (* local_query worker.store id >>= fun completed -> *)
+  let completed = false in
+  if completed then execution_loop base worker r_job s_status
   else begin
       worker.status <- Working id;
-
+      s_status id;
       let job, deps = Sexplib.Sexp.of_string desp
                       |> Task.job_entry_of_sexp
                       |> Task.unwrap_entry in
@@ -611,6 +617,7 @@ let rec execution_loop base worker cond =
        | Github _ -> fail_with "to be implemented")
 
       >>= fun (result, obj) ->
+      log "after" "pkg_job_execute" ~info:"";
       (match result with
        | `Delegate _ ->
           Store.publish_object worker.token id obj >>= fun () ->
@@ -625,24 +632,63 @@ let rec execution_loop base worker cond =
           Store.publish_object worker.token id obj >>= fun () ->
           worker_publish base worker result id obj) >>= fun () ->
       worker.status <- Idle;
-      execution_loop base worker cond
+      s_status "";
+      execution_loop base worker r_job s_status
     end
 
 
-let rec heartbeat_loop base worker cond =
+let rec heartbeat_loop base worker r_status s_job =
+  r_status () >>= fun opt ->
+  (match opt with
+   | None -> log "in" "heartbeat_loop" ~info:"none";
+   | Some id ->
+      log "in" "heartbeat_loop" ~info:id;
+      if id = "" then worker.status <- Idle
+      else worker.status <- Working id);
+  return_unit >>= fun () ->
   match worker.status with
   | Idle -> begin worker_heartbeat base worker >>= function
     | None ->
        Lwt_unix.sleep idle_sleep
-       >>= fun () -> heartbeat_loop base worker cond
+       >>= fun () -> heartbeat_loop base worker r_status s_job
     | Some (id, desp) ->
-       Lwt_condition.signal cond (id, desp);
-       Lwt_unix.sleep idle_sleep
-       >>= fun () -> heartbeat_loop base worker cond end
+       s_job (id, desp);
+       Lwt_unix.sleep idle_sleep >>= fun () ->
+       heartbeat_loop base worker r_status s_job end
   | Working _ ->
      worker_heartbeat base worker >>= fun _ ->
-     Lwt_unix.sleep working_sleep
-     >>= fun () -> heartbeat_loop base worker cond
+     Lwt_unix.sleep working_sleep >>= fun () ->
+     heartbeat_loop base worker r_status s_job
+
+
+let rec receive_job ic () = try
+  let dict = Ezjsonm.from_channel ic
+             |> Ezjsonm.value
+             |> Ezjsonm.get_dict in
+  let id = List.assoc "id" dict |> Ezjsonm.get_string in
+  let desp = List.assoc "description" dict |> Ezjsonm.get_string in
+  return (id, desp)
+  with _ -> receive_job ic ()
+
+
+let rec receive_status ic () = try
+    let id = Ezjsonm.from_channel ic
+             |> Ezjsonm.value
+             |> Ezjsonm.get_string in
+    return (Some id)
+  with _ -> return None
+
+
+let send_job oc (id, desp) =
+  let lst = ["id", Ezjsonm.string id;
+             "description", Ezjsonm.string desp] in
+  Ezjsonm.(to_channel oc (dict lst));
+  flush oc
+
+
+let send_status oc jid =
+  Ezjsonm.(to_channel oc (wrap (string jid)));
+  flush oc
 
 
 let worker base_str store_str switch fresh =
@@ -652,9 +698,26 @@ let worker base_str store_str switch fresh =
   let build_store = local_store ~fresh in
   worker_register base ~switch build_store >>= fun worker ->
 
-  let cond = Lwt_condition.create () in
-  pick [heartbeat_loop base worker cond;
-        execution_loop base worker cond;])
+  let job_in, job_out = Unix.pipe () in
+  let status_in, status_out = Unix.pipe () in
+  match Unix.fork () with
+  | 0 ->
+     Unix.close job_out;
+     Unix.close status_in;
+     let ic = Unix.in_channel_of_descr job_in in
+     let oc = Unix.out_channel_of_descr status_out in
+     let r = receive_job ic in
+     let s = send_status oc in
+     execution_loop base worker r s
+  | pid ->
+     Unix.close job_in;
+     Unix.close status_out;
+     Unix.set_nonblock status_in;
+     let ic = Unix.in_channel_of_descr status_in in
+     let oc = Unix.out_channel_of_descr job_out in
+     let r = receive_status ic in
+     let s = send_job oc in
+     heartbeat_loop base worker r s)
   |> Lwt_main.run
 
 let base = Cmdliner.Arg.(
