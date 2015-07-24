@@ -141,7 +141,7 @@ let worker_publish base {id; token} result oid obj =
   let headers = Cohttp.Header.of_list ["worker", token] in
   let m = Message.Publish (result, oid) in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "worker%d/objects" id in
+  let uri_path = Printf.sprintf "workers/%d/objects" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
   with_client_request "publish" (Client.post ~headers ~body uri)
@@ -196,7 +196,7 @@ let worker_heartbeat base { id; token; status } =
        log "send" "heartbeat" ~info:"idle";
        Heartbeat None in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "worker%d/state" id in
+  let uri_path = Printf.sprintf "workers/%d/state" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
   with_client_request "heartbeat" (Client.post ~headers ~body uri)
@@ -220,7 +220,7 @@ let worker_spawn base {id; token} job_lst =
       id, desp, deps)job_lst in
   let m = Message.Spawn_jobs m_job_lst in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "worker%d/newjobs" id in
+  let uri_path = Printf.sprintf "workers/%d/newjobs" id in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
 
   with_client_request "spawn" (Client.post ~headers ~body uri)

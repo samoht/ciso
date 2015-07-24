@@ -25,7 +25,7 @@ let empty_response ~status =
   return (resp, body)
 
 
-let register_handler groups headers body =
+let register_handler params headers body =
   message_of_body body >>= fun m ->
   let compiler, host = Message.(match m with
       | Register (c, h) -> c, h
@@ -40,8 +40,8 @@ let register_handler groups headers body =
   return (resp, body)
 
 
-let heartbeat_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
+let heartbeat_handler params headers body =
+  let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
@@ -64,8 +64,8 @@ let heartbeat_handler groups headers body =
   return (resp, body)
 
 
-let publish_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
+let publish_handler params headers body =
+  let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
@@ -87,8 +87,8 @@ let publish_handler groups headers body =
   empty_response `Created
 
 
-let spawn_handler groups headers body =
-  let id = int_of_string (groups.(1)) in
+let spawn_handler params headers body =
+  let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
@@ -107,15 +107,15 @@ let spawn_handler groups headers body =
   empty_response `Created
 
 
-let github_hook_handler groups headers body =
-  let pr_num = int_of_string (groups.(1)) in
+let github_hook_handler params headers body =
+  let pr_num = List.assoc "pr_num" params |> int_of_string in
   Scheduler.github_hook pr_num
   >>= fun () ->
   empty_response `Accepted
 
 
-let user_pkg_demand_handler groups headers body =
-  let pkg = groups.(1) in
+let user_pkg_demand_handler params headers body =
+  let pkg = List.assoc "pkg" params in
   let name, version = Ci_opam.parse_user_demand pkg in
   let task = Task.make_pkg_task ~name ?version () in
 
@@ -133,8 +133,8 @@ let user_pkg_demand_handler groups headers body =
   return (resp, body)
 
 
-let user_compiler_demand_handler groups headers body =
-  let c = groups.(1) in
+let user_compiler_demand_handler params headers body =
+  let c = List.assoc "version" params in
   let task = Task.make_compiler_task c in
 
   let env_lst = Monitor.worker_environments () in
@@ -150,15 +150,15 @@ let user_compiler_demand_handler groups headers body =
     return (resp, body)
 
 
-let user_job_query_handler groups headers body =
-  let id = groups.(1) in
-  Scheduler.progress_info id >>= fun str ->
+let user_job_query_handler params headers body =
+  let jid = List.assoc "jid" params in
+  Scheduler.progress_info jid >>= fun str ->
   let body = Body.of_string str in
   let resp = Response.make ~status:`OK () in
   return (resp, body)
 
 
-let user_worker_query_handler groups headers body =
+let user_worker_query_handler param headers body =
   let statuses = Monitor.worker_statuses () in
   let info = List.rev_map (fun (wid, token, status) ->
       let status_str = match Monitor.info_of_status status with
@@ -173,87 +173,82 @@ let user_worker_query_handler groups headers body =
   let body = Body.of_string str in
   return (resp, body)
 
+open Opium.Std
 
-let handler_route_table = Re.(
-  let post, get = `POST, `GET in
-  [(post,
-    str "/worker/registration"),
-    register_handler;
-   (post,
-    seq [str "/worker"; group (rep1 digit); str "/state"]),
-    heartbeat_handler;
-   (post,
-    seq [str "/worker"; group (rep1 digit); str "/objects"]),
-    publish_handler;
-   (post,
-    seq [str "/worker"; group (rep1 digit); str "/newjobs"]),
-    spawn_handler;
-   (post,
-    seq [str "/github/"; group (rep1 digit); eos]),
-    github_hook_handler;
-   (post,
-    seq [str "/package/"; group (rep1 any); eos]),
-    user_pkg_demand_handler;
-   (post,
-    seq [str "/compiler/"; group (rep1 any); eos]),
-    user_compiler_demand_handler;
-   (get,
-    seq [str "/object/"; group (rep1 any); eos]),
-    user_job_query_handler;
-   (get,
-    seq [str "/worker/statuses"]),
-    user_worker_query_handler])
+let handler_wrapper handler keys req =
+  let params = List.map (fun k -> k, param req k) keys in
+  let headers = Request.headers req in
+  let body = req.Request.body in
+  handler params headers body >>= fun r ->
+  Response.of_response_body r
+  |> return
+
+let register =
+  post "/worker/registration"
+       (handler_wrapper register_handler [])
+
+let heartbeat =
+  post "/workers/:id/state"
+       (handler_wrapper heartbeat_handler ["id"])
+
+let publish =
+  post "/workers/:id/objects"
+       (handler_wrapper publish_handler ["id"])
+
+let spawn =
+  post "/workers/:id/newjobs"
+       (handler_wrapper spawn_handler ["id"])
+
+let github_hook =
+  post "/github/:pr_num"
+       (handler_wrapper github_hook_handler ["pr_num"])
+
+let compiler_demand =
+  post "/compiler/:version"
+       (handler_wrapper user_compiler_demand_handler ["version"])
+
+let package_demand =
+  post "/package/:pkg" (fun req ->
+    let uri = Request.uri req in
+    let query' = Uri.query uri in
+    let query = List.map (fun (k, vs) -> k, String.concat ";" vs) query' in
+    let pkg = param req "pkg" in
+    let params = ("pkg", pkg) :: query in
+
+    let headers = Request.headers req in
+    let body = req.Request.body in
+    user_pkg_demand_handler params headers body >>= fun r ->
+    Response.of_response_body r
+    |> return)
+
+let job_query =
+  get "/object/:jid"
+      (handler_wrapper user_job_query_handler ["jid"])
+
+let worker_query =
+  get "/workers/statuses"
+      (handler_wrapper user_worker_query_handler [])
 
 
-let route_handler meth path = Re.(
-  List.fold_left (fun acc ((m, p), h) ->
-    if meth <> m then acc
-    else begin
-        let re = compile p in
-        try
-          let indexes = get_all_ofs (exec re path) in
-          let groups = Array.map (fun (b, e) ->
-            if b = (-1) || e = (-1) then ""
-            else String.sub path b (e - b)) indexes in
-          (h groups) :: acc
-        with Not_found -> acc
-      end) [] handler_route_table)
-
-
-let callback conn req body =
-  let meth, headers, uri = Cohttp_lwt_unix.Request.(
-    meth req, headers req, uri req) in
-  let path = Uri.path uri in
-  let handler = route_handler meth path in
-
-  if List.length handler <> 1 then empty_response `Not_found
-  else
-    let handler = List.hd handler in
-    let err_handler exn =
-      let meth = Cohttp.Code.string_of_method meth in
-      let err_m = match exn with
-        | Failure str -> Printf.sprintf "Error: %s %s -> %s \n%!" meth path str
-        | _ -> Printf.sprintf "Error: %s %s -> unknown \n%!" meth path in
-      prerr_endline err_m;
-      empty_response `No_content in
-    catch (fun () -> handler headers body) err_handler
+let server =
+  App.empty
+  |> register |> heartbeat |> publish |> spawn
+  |> package_demand |> compiler_demand |> github_hook
+  |> job_query |> worker_query
 
 
 let master fresh store ip port =
   Store.initial_store ~uri:store ~fresh () >>= (fun () ->
   Scheduler.bootstrap () >>= fun () ->
-  Conduit_lwt_unix.init ~src:ip ()
-  >>= fun ctx ->
-    let ctx = Cohttp_lwt_unix_net.init ~ctx () in
-    let mode = Conduit_lwt_unix.(`TCP (`Port port)) in
-    let t_server = Cohttp_lwt_unix.Server.create ~mode ~ctx
-      (Cohttp_lwt_unix.Server.make ~callback ()) in
 
     let rec t_monitor () =
       Monitor.worker_monitor () >>= fun workers ->
       List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
       t_monitor () in
-    join [t_server; t_monitor ()])
+
+    join [App.start (server |> App.port port);
+          t_monitor ()])
+
   |> Lwt_unix.run
 
 let ip = Cmdliner.Arg.(
