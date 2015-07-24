@@ -2,5 +2,6 @@ PKG lwt cmdliner nocrypto
 PKG cohttp conduit.lwt-unix github
 PKG opam-lib opam-lib.client opam-lib.solver
 PKG irmin irmin.unix
+PKG opium
 S lib
 B _build/lib

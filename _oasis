@@ -42,4 +42,4 @@ Executable master
   Custom: true
   Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto, irmin.unix, opam-lib.client
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto, irmin.unix, opam-lib.client, opium

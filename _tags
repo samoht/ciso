@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a63226ee169465f6cf64bb66fd0b57e1)
+# DO NOT EDIT (digest: 9f3795e8c94ae3f9edc812d176f5a757)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -42,6 +42,7 @@ true: annot, bin_annot
 <lib/master.{native,byte}>: pkg_lwt
 <lib/master.{native,byte}>: pkg_nocrypto
 <lib/master.{native,byte}>: pkg_opam-lib.client
+<lib/master.{native,byte}>: pkg_opium
 <lib/master.{native,byte}>: pkg_uri
 <lib/*.ml{,i,y}>: pkg_cmdliner
 <lib/*.ml{,i,y}>: pkg_cohttp.lwt
@@ -50,6 +51,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/*.ml{,i,y}>: pkg_opium
 <lib/*.ml{,i,y}>: pkg_uri
 <lib/master.{native,byte}>: custom
 # OASIS_STOP
