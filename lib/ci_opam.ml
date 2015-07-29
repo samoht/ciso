@@ -148,7 +148,7 @@ let jobs_of_graph ?pull graph =
       graph v ([], IdSet.empty) in
 
     let id = Task.hash_id task inputs compiler host in
-    let job = Task.make_job id inputs compiler host task in
+    let job = Task.make_job id inputs compiler host task [] in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;

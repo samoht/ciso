@@ -18,6 +18,7 @@ type job = {
   compiler : compiler;
   host : host;
   task : task;
+  condition: job list;
 } with sexp
 
 type job_entry = {
@@ -70,10 +71,9 @@ let make_compiler_task compiler = Compiler compiler
 let make_gh_task ~name ?version pull = Github (name, version, pull)
 
 
-let make_job id inputs compiler host task =
-  {id; inputs; compiler; host; task;}
+let make_job id inputs compiler host task condition =
+  {id; inputs; compiler; host; task; condition}
 
-let make_job_entry job dependencies = {
-  job; dependencies}
+let make_job_entry job dependencies = {job; dependencies}
 
 let unwrap_entry {job; dependencies} = job, dependencies

@@ -117,13 +117,66 @@ let github_hook_handler params headers body =
 let user_pkg_demand_handler params headers body =
   let pkg = List.assoc "pkg" params in
   let name, version = Ci_opam.parse_user_demand pkg in
-  let task = Task.make_pkg_task ~name ?version () in
+  let ptask = Task.make_pkg_task ~name ?version () in
 
-  let env_lst = Monitor.worker_environments () in
-  let job_lst = List.rev_map (fun (c, h) ->
-    let id = Task.hash_id task [] c h in
-    let job = Task.make_job id [] c h task in
-    id, job, []) env_lst in
+  let c = try List.assoc "compiler" params with _ -> "" in
+  let dep = try List.assoc "depopt" params with _ -> "" in
+  let split s ~by = Re.(
+    by |> char |> compile
+    |> (fun re -> split re s)) in
+  let compilers = split c ~by:';' in
+  let depopts = split dep ~by:';' in
+
+  let worker_env = Monitor.worker_environments () in
+  let worker_c, _ = List.split worker_env in
+
+  (if compilers <> [] then
+     let new_c, existed_c =
+       List.partition (fun c -> not (List.mem c worker_c)) compilers in
+     let c, h = List.hd worker_env in
+     let jobs_new_c = List.rev_map (fun n ->
+       let ctask = Task.make_compiler_task n in
+       let id = Task.hash_id ctask [] c h in
+       let cjob = Task.make_job id [] c h ctask [] in
+
+       let depjobs = List.rev_map (fun d ->
+         let name, version = Ci_opam.parse_user_demand d in
+         let dtask = Task.make_pkg_task ~name ?version () in
+         let id = Task.hash_id dtask [] n h in
+         Task.make_job id [] n h dtask []) depopts in
+
+       let condition = cjob :: depjobs in
+       let id = Task.hash_id ptask [] n h in
+       Task.make_job id [] n h ptask condition) new_c
+     in
+     let jobs_existed_c = List.rev_map (fun e ->
+       let h = List.assoc e worker_env in
+       let depjobs = List.rev_map (fun d ->
+         let name, version = Ci_opam.parse_user_demand d in
+         let dtask = Task.make_pkg_task ~name ?version () in
+         let id = Task.hash_id dtask [] e h in
+         Task.make_job id [] e h dtask []) depopts in
+
+       let condition = depjobs in
+       let id = Task.hash_id ptask [] e h in
+       Task.make_job id [] e h ptask condition) existed_c
+     in
+     return (jobs_new_c @ jobs_existed_c)
+   else
+     let jobs = List.rev_map (fun (c, h) ->
+       let depjobs = List.rev_map (fun d ->
+         let name, version = Ci_opam.parse_user_demand d in
+         let dtask = Task.make_pkg_task ~name ?version () in
+         let id = Task.hash_id dtask [] c h in
+         Task.make_job id [] c h dtask []) depopts in
+
+       let condition = depjobs in
+       let id = Task.hash_id ptask [] c h in
+       Task.make_job id [] c h ptask condition) worker_env in
+     return jobs)
+  >>= fun jobs ->
+  let job_lst = List.rev_map (fun j ->
+    Task.(id_of_job j, j, inputs_of_job j)) jobs in
   Scheduler.update_tables job_lst >>= fun () ->
 
   let resp = Response.make ~status:`Accepted () in
@@ -142,7 +195,7 @@ let user_compiler_demand_handler params headers body =
   else
     let c, h = List.hd env_lst in
     let id = Task.hash_id task [] c h in
-    let job = Task.make_job id [] c h task in
+    let job = Task.make_job id [] c h task [] in
     Scheduler.update_tables [id, job, []] >>= fun () ->
 
     let resp = Response.make ~status:`Accepted () in
