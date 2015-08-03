@@ -8,6 +8,10 @@ let log handler worker_id info =
   let title = Printf.sprintf "worker%d@%s" worker_id handler in
   Printf.eprintf "[%s]: %s\n%!" title info
 
+let time () = Unix.(
+  let tm = localtime (time ()) in
+  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
+
 let body_of_message m =
   Message.sexp_of_master_msg m
   |> Sexplib.Sexp.to_string
@@ -27,21 +31,23 @@ let empty_response ~status =
 
 let register_handler params headers body =
   message_of_body body >>= fun m ->
-  let compiler, host = Message.(match m with
-      | Register (c, h) -> c, h
+  let host = Message.(match m with
+      | Register h -> h
       | Heartbeat _ | Publish _ | Spawn_jobs _ ->
          failwith "Wrong message for register") in
-  let id, token = Monitor.new_worker compiler host in
+  let id, token = Monitor.new_worker host in
   Store.register_token token >>= fun () ->
 
   let m = Message.Ack_register (id, token) in
   let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
+  log "register" id "new worker registered";
   return (resp, body)
 
 
 let heartbeat_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
+  log "heartbeat" id ("get request" ^ (time ()));
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
@@ -52,8 +58,8 @@ let heartbeat_handler params headers body =
          log "heartbeat" id "idle";
          (match Scheduler.find_job token with
           | None -> Ack_heartbeat
-          | Some (jid, tdesp) -> Monitor.new_job jid token;
-                                 New_job (jid, tdesp))
+          | Some (jid, c, desp) -> Monitor.new_job jid c token;
+                                   New_job (jid, desp))
       | Heartbeat (Some jid) ->
          Message.Ack_heartbeat
       | Register _ | Publish _ | Spawn_jobs _ ->
@@ -68,6 +74,7 @@ let publish_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
+  log "publish" id "get request";
   Monitor.verify_worker id token;
 
   message_of_body body >>= fun m ->
@@ -80,7 +87,8 @@ let publish_handler params headers body =
          Monitor.publish_object jid token; "SUCCESS"
       | `Delegate d ->
          Monitor.job_completed jid token; "DELEGATE: " ^ Scheduler.task_info d
-      | `Fail f -> "FAIL: " ^ f in
+      | `Fail f ->
+         Monitor.job_completed jid token; "FAIL: " ^ f in
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
   Scheduler.publish_object token result jid >>= fun () ->
 
@@ -115,10 +123,6 @@ let github_hook_handler params headers body =
 
 
 let user_pkg_demand_handler params headers body =
-  let pkg = List.assoc "pkg" params in
-  let name, version = Ci_opam.parse_user_demand pkg in
-  let ptask = Task.make_pkg_task ~name ?version () in
-
   let c = try List.assoc "compiler" params with _ -> "" in
   let dep = try List.assoc "depopt" params with _ -> "" in
   let split s ~by = Re.(
@@ -127,56 +131,23 @@ let user_pkg_demand_handler params headers body =
   let compilers = split c ~by:';' in
   let depopts = split dep ~by:';' in
 
-  let worker_env = Monitor.worker_environments () in
-  let worker_c, _ = List.split worker_env in
+  let pkg = List.assoc "pkg" params in
+  let name, version = Ci_opam.parse_user_demand pkg in
+  let depopts = if depopts = [] then None
+                else Some (List.rev_map Ci_opam.parse_user_demand depopts) in
+  let ptask = Task.make_pkg_task ~name ?version ?depopts () in
 
-  (if compilers <> [] then
-     let new_c, existed_c =
-       List.partition (fun c -> not (List.mem c worker_c)) compilers in
-     let c, h = List.hd worker_env in
-     let jobs_new_c = List.rev_map (fun n ->
-       let ctask = Task.make_compiler_task n in
-       let id = Task.hash_id ctask [] c h in
-       let cjob = Task.make_job id [] c h ctask [] in
-
-       let depjobs = List.rev_map (fun d ->
-         let name, version = Ci_opam.parse_user_demand d in
-         let dtask = Task.make_pkg_task ~name ?version () in
-         let id = Task.hash_id dtask [] n h in
-         Task.make_job id [] n h dtask []) depopts in
-
-       let condition = cjob :: depjobs in
-       let id = Task.hash_id ptask [] n h in
-       Task.make_job id [] n h ptask condition) new_c
-     in
-     let jobs_existed_c = List.rev_map (fun e ->
-       let h = List.assoc e worker_env in
-       let depjobs = List.rev_map (fun d ->
-         let name, version = Ci_opam.parse_user_demand d in
-         let dtask = Task.make_pkg_task ~name ?version () in
-         let id = Task.hash_id dtask [] e h in
-         Task.make_job id [] e h dtask []) depopts in
-
-       let condition = depjobs in
-       let id = Task.hash_id ptask [] e h in
-       Task.make_job id [] e h ptask condition) existed_c
-     in
-     return (jobs_new_c @ jobs_existed_c)
-   else
-     let jobs = List.rev_map (fun (c, h) ->
-       let depjobs = List.rev_map (fun d ->
-         let name, version = Ci_opam.parse_user_demand d in
-         let dtask = Task.make_pkg_task ~name ?version () in
-         let id = Task.hash_id dtask [] c h in
-         Task.make_job id [] c h dtask []) depopts in
-
-       let condition = depjobs in
-       let id = Task.hash_id ptask [] c h in
-       Task.make_job id [] c h ptask condition) worker_env in
-     return jobs)
-  >>= fun jobs ->
-  let job_lst = List.rev_map (fun j ->
-    Task.(id_of_job j, j, inputs_of_job j)) jobs in
+  let worker_hosts = Monitor.worker_environments () in
+  let envs = List.fold_left (fun acc h ->
+    let compilers = if compilers = [] then Monitor.compilers ()
+                    else compilers in
+    (List.rev_map (fun c -> h, c) compilers) @ acc) [] worker_hosts in
+  (List.rev_map (fun (h, c) ->
+     let id = Task.hash_id ptask [] c h in
+     let job = Task.make_job id [] c h ptask in
+     id, job, []) envs)
+  |> return
+  >>= fun job_lst ->
   Scheduler.update_tables job_lst >>= fun () ->
 
   let resp = Response.make ~status:`Accepted () in
@@ -185,22 +156,22 @@ let user_pkg_demand_handler params headers body =
   let body = Body.of_string body_str in
   return (resp, body)
 
-
+(*
 let user_compiler_demand_handler params headers body =
   let c = List.assoc "version" params in
   let task = Task.make_compiler_task c in
 
-  let env_lst = Monitor.worker_environments () in
-  if env_lst = [] then empty_response `OK
+  let envs = Monitor.worker_environments () in
+  if envs = [] then empty_response `OK
   else
     let c, h = List.hd env_lst in
     let id = Task.hash_id task [] c h in
-    let job = Task.make_job id [] c h task [] in
+    let job = Task.make_job id [] c h task in
     Scheduler.update_tables [id, job, []] >>= fun () ->
 
     let resp = Response.make ~status:`Accepted () in
     let body = Body.of_string (Printf.sprintf "%s\n" id) in
-    return (resp, body)
+    return (resp, body)*)
 
 
 let user_job_query_handler params headers body =
@@ -217,8 +188,8 @@ let user_worker_query_handler param headers body =
       let status_str = match Monitor.info_of_status status with
         | s, None -> s
         | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
-      let c, h = Monitor.worker_env token in
-      Printf.sprintf "worker %d, %s %s, %s" wid c h status_str) statuses in
+      let h = Monitor.worker_env token in
+      Printf.sprintf "worker %d, %s, %s" wid h status_str) statuses in
   let str = Printf.sprintf "%s\n"
       (if info <> [] then (String.concat "\n" info) else "No alive workers") in
 
@@ -256,9 +227,10 @@ let github_hook =
   post "/github/:pr_num"
        (handler_wrapper github_hook_handler ["pr_num"])
 
+(*
 let compiler_demand =
   post "/compiler/:version"
-       (handler_wrapper user_compiler_demand_handler ["version"])
+       (handler_wrapper user_compiler_demand_handler ["version"]) *)
 
 let package_demand =
   post "/package/:pkg" (fun req ->
@@ -286,7 +258,7 @@ let worker_query =
 let server =
   App.empty
   |> register |> heartbeat |> publish |> spawn
-  |> package_demand |> compiler_demand |> github_hook
+  |> package_demand |> github_hook
   |> job_query |> worker_query
 
 
@@ -296,6 +268,7 @@ let master fresh store ip port =
 
     let rec t_monitor () =
       Monitor.worker_monitor () >>= fun workers ->
+      log "monitor" (-1) ("some worker dies " ^ time ());
       List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
       t_monitor () in
 

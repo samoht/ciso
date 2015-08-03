@@ -5,8 +5,7 @@ type store
 (** [worker_register master_uri build_store]:
     when started, register itself, when get the id from master,
     build a local store based on the id by build_store *)
-val worker_register: Uri.t -> switch:string -> (string -> store Lwt.t) ->
-                     t Lwt.t
+val worker_register: Uri.t -> (string -> store Lwt.t) -> t Lwt.t
 
 (** [worker_heartbeat master_uri worker]:
     sends heartbeat to master, the heartbeat contains the worker status: work

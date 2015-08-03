@@ -37,13 +37,13 @@ let task_info id =
      | e -> raise e
 
 
-let get_runnables ?worker_env () =
+let get_runnables ?host () =
   let is_env_match jenv = function
     | None -> true
-    | Some env -> env = jenv in
+    | Some h -> h = (snd jenv) in
   Hashtbl.fold (fun id j acc ->
       if `Runnable = Hashtbl.find s_tbl id
-         && is_env_match (Task.env_of_job j) worker_env
+         && is_env_match (Task.env_of_job j) host
       then id :: acc
       else acc) j_tbl []
 
@@ -64,8 +64,8 @@ let invalidate_token wtoken =
 
 
 let find_job wtoken =
-  let worker_env = Monitor.worker_env wtoken in
-  let runnables = get_runnables ~worker_env () in
+  let host = Monitor.worker_env wtoken in
+  let runnables = get_runnables ~host () in
   if runnables = [] then None
   else begin
       let id, _ = List.fold_left (fun (i, max_r) tid ->
@@ -80,7 +80,8 @@ let find_job wtoken =
       let desp = Task.make_job_entry job deps
                  |> Task.sexp_of_job_entry
                  |> Sexplib.Sexp.to_string in
-      Some (id, desp) end
+      let c, _ = Task.env_of_job job in
+      Some (id, c, desp) end
 
 
 let publish_object_hook id =
@@ -225,6 +226,7 @@ let update_tables jobs =
 
 
 let bootstrap () =
+  log "scheduler" "bootstrap" ~info:"read unfinished jobs";
   Store.retrieve_jobs ()
   >>= update_tables >>= fun () ->
   let r, sum = count_runnables () in
@@ -289,7 +291,7 @@ let progress_info id =
 
 let resolve_and_add ?pull pkg =
   let state = Ci_opam.load_state () in
-  let action_graph = Ci_opam.resolve state pkg in
+  let action_graph = Ci_opam.resolve state [pkg] in
 
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
   update_tables jobs >>= fun () ->

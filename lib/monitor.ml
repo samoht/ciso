@@ -14,25 +14,25 @@ module LogMap = Map.Make(struct
 end)
 
 (* id -> (token, compiler, host) *)
-type worker_tbl = (worker_id, worker_token * compiler * host) Hashtbl.t
+type worker_tbl = (worker_id, worker_token * host) Hashtbl.t
 
 (* id -> check in times *)
 type checkin_tbl = (worker_id, int) Hashtbl.t
 
 (* id -> worker status *)
-type worker_status = Idle | Working of id
+type worker_status = Idle | Working of (id * compiler)
 type status_tbl = (worker_token, worker_status) Hashtbl.t
 
 
-let check_round = 25.0
+let check_round = 120.0
 let worker_cnt = ref 0
-
+let default_compilers = ["4.00.1"]
 
 let w_tbl : worker_tbl = Hashtbl.create 16
 let c_tbl : checkin_tbl = Hashtbl.create 16
 let s_tbl : status_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
-
+let compilers = ref []
 
 let hash_token str =
   let `Hex h =
@@ -53,34 +53,36 @@ let worker_checkin id =
   Hashtbl.replace c_tbl id (succ times)
 
 
-let new_worker c h =
+let new_worker h =
   let id = incr worker_cnt; !worker_cnt in
-  let info = (string_of_int id) ^ c ^ h in
+  let info = (string_of_int id) ^ h in
   let token = new_token info in
   w_map := LogMap.add token IdSet.empty !w_map;
   Hashtbl.replace s_tbl token Idle;
-  Hashtbl.replace w_tbl id (token, c, h);
+  Hashtbl.replace w_tbl id (token, h);
   Hashtbl.replace c_tbl id (-1);
   worker_checkin id;
   id, token
 
 
 let verify_worker id token =
-  let token_record, _, _ = try Hashtbl.find w_tbl id
-                           with Not_found -> "", "", "" in
+  let token_record, _=
+    try Hashtbl.find w_tbl id
+    with Not_found -> "", "" in
   if token = token_record then worker_checkin id
   else failwith "fake worker"
 
 
-let new_job id token =
+let new_job id compiler token =
   let status = Hashtbl.find s_tbl token in
   assert (status = Idle);
-  Hashtbl.replace s_tbl token (Working id)
+  Hashtbl.replace s_tbl token (Working (id, compiler))
 
 
 let job_completed id token =
-  let status = Hashtbl.find s_tbl token in
-  if status = Working id then Hashtbl.replace s_tbl token Idle
+  match Hashtbl.find s_tbl token with
+  | Idle -> ()
+  | Working _ -> Hashtbl.replace s_tbl token Idle
 
 
 let publish_object id token =
@@ -91,14 +93,14 @@ let publish_object id token =
 
 
 let worker_statuses () =
-  Hashtbl.fold (fun id (token, _, _) acc ->
+  Hashtbl.fold (fun id (token, _) acc ->
       let status = Hashtbl.find s_tbl token in
       (id, token, status) :: acc) w_tbl []
 
 
 let info_of_status = function
   | Idle -> "Idle", None
-  | Working id -> "Working", Some id
+  | Working (id, c) -> "Working", Some (id ^ "@" ^ c)
 
 
 let job_rank token deps =
@@ -109,16 +111,21 @@ let job_rank token deps =
 
 
 let worker_environments () =
-  Hashtbl.fold (fun _ (_, c, h) acc ->
-      if List.mem (c, h) acc then acc
-      else (c, h) :: acc) w_tbl []
+  Hashtbl.fold (fun _ (_, h) acc ->
+      if List.mem h acc then acc
+      else h :: acc) w_tbl []
 
 
 let worker_env token =
-  Hashtbl.fold (fun _ (t, c, h) acc ->
-      if t = token then (c, h) :: acc
+  Hashtbl.fold (fun _ (t, h) acc ->
+      if t = token then h :: acc
       else acc) w_tbl []
   |> (fun lst -> assert (1 = List.length lst); List.hd lst)
+
+
+let compilers () =
+  if !compilers = [] then compilers := default_compilers;
+  !compilers
 
 
 let eliminate_workers workers =
@@ -142,6 +149,7 @@ let worker_monitor () =
     Hashtbl.fold (fun id times acc -> (id, times) :: acc) c_tbl [] in
   let rec loop t =
     t >>= fun last ->
+    Lwt_unix.sleep check_round >>= fun () ->
     let now = count () in
     let down_workers =
       List.fold_left (fun acc (id, now_times) ->
@@ -151,11 +159,10 @@ let worker_monitor () =
           if last_times = now_times then id :: acc else acc)
         [] now in
     if down_workers = [] then
-      Lwt_unix.sleep check_round >>= fun () ->
       loop (return now)
     else
       let workers = List.rev_map (fun id ->
-          let t, _, _ = Hashtbl.find w_tbl id in id, t) down_workers in
+          let t, _= Hashtbl.find w_tbl id in id, t) down_workers in
       eliminate_workers workers >>= fun () ->
       return workers in
   loop (return (count ()))

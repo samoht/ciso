@@ -2,6 +2,18 @@ open OpamTypes
 open Lwt
 
 
+let log action ~info =
+  let title = Printf.sprintf "ci_opam@%s" action in
+  Printf.eprintf "[%s]: %s\n%!" title info
+
+let time () = Unix.(
+  let tm = localtime (time ()) in
+  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
+
+
+let package p = OpamPackage.((name_to_string p) ^ "." ^ (version_to_string p))
+
+
 (* copied from opam/src/client/opamArg.ml *)
 let parse str =
   let re = Re_str.regexp
@@ -57,14 +69,14 @@ let modify_state state =
     pinned = OpamPackage.Name.Map.empty; }
 
 
-let resolve ?(bare = true) state str =
+let resolve ?(bare = true) state str_lst =
   let state = if bare then modify_state state else state in
-  let atom = parse str in
-  let install_set = OpamPackage.Name.(Set.add (fst atom) Set.empty) in
+  let atoms = List.rev_map parse str_lst in
+  let install_set = OpamPackage.Name.Set.of_list (List.rev_map fst atoms) in
   let action = Install install_set in
   let universe = OpamState.universe state action in
   let request = {
-    wish_install = [atom];
+    wish_install = atoms;
     wish_remove = [];
     wish_upgrade = [];
     criteria = `Default} in
@@ -75,6 +87,7 @@ let resolve ?(bare = true) state str =
     | Success s -> s
     | Conflicts c ->
        let info = OpamCudf.string_of_conflict OpamFormula.string_of_atom c in
+       let str = String.concat ";" str_lst in
        failwith (Printf.sprintf "no solution for %s: %s" str info) in
   let graph = solution.to_process in
   let oc = open_out "solver_log" in
@@ -107,7 +120,12 @@ let jobs_of_graph ?pull graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
-    | To_change (origin, target) -> assert (origin = None); target
+    | To_change (None, target) -> target
+    | To_change (Some o, target) ->
+       let info = Printf.sprintf "WARNING: %s -> %s"
+                                 (package o) (package target) in
+       log "jobs_of_graph" ~info;
+       target
     | To_delete _ | To_recompile _ -> failwith "Not expect" in
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
@@ -148,7 +166,7 @@ let jobs_of_graph ?pull graph =
       graph v ([], IdSet.empty) in
 
     let id = Task.hash_id task inputs compiler host in
-    let job = Task.make_job id inputs compiler host task [] in
+    let job = Task.make_job id inputs compiler host task in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
@@ -157,14 +175,17 @@ let jobs_of_graph ?pull graph =
   !j_lst
 
 
-let resolvable ~name ?version state =
+let resolvable ~name ?version ?depopts state =
   let str = match version with None -> name | Some v -> name ^ "." ^ v in
-  let graph = resolve ~bare:false state str in
+  let depopt_str = match depopts with
+    | None -> []
+    | Some lst ->
+       List.rev_map (fun (n, v_opt) ->
+         match v_opt with
+         |None -> n | Some v -> n ^ "." ^ v) lst in
+  let graph = resolve ~bare:false state (str :: depopt_str) in
   if 1 = OpamSolver.ActionGraph.nb_vertex graph then false, graph
   else true, graph
-
-
-let package p = OpamPackage.((name_to_string p) ^ "." ^ (version_to_string p))
 
 
 let installed_of_state s =
@@ -288,60 +309,6 @@ let findlib_conf ~prefix ~write_path =
       let path = Filename.concat prefix "lib" in
       modify_conf conf write_path ~destdir ~path
     end
-(*
-let lock_file () =
-  let home = Sys.getenv "HOME" in
-  let file = Filename.concat home ".ci_lock" in
-  assert (Sys.file_exists file);
-  file
-
-
-let lock () =
-  let file = lock_file () in
-  Lwt_unix.openfile file [Lwt_unix.O_RDWR] 0o664 >>= fun fd ->
-  Lwt_unix.lockf fd Lwt_unix.F_LOCK 0 >>= fun () ->
-
-  let findlib_conf = conf_file () in
-  let root = OpamFilename.Dir.to_string (OpamPath.root ()) in
-  let path = Filename.concat root "system/lib" in
-  modify_conf findlib_conf ~destdir:path ~path >>= fun (d, p) ->
-  return (d, p, fd)
-
-
-let unlock (destdir, path, fd) =
-  let findlib_conf = conf_file () in
-  modify_conf findlib_conf ~destdir ~path >>= fun (_, _) ->
-
-  Lwt_unix.lockf fd Lwt_unix.F_ULOCK 0 >>= fun () ->
-  Lwt_unix.close fd
-
-
-let opam_install state p v =
-  let install p v =
-    let str = p ^ "." ^ v in
-    let atom = parse str in
-    OpamGlobals.yes := true;
-    try
-      OpamClient.SafeAPI.install [atom] None false;
-      return `Success
-    with _ -> return (`Fail "opam install") in
-
-  let graph = resolve ~bare:false state (p ^ "." ^ v) in
-  let nb_action = OpamSolver.ActionGraph.nb_vertex graph in
-  if nb_action <> 1 then begin
-    OpamSolver.ActionGraph.fold_vertex (fun v acc ->
-        (match v with
-         | To_change (origin, target) ->
-            Printf.sprintf "%s -> %s"
-              (match origin with Some o -> package o | None -> "none")
-              (package target)
-         | To_delete p -> Printf.sprintf "delete %s" (package p)
-         | To_recompile p -> Printf.sprintf "recompile %s" (package p)) :: acc)
-      graph []
-    |> String.concat " ; "
-    |> fun info ->
-       Printf.eprintf "[%s@warning]: %s\n%!" p info end;
-  install p v *)
 
 
 let opam_install state ~name ~version =
@@ -349,6 +316,24 @@ let opam_install state ~name ~version =
     let name = OpamPackage.Name.of_string name in
     let version = OpamPackage.Version.of_string version in
     OpamPackage.create name version in
+
+  match Lwt_unix.fork () with
+  | 0 ->
+     OpamAction.download_package state nv;
+     OpamAction.build_and_install_package state ~metadata:true nv;
+     let installed, installed_roots, reinstall = OpamState.Types.(
+       state.installed, state.installed_roots, state.reinstall) in
+     ignore (OpamAction.update_metadata state ~installed_roots ~reinstall
+       ~installed:(OpamPackage.Set.add nv installed));
+     exit 0;
+  | pid ->
+     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
+     match stat with
+     | WEXITED i when i = 0 -> return `Success
+     | WEXITED i | WSIGNALED i | WSTOPPED i ->
+        return (`Fail "opam build"))
+
+(*
   try
     OpamAction.download_package state nv;
     OpamAction.build_and_install_package state ~metadata:true nv;
@@ -358,7 +343,7 @@ let opam_install state ~name ~version =
       OpamAction.update_metadata state ~installed_roots ~reinstall
         ~installed:(OpamPackage.Set.add nv installed) in
     return `Success;
-  with _ -> return (`Fail "opam build")
+  with _ -> return (`Fail "opam build") *)
 
 
 let opam_uninstall ~name ~version =
@@ -367,29 +352,6 @@ let opam_uninstall ~name ~version =
   OpamGlobals.yes := true;
   OpamClient.SafeAPI.remove ~autoremove:true ~force:true [atom];
   return_unit
-
-(*
-let opam_uninstall state p v =
-  let str = p ^ "." ^ v in
-  let atom = parse str in
-  let request = {
-    wish_install = [];
-    wish_remove = [atom];
-    wish_upgrade = [];
-    criteria = `Default} in
-  let universe = OpamState.universe state Remove in
-  let result = OpamSolver.resolve
-    ~orphans:OpamPackage.Set.empty ~requested:OpamPackage.Name.Set.empty
-    universe request in
-  let solution = match result with
-    | Success s -> s
-    | Conflicts _ ->
-       failwith (Printf.sprintf "no solution for uninstall %s" str) in
-  let (_, _), result =
-    OpamAction.remove_all_packages ~metadata:true state solution in
-  match result with
-  | `Successful () -> return_unit
-  | `Exception exn -> fail exn *)
 
 
 let update_metadata ~install state ~path =
@@ -418,44 +380,77 @@ let update_metadata ~install state ~path =
   |> return
 
 
-let opam_install_switch ~compiler =
-  let state = load_state () in
-  let aliase_p = OpamPath.aliases state.OpamState.Types.root in
-  let aliase = OpamFile.Aliases.read aliase_p in
-  let is_installed_switch s =
-    let switch = OpamSwitch.of_string s in
-    OpamSwitch.Map.mem switch aliase in
+let export_existed_switch r c =
+  OpamGlobals.root_dir := r;
+  let root = OpamFilename.Dir.of_string r in
+  let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
+  let switch = OpamSwitch.of_string c in
+  if not (OpamSwitch.Map.mem switch aliases) then ()
+  else begin
+    OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
+    let path = OpamFilename.(
+      let dir = OP.(root / "log") in
+      if exists_dir dir then OP.( dir // "ocaml_ci.export")
+      else OP.(root // "ocaml_ci.export")) in
+    OpamSwitchCommand.export (Some path);
+    OpamSwitchCommand.switch ~quiet:false ~warning:false (OpamSwitch.of_string "system");
+    OpamSwitchCommand.remove switch end;
+  return_unit
 
-  let rec switch s_name =
-    if not (is_installed_switch s_name) then OpamSwitch.of_string s_name
-    else switch (s_name ^ "_") in
-  let switch = switch "ci_switch" in
-  let compiler = OpamCompiler.of_string compiler in
 
-  let open Lwt_unix in
+let opam_eval_env () =
+  let env_s = OpamState.load_env_state "env_state" in
+  let env = OpamState.get_opam_env ~force_path:true env_s in
+  List.iter (fun (n, v) -> Unix.putenv n v) env
+
+
+let opam_install_switch r c =
+  OpamGlobals.root_dir := r;
+  let root = OpamFilename.Dir.of_string r in
+  let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
+  let switch = OpamSwitch.of_string c in
+
+  (if OpamSwitch.Map.mem switch aliases then export_existed_switch r c
+   else return_unit) >>= fun () ->
+
+  let compiler = OpamCompiler.of_string c in
   match Lwt_unix.fork () with
   | 0 ->
      OpamSwitchCommand.install
-       ~quiet:false ~warning:false ~update_config:false switch compiler;
+       ~quiet:false ~warning:true ~update_config:true switch compiler;
      exit 0
   | pid ->
-     Lwt_unix.waitpid [] pid >>= fun (_, stat) ->
-         match stat with
-         | WEXITED i when i = 0 -> return (OpamSwitch.to_string switch)
-         | WEXITED i | WSIGNALED i | WSTOPPED i ->
-            fail_with (Printf.sprintf "exited %d" i)
+     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
+       (match stat with
+        | WEXITED i when i = 0 -> ()
+        | WEXITED i | WSIGNALED i | WSTOPPED i ->
+           failwith (Printf.sprintf "exited %d" i));
+       opam_eval_env ();
+       return_unit)
 
 
-let opam_remove_switch ~switch =
-  let switch = OpamSwitch.of_string switch in
+let opam_remove_switch r c =
+  OpamGlobals.root_dir := r;
+  OpamGlobals.yes := true;
+  let switch = OpamSwitch.of_string c in
+  OpamSwitchCommand.switch ~quiet:false ~warning:false (OpamSwitch.of_string "system");
   OpamSwitchCommand.remove switch;
   return_unit
 
-(*
-let str = Arg.(
-  required & pos 0 (some string) None & info
-    ~docv:"PKG" ~doc:"package name (and version constraint) to solve" [])
 
-let () = Term.(
-  let tup = pure resolve $ str, info ~doc:"solve dependencies" "ci-solver" in
-  match eval tup with `Error _ -> exit 1 | _ -> exit 0) *)
+let opam_switch_switch r c =
+  OpamGlobals.root_dir := r;
+  let root = OpamFilename.Dir.of_string r in
+  let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
+  let switch = OpamSwitch.of_string c in
+  let compiler = OpamCompiler.of_string c in
+  let new_aliases = OpamSwitch.Map.add switch compiler aliases in
+  OpamFile.Aliases.write (OpamPath.aliases root) new_aliases;
+
+  OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
+  opam_eval_env ();
+  return_unit
+
+
+let detect_root () =
+  OpamGlobals.default_opam_dir

@@ -8,6 +8,7 @@ type job_rank = int
 
 type compiler = string with sexp
 type host = string with sexp
+type root = string with sexp
 
 (* for the string from Sexplib.Sexp.to_string *)
 type description = string with sexp
