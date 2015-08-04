@@ -186,7 +186,7 @@ let user_worker_query_handler param headers body =
       let status_str = match Monitor.info_of_status status with
         | s, None -> s
         | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
-      let h = Monitor.worker_env token in
+      let h, _ = Monitor.worker_env token in
       Printf.sprintf "worker %d, %s, %s" wid h status_str) statuses in
   let str = Printf.sprintf "%s\n"
       (if info <> [] then (String.concat "\n" info) else "No alive workers") in

@@ -19,7 +19,7 @@ val info_of_status: worker_status -> string * string option
 
 val worker_environments: unit -> host list
 
-val worker_env: worker_token -> host
+val worker_env: worker_token -> host * compiler option
 
 val compilers: unit -> compiler list
 

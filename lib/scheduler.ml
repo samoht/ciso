@@ -37,15 +37,20 @@ let task_info id =
      | e -> raise e
 
 
-let get_runnables ?host () =
-  let is_env_match jenv = function
-    | None -> true
-    | Some h -> h = (snd jenv) in
+let rec get_runnables ?host ?compiler () =
+  let env_match (c, h) = function
+    | None, None -> true
+    | Some h', None -> h' = h
+    | None, Some c' -> c' = c
+    | Some h', Some c' -> h' = h && c' = c in
   Hashtbl.fold (fun id j acc ->
       if `Runnable = Hashtbl.find s_tbl id
-         && is_env_match (Task.env_of_job j) host
+         && env_match (Task.env_of_job j) (host, compiler)
       then id :: acc
       else acc) j_tbl []
+  |> fun lst ->
+     if compiler <> None && lst = [] then get_runnables ?host ()
+     else lst
 
 
 let count_runnables () =
@@ -64,8 +69,8 @@ let invalidate_token wtoken =
 
 
 let find_job wtoken =
-  let host = Monitor.worker_env wtoken in
-  let runnables = get_runnables ~host () in
+  let host, compiler = Monitor.worker_env wtoken in
+  let runnables = get_runnables ~host ?compiler () in
   if runnables = [] then None
   else begin
       let id, _ = List.fold_left (fun (i, max_r) tid ->

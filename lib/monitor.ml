@@ -14,7 +14,7 @@ module LogMap = Map.Make(struct
 end)
 
 (* id -> (token, compiler, host) *)
-type worker_tbl = (worker_id, worker_token * host) Hashtbl.t
+type worker_tbl = (worker_id, worker_token * host * compiler option) Hashtbl.t
 
 (* id -> check in times *)
 type checkin_tbl = (worker_id, int) Hashtbl.t
@@ -59,24 +59,32 @@ let new_worker h =
   let token = new_token info in
   w_map := LogMap.add token IdSet.empty !w_map;
   Hashtbl.replace s_tbl token Idle;
-  Hashtbl.replace w_tbl id (token, h);
+  Hashtbl.replace w_tbl id (token, h, None);
   Hashtbl.replace c_tbl id (-1);
   worker_checkin id;
   id, token
 
 
 let verify_worker id token =
-  let token_record, _=
+  let token_record, _, _=
     try Hashtbl.find w_tbl id
-    with Not_found -> "", "" in
+    with Not_found -> "", "", None in
   if token = token_record then worker_checkin id
   else failwith "fake worker"
+
+
+let update_worker_env token compiler =
+  Hashtbl.iter (fun id (t, h, _) ->
+    if token = t then
+      let new_env = t, h, Some compiler in
+      Hashtbl.replace w_tbl id new_env) w_tbl
 
 
 let new_job id compiler token =
   let status = Hashtbl.find s_tbl token in
   assert (status = Idle);
-  Hashtbl.replace s_tbl token (Working (id, compiler))
+  Hashtbl.replace s_tbl token (Working (id, compiler));
+  update_worker_env token compiler
 
 
 let job_completed id token =
@@ -93,7 +101,7 @@ let publish_object id token =
 
 
 let worker_statuses () =
-  Hashtbl.fold (fun id (token, _) acc ->
+  Hashtbl.fold (fun id (token, _, _) acc ->
       let status = Hashtbl.find s_tbl token in
       (id, token, status) :: acc) w_tbl []
 
@@ -111,14 +119,14 @@ let job_rank token deps =
 
 
 let worker_environments () =
-  Hashtbl.fold (fun _ (_, h) acc ->
+  Hashtbl.fold (fun _ (_, h, _) acc ->
       if List.mem h acc then acc
       else h :: acc) w_tbl []
 
 
 let worker_env token =
-  Hashtbl.fold (fun _ (t, h) acc ->
-      if t = token then h :: acc
+  Hashtbl.fold (fun _ (t, h, c_opt) acc ->
+      if t = token then (h, c_opt) :: acc
       else acc) w_tbl []
   |> (fun lst -> assert (1 = List.length lst); List.hd lst)
 
@@ -162,7 +170,7 @@ let worker_monitor () =
       loop (return now)
     else
       let workers = List.rev_map (fun id ->
-          let t, _= Hashtbl.find w_tbl id in id, t) down_workers in
+          let t, _, _ = Hashtbl.find w_tbl id in id, t) down_workers in
       eliminate_workers workers >>= fun () ->
       return workers in
   loop (return (count ()))
