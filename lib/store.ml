@@ -12,17 +12,25 @@ let time () = Unix.(
   let tm = localtime (time ()) in
   Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
 
+
+let path_of_token t =  ["token"; t]
+let path_of_obj id = ["object"; id]
+let path_of_job id = ["job"; id]
+let path_of_arc id = ["archive"; id]
+let path_of_com id = ["compiler"; id]
+
+
 let clean_up t =
   let print_path k =
     let path = String.concat "/" k in
-    Lwt_io.printf "%s -> value\n%!" path in
-  let remove_kv k v_t =
-    v_t >>= fun _ ->
-    print_path k >>= fun () ->
-    let dir = List.hd k in
-    if dir <> "compiler" then Irmin.remove (t "remove kv") k
-    else return_unit in
-  Irmin.iter (t "iter kv") remove_kv
+    Lwt_io.printf "remove %s\n%!" path in
+  let clean_dir = ["token"; "object"; "job"; "archive"] in
+  Lwt_list.iter_s (fun dir ->
+    Irmin.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
+    Lwt_list.iter_s (fun path ->
+      print_path path >>= fun () ->
+      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path) paths)
+      clean_dir
 
 
 let initial_store ?(uri = "http://127.0.0.1:8888") ?(fresh = false) () =
@@ -42,11 +50,6 @@ let rec get_store () =
     | Some store -> return store
 
 
-let path_of_token t =
-  let sub_dir = String.sub t 0 2 in
-  ["token"; sub_dir; t]
-
-
 let register_token token =
   get_store () >>= fun t ->
   let path = path_of_token token in
@@ -59,16 +62,10 @@ let invalidate_token token =
   Irmin.remove (t ("invalidate token" ^ token)) path
 
 
-let path_of_obj id =
-  let sub_dir = String.sub id 0 2 in
-  ["object"; sub_dir; id]
-
-
 let query_object id =
   get_store () >>= fun t ->
   let path = path_of_obj id in
-  Irmin.read (t ("query object " ^ id)) path >>= fun v_opt ->
-  if v_opt <> None then return true else return false
+  Irmin.mem (t ("query object " ^ id)) path
 
 
 let publish_object token id obj =
@@ -99,15 +96,6 @@ let retrieve_object id =
   | Some v ->
      log "retrieve" "remotely" ~info:("get one " ^ (time ()));
      return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
-
-
-let path_of_job id =
-  ["job"; id]
-
-
-let path_of_arc id =
-  let dir = String.sub id 0 2 in
-  ["archive"; dir; id]
 
 
 let log_job id (job, deps) =
@@ -174,17 +162,12 @@ let retrieve_jobs () =
          return (id, job, deps)) paths
 
 
-let path_of_com id =
-  ["compiler"; id]
-
-
 let query_compiler id =
   let info = Printf.sprintf "compiler %s %s" (sub_abbr id) (time ()) in
   log "query" "remotely" ~info;
   get_store () >>= fun t ->
   let path = path_of_com id in
-  Irmin.read (t ("query compiler " ^ id)) path >>= fun v_opt ->
-  if v_opt <> None then return true else return false
+  Irmin.mem (t ("query compiler " ^ id)) path
 
 
 let publish_compiler token id obj =

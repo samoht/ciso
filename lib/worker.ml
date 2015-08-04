@@ -27,6 +27,8 @@ let master_timeout = 15.0
 let sub len str = String.sub str 0 len
 let sub_abbr = sub 5
 
+let origin_fs = ref []
+
 let log action func ~info =
   let title = Printf.sprintf "%s@%s" action func in
   if info = "" then Printf.eprintf "[%s]\n%!" title
@@ -56,19 +58,21 @@ let working_directory ?(test = true) id () =
   else return path
 
 
+let path_of_obj id = ["object"; id]
+let path_of_com id = ["compiler"; id]
+
+
 let clean_up t =
   let print_path k =
     let path = String.concat "/" k in
-    Lwt_io.printf "%s -> value\n%!" path  in
-  let remove_kv k v_t =
-    v_t >>= fun _ ->
-    print_path k >>= fun () ->
-    let dir = List.hd k in
-    if dir <> "compiler" then
-      let p = String.concat "/" k in
-      Irmin.remove (t ("remove " ^ p)) k
-    else return_unit in
-  Irmin.iter (t "iter kv") remove_kv
+    Lwt_io.printf "remove %s\n%!" path  in
+  let clean_dir = ["object"] in
+  Lwt_list.iter_s (fun dir ->
+    Irmin.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
+    Lwt_list.iter_s (fun path ->
+      print_path path >>= fun () ->
+      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path) paths)
+    clean_dir
 
 
 let local_store ?(fresh = false) dir =
@@ -79,28 +83,18 @@ let local_store ?(fresh = false) dir =
   (if fresh then clean_up t else return ()) >>= fun () ->
   return t
 
-
-let path_of_obj id =
-  let sub_dir = String.sub id 0 2 in
-  ["object"; sub_dir; id]
-
-let path_of_com id =
-  let sub_dir = String.sub id 0 2 in
-  ["compiler"; sub_dir; id]
-
 let rec id_of_path = function
   | [id] -> id
   | _ :: tl -> id_of_path tl
   | _ -> failwith "empty path"
+
 
 let local_query t ?(compiler = false) id =
   let info = Printf.sprintf "%s %s %s"
     (if compiler then "compiler" else "object") (sub_abbr id) (time ()) in
   log "query" "local" ~info;
   let path = (if compiler then path_of_com else path_of_obj) id in
-  Irmin.read (t ("query object " ^ id)) path >>= function
-  | None -> return false
-  | Some _ -> return true
+  Irmin.mem (t ("query object " ^ id)) path
 
 
 let local_publish t ?(compiler = false) id obj =
@@ -134,18 +128,16 @@ let local_retrieve t ?(compiler = false) id =
 
 
 let local_retrieve_all t =
-  let tups = ref [] in
-  let iter k v_t =
-    let dir = List.hd k in
-    if dir <> "compiler" then
-      v_t >>= fun v ->
-      let id = id_of_path k in
-      let obj = Object.t_of_string v in
-      tups := (id, obj) :: !tups;
-      return ()
-    else return_unit in
-  Irmin.iter (t "retrieve all objects") iter >>= fun () ->
-  return (!tups)
+  let retrieve_dir = ["object"] in
+  Lwt_list.fold_left_s (fun acc dir ->
+    Irmin.list (t "retrieve objects") [dir] >>= fun paths ->
+    Lwt_list.fold_left_s (fun acc' path ->
+      Irmin.read (t ("read from " ^ (String.concat "/" path))) path >>= function
+      | None -> return acc'
+      | Some c ->
+         let id = id_of_path path in
+         let obj = Object.t_of_string c in
+         return ((id, obj) :: acc')) acc paths) [] retrieve_dir
 
 
 let with_client_request tag request =
@@ -220,10 +212,10 @@ let worker_heartbeat base { id; token; status } =
   let m =
     match status with
     | Working jid ->
-       (* log "send" "heartbeat" ~info:("working " ^ (sub_abbr jid)); *)
+       log "send" "heartbeat" ~info:("working " ^ time ());
        Heartbeat (Some jid)
     | Idle ->
-       log "send" "heartbeat" ~info:"idle";
+       log "send" "heartbeat" ~info:("idle " ^ time ());
        Heartbeat None in
   let body = body_of_message m in
   let uri_path = Printf.sprintf "workers/%d/state" id in
@@ -544,9 +536,54 @@ let pkg_build state prefix jid name version =
 
   create_archive prefix jid output installed old_pkgs new_pkgs
   >>= fun archive ->
-  (* clean_tmp "execute" (fst archive) >>= fun () -> *)
 
+  clean_tmp "execute" (fst archive) >>= fun () ->
+  Ci_opam.opam_uninstall ~name ~version >>= fun () ->
   return (result, output, installed, archive)
+
+
+let compiler_fs_origin root compiler ?snapshots () =
+  (match snapshots with
+   | Some s -> return s
+   | None -> fs_snapshots ~white_list:[compiler] root)
+  >>= fun ss ->
+  log "snapshots" compiler ~info:"origin fs state";
+  origin_fs := List.rev_map fst ss;
+  return_unit
+
+
+let switch_clean_up  root compiler =
+  let fs = !origin_fs in
+  if fs = [] then ()
+  else begin
+    let module FileSet = Set.Make(String) in
+    let fset = List.fold_left (fun acc f ->
+      FileSet.add f acc) FileSet.empty fs in
+    let read_dir dir =
+      Sys.readdir dir
+      |> Array.to_list
+      |> List.rev_map (Filename.concat dir) in
+    (* post-order iterate the fs,
+       remove non-origin files and empty direcoties *)
+    let q = Queue.create () in
+    let s = Stack.create () in
+    Queue.add (Filename.concat root compiler) q;
+    while not (Queue.is_empty q) do
+      let elem = Queue.pop q in
+      if Sys.is_directory elem then
+        read_dir elem
+        |> List.iter (fun sub -> Queue.add sub q);
+      Stack.push elem s;
+    done;
+    while not (Stack.is_empty s) do
+      let elem = Stack.pop s in
+      if Sys.is_directory elem then
+        if read_dir elem = [] then Unix.rmdir elem
+        else ()
+      else if not (FileSet.mem elem fset) then
+        Sys.remove elem
+      else ()
+    done end
 
 
 let build_compiler_object cid root compiler =
@@ -555,6 +592,7 @@ let build_compiler_object cid root compiler =
   Ci_opam.opam_install_switch root compiler >>= fun () ->
   log "execute" "snapshot" ~info:(root ^ " AFTER");
   fs_snapshots ~white_list:[compiler] root >>= fun after ->
+  compiler_fs_origin root compiler ~snapshots:after () >>= fun () ->
 
   let prefix = Filename.concat root compiler in
   collect_installed prefix ~before ~after >>= fun installed ->
@@ -586,17 +624,19 @@ let install_compiler base worker (c, host) =
   if local_exist then
     (log "install" c ~info:"retrieve locally";
      local_retrieve ~compiler worker.store cid) >>= apply_compiler_obj
+    >>= fun () -> compiler_fs_origin root c ()
   else
     Store.query_compiler cid >>= fun remote_exist ->
     if remote_exist then
-      (log "install" c ~info:("retrieve remotely " ^ time ());
-       Store.retrieve_compiler cid) >>= fun cobj ->
-      local_publish ~compiler worker.store cid cobj >>= fun () ->
-      apply_compiler_obj cobj
-    else
-      build_compiler_object cid root c >>= fun cobj ->
-      Store.publish_compiler worker.token cid cobj >>= fun () ->
-      local_publish ~compiler worker.store cid cobj
+       (log "install" c ~info:("retrieve remotely " ^ time ());
+        Store.retrieve_compiler cid) >>= fun cobj ->
+       local_publish ~compiler worker.store cid cobj >>= fun () ->
+       apply_compiler_obj cobj >>= fun () ->
+       compiler_fs_origin root c ()
+     else
+       build_compiler_object cid root c >>= fun cobj ->
+       Store.publish_compiler worker.token cid cobj >>= fun () ->
+       local_publish ~compiler worker.store cid cobj
 
 
 let pkg_job_execute base worker jid job deps =
@@ -605,10 +645,15 @@ let pkg_job_execute base worker jid job deps =
   log "execute" "dependency" ~info;
 
   let (c, h) = Task.env_of_job job in
+  let c_curr = Ci_opam.detect_compiler () in
   let root = Ci_opam.detect_root () in
-  Ci_opam.export_existed_switch root c >>= fun () ->
-  install_compiler base worker (c, h) >>= fun () ->
-  log "execute" "compiler" ~info:(c ^ " installed");
+
+  (if c = c_curr then return_unit
+  else
+    Ci_opam.export_existed_switch root c >>= fun () ->
+    install_compiler base worker (c, h) >>= fun () ->
+    log "execute" "compiler" ~info:(c ^ " installed");
+    return_unit) >>= fun () ->
 
   catch (fun () ->
     let name, version, depopts = Task.info_of_pkg_task (Task.task_of_job job) in
@@ -641,7 +686,7 @@ let pkg_job_execute base worker jid job deps =
       let result = `Delegate delegate_id in
       let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
 
-      Ci_opam.opam_remove_switch root c >>= fun () ->
+      switch_clean_up root c;
       return (result, obj)
     else
       let () = log "execute" "resolvable" ~info:"false" in
@@ -650,13 +695,13 @@ let pkg_job_execute base worker jid job deps =
       >>= fun (result, output, installed, archive) ->
       let obj = Object.make_obj jid result ~output ~installed archive in
 
-      Ci_opam.opam_remove_switch root c >>= fun () ->
+      switch_clean_up root c;
       return (result, obj)) (fun exn ->
     let result = match exn with
       | Failure f -> `Fail f
       | _ -> `Fail "unknow execution failure" in
     let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
-    Ci_opam.opam_remove_switch root c >>= fun () ->
+    switch_clean_up root c;
     return (result, obj))
 
 
@@ -730,7 +775,6 @@ let rec execution_loop base worker cond =
 
 
 let rec heartbeat_loop base worker cond =
-  Printf.eprintf "== heartbeat loop %s ==\n%!" (time ());
   match worker.status with
   | Idle -> begin worker_heartbeat base worker >>= function
     | None ->

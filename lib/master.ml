@@ -47,7 +47,6 @@ let register_handler params headers body =
 
 let heartbeat_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  log "heartbeat" id ("get request" ^ (time ()));
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
@@ -74,7 +73,6 @@ let publish_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
-  log "publish" id "get request";
   Monitor.verify_worker id token;
 
   message_of_body body >>= fun m ->

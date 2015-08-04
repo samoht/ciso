@@ -121,12 +121,13 @@ let jobs_of_graph ?pull graph =
   let module Pkg = OpamPackage in
   let package_of_action = function
     | To_change (None, target) -> target
-    | To_change (Some o, target) ->
+    | To_change (Some origin, target) ->
        let info = Printf.sprintf "WARNING: %s -> %s"
-                                 (package o) (package target) in
+                                 (package origin) (package target) in
        log "jobs_of_graph" ~info;
-       target
-    | To_delete _ | To_recompile _ -> failwith "Not expect" in
+       origin
+    | To_delete p | To_recompile p ->
+       failwith ("Not expect delete/recompile " ^ (package p))  in
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
@@ -388,10 +389,11 @@ let export_existed_switch r c =
   if not (OpamSwitch.Map.mem switch aliases) then ()
   else begin
     OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
+    let file = Printf.sprintf "ci_%s_%s.export" c (time ()) in
     let path = OpamFilename.(
       let dir = OP.(root / "log") in
-      if exists_dir dir then OP.( dir // "ocaml_ci.export")
-      else OP.(root // "ocaml_ci.export")) in
+      if exists_dir dir then OP.( dir // file)
+      else OP.(root // file)) in
     OpamSwitchCommand.export (Some path);
     OpamSwitchCommand.switch ~quiet:false ~warning:false (OpamSwitch.of_string "system");
     OpamSwitchCommand.remove switch end;
@@ -430,6 +432,7 @@ let opam_install_switch r c =
 
 
 let opam_remove_switch r c =
+  export_existed_switch r c >>= fun () ->
   OpamGlobals.root_dir := r;
   OpamGlobals.yes := true;
   let switch = OpamSwitch.of_string c in
@@ -454,3 +457,9 @@ let opam_switch_switch r c =
 
 let detect_root () =
   OpamGlobals.default_opam_dir
+
+
+let detect_compiler () =
+  let state = load_state () in
+  let c = state.OpamState.Types.compiler in
+  OpamCompiler.to_string c

@@ -56,6 +56,7 @@ val update_metadata: install:bool -> OpamState.state -> path:string ->
 
 val detect_root: unit -> Common_types.root
 
+val detect_compiler: unit -> Common_types.compiler
 
 val opam_install_switch: Common_types.root -> Common_types.compiler ->
                          unit Lwt.t
