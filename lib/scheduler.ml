@@ -27,14 +27,18 @@ let log subject func ~info =
   else Printf.eprintf "\t[%s]: %s\n%!" title info
 
 
-let task_info id =
-  let sub = String.sub id 0 5 in
+let task_info ?(abbr = true) id =
   try
     let job = Hashtbl.find j_tbl id in
     let name, version = Task.(task_of_job job |> info_of_task) in
-    sub ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
-  with Not_found -> Printf.sprintf "Object %s not in the j_tbl" sub
-     | e -> raise e
+    (if abbr then String.sub id 0 5
+     else id ) ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
+  with
+  | Not_found ->
+     let ids = Hashtbl.fold (fun id _ acc -> id :: acc) j_tbl []
+               |> String.concat "\n" in
+     Printf.sprintf "Object %s not in the ids: [\n%s]" id ids
+  | e -> raise e
 
 
 let rec get_runnables ?host ?compiler () =
@@ -288,7 +292,7 @@ let progress_info id =
   List.rev_map (fun (_id, s) ->
                 let format = if _id = id then Printf.sprintf " -> %s %s"
                    else Printf.sprintf "    %s %s" in
-      format (task_info _id) (string_of_state s)) progress
+      format (task_info ~abbr:false _id) (string_of_state s)) progress
   |> List.rev
   |> fun str_lst ->
      return (Printf.sprintf "%s\n" (String.concat "\n" str_lst))

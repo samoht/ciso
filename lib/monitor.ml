@@ -108,7 +108,7 @@ let worker_statuses () =
 
 let info_of_status = function
   | Idle -> "Idle", None
-  | Working (id, c) -> "Working", Some (id ^ "@" ^ c)
+  | Working (id, c) -> "Working", Some id
 
 
 let job_rank token deps =

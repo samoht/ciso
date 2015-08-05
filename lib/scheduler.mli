@@ -32,7 +32,7 @@ val publish_object: worker_token -> [`Success | `Fail of string | `Delegate of i
                     -> id -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
-val task_info: id -> string
+val task_info: ?abbr:bool -> id -> string
 
 (* pickup any uncompleted tasks due to master failure *)
 val bootstrap: unit -> unit Lwt.t

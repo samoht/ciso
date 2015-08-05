@@ -34,6 +34,35 @@ let parse str =
     with Failure msg -> failwith msg
 
 
+let get_opam_var variable =
+  let v = OpamVariable.Full.of_string variable in
+  let var = OpamVariable.Full.variable v in
+  (* copied from src/client/opamConfigCommand.ml *)
+  let root = OpamPath.root () in
+  let switch = match !OpamGlobals.switch with
+    | `Command_line s
+    | `Env s   -> OpamSwitch.of_string s
+    | `Not_set ->
+       let config = OpamPath.config root in
+       OpamFile.Config.switch (OpamFile.Config.read config) in
+  let config = OpamPath.Switch.global_config root switch in
+  let config = OpamFile.Dot_config.read config in
+  (match OpamState.get_env_var v with
+   | Some _ as c -> c
+   | None ->
+      if OpamVariable.to_string var = "switch" then
+        Some (S (OpamSwitch.to_string switch))
+      else
+        OpamFile.Dot_config.variable config var)
+  |> (function
+       | Some c -> c
+       | None ->
+          let t = OpamState.load_state "config-variable" in
+          OpamMisc.Option.default (S "#undefined")
+            (OpamState.contents_of_variable t OpamVariable.Map.empty v))
+  |> OpamVariable.string_of_variable_contents
+
+
 let parse_user_demand pkg =
   match parse pkg with
   | name, None -> OpamPackage.Name.to_string name, None
@@ -80,6 +109,9 @@ let resolve ?(bare = true) state str_lst =
     wish_remove = [];
     wish_upgrade = [];
     criteria = `Default} in
+  let switch = OpamSwitch.to_string state.OpamState.Types.switch in
+  log "resolve" ~info:("@switch " ^ switch ^
+    " preinstalled: " ^ get_opam_var "preinstalled");
   let result = OpamSolver.resolve
     ~orphans:OpamPackage.Set.empty ~requested:OpamPackage.Name.Set.empty
     universe request in
@@ -193,35 +225,6 @@ let installed_of_state s =
   OpamPackage.Set.fold (fun p acc -> (package p) :: acc)
     s.OpamState.Types.installed []
   |> String.concat " ; "
-
-
-let get_opam_var variable =
-  let v = OpamVariable.Full.of_string variable in
-  let var = OpamVariable.Full.variable v in
-  (* copied from src/client/opamConfigCommand.ml *)
-  let root = OpamPath.root () in
-  let switch = match !OpamGlobals.switch with
-    | `Command_line s
-    | `Env s   -> OpamSwitch.of_string s
-    | `Not_set ->
-       let config = OpamPath.config root in
-       OpamFile.Config.switch (OpamFile.Config.read config) in
-  let config = OpamPath.Switch.global_config root switch in
-  let config = OpamFile.Dot_config.read config in
-  (match OpamState.get_env_var v with
-   | Some _ as c -> c
-   | None ->
-      if OpamVariable.to_string var = "switch" then
-        Some (S (OpamSwitch.to_string switch))
-      else
-        OpamFile.Dot_config.variable config var)
-  |> (function
-       | Some c -> c
-       | None ->
-          let t = OpamState.load_state "config-variable" in
-          OpamMisc.Option.default (S "#undefined")
-            (OpamState.contents_of_variable t OpamVariable.Map.empty v))
-  |> OpamVariable.string_of_variable_contents
 
 
 let conf_file ()=
