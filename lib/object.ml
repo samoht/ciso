@@ -23,3 +23,8 @@ let string_of_t obj =
 
 let t_of_string str =
   Sexplib.Sexp.of_string str |> t_of_sexp
+
+let string_of_result = function
+  | `Success -> "SUCCESS"
+  | `Fail f -> "FAIL f"
+  | `Delegate id ->"DELEGATE " ^ id

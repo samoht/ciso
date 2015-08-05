@@ -195,6 +195,43 @@ let user_worker_query_handler param headers body =
   let body = Body.of_string str in
   return (resp, body)
 
+
+let user_object_query_handler params headers body =
+  let jid = List.assoc "jid" params in
+  catch (fun () ->
+    Store.retrieve_job jid >>= fun (job, _) ->
+    Store.retrieve_object jid >>= fun obj ->
+    let inputs = Task.inputs_of_job job in
+    let c, h = Task.env_of_job job in
+    let task_info = Task.(task_of_job job |> info_of_task) in
+    let result = Object.result_of_t obj in
+
+    Lwt_list.rev_map_s (fun i ->
+      Store.retrieve_job i >>= fun (j, _) ->
+      return (i, Task.(task_of_job j |> info_of_task))) inputs
+    >>= fun inputs_info ->
+    let task_info_str (p, v_opt) =
+      match v_opt with
+      | None -> p
+      | Some v -> Printf.sprintf "%s %s" p v in
+    let cut str = String.sub str 0 5 in
+    let ass_lst = [
+       "Id", cut jid;
+       "Task", task_info_str task_info;
+       "Inputs", List.rev_map (fun (id, info) ->
+         Printf.sprintf "  %s %s" (cut id) (task_info_str info)) inputs_info
+         |> (fun lst -> Printf.sprintf "\n%s" (String.concat "\n" lst));
+       "Env", Printf.sprintf "%s %s" c h;
+       "Result", Object.string_of_result result] in
+    let str = List.map (fun (n, v) -> Printf.sprintf "[%s]: %s" n v) ass_lst
+              |> String.concat "\n"
+              |> (fun info -> info ^ "\n") in
+    let resp = Response.make ~status:`OK () in
+    let body = Body.of_string str in
+    return (resp, body))
+    (fun exn -> empty_response ~status:`Not_found)
+
+
 open Opium.Std
 
 let handler_wrapper handler keys req =
@@ -225,11 +262,6 @@ let github_hook =
   post "/github/:pr_num"
        (handler_wrapper github_hook_handler ["pr_num"])
 
-(*
-let compiler_demand =
-  post "/compiler/:version"
-       (handler_wrapper user_compiler_demand_handler ["version"]) *)
-
 let package_demand =
   post "/package/:pkg" (fun req ->
     let uri = Request.uri req in
@@ -252,12 +284,15 @@ let worker_query =
   get "/workers/statuses"
       (handler_wrapper user_worker_query_handler [])
 
+let object_info_query =
+  get "/object/:jid/info"
+      (handler_wrapper user_object_query_handler ["jid"])
 
 let server =
   App.empty
   |> register |> heartbeat |> publish |> spawn
   |> package_demand |> github_hook
-  |> job_query |> worker_query
+  |> job_query |> worker_query |> object_info_query
 
 
 let master fresh store ip port =
