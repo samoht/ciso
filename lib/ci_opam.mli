@@ -16,8 +16,11 @@ val resolve : ?bare:bool -> OpamState.state -> string list ->
 (* [tasks_of_graph ?pull graph]
    given the action graph from resolv and return the id of corresponding
    task, the ids are deterministic *)
-val jobs_of_graph: ?pull:Task.pull -> OpamSolver.ActionGraph.t ->
-                    (Common_types.id * Task.job * (Common_types.id list)) list
+val jobs_of_graph: ?pull:Task.pull ->
+                   ?repository:Task.repository list ->
+                   ?pin:Task.pin list ->
+                   OpamSolver.ActionGraph.t ->
+                   (Common_types.id * Task.job * (Common_types.id list)) list
 
 
 val resolvable: name:string -> ?version:string -> ?depopts:(string * string option) list ->
@@ -69,3 +72,15 @@ val opam_switch_switch: Common_types.root -> Common_types.compiler ->
 
 val export_existed_switch: Common_types.root -> Common_types.compiler ->
                            unit Lwt.t
+
+val clean_repositories: unit -> unit
+
+val add_repositories: Task.repository list -> unit Lwt.t
+
+val add_pins: Task.pin list -> unit Lwt.t
+
+val opam_update: repos_only: bool -> unit -> unit Lwt.t
+
+val show_repo_pin: OpamState.state -> unit Lwt.t
+
+val set_root: Common_types.root -> unit

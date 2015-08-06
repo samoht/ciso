@@ -14,15 +14,23 @@ and pull = {
     base_sha : string;
     head_sha : string;
 }
+(* name, verison option *)
 and depopt = string * string option with sexp
+
 
 type job = {
   id : id;           (* task is referenced by this id *)
   inputs : id list;  (* inputs are object ids *)
   compiler : compiler;
   host : host;
+  repository: repository list option;
+  pin: pin list option;
   task : task;
-} with sexp
+}
+(* name, address, priority option *)
+and repository = string * string * int option
+(* package, target *)
+and pin = string * string with sexp
 
 type job_entry = {
   job : job;
@@ -33,6 +41,8 @@ let id_of_job {id} = id
 let inputs_of_job {inputs} = inputs
 let task_of_job {task} = task
 let env_of_job {compiler; host} = (compiler, host)
+let repo_of_job {repository} = repository
+let pin_of_job {pin} = pin
 
 let info_of_task task =
   match task with
@@ -63,7 +73,7 @@ let make_pull num url base head = {
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
-let hash_id task inputs compiler host =
+let hash_id ?repository ?pin task inputs compiler host =
   let task_str = match task with
     | Compiler c -> c
     | Package (n, v_opt, depopt_opt) ->
@@ -80,7 +90,22 @@ let hash_id task inputs compiler host =
        let v_str = match v_opt with None -> "" | Some v -> v in
        let pull_str = string_of_int pull.pull_num in
        n ^ v_str ^ pull_str in
-  let str = task_str ^ (String.concat ";" inputs) ^ compiler ^ host in
+  let repo_str =
+    match repository with
+    | None -> ""
+    | Some repos ->
+       List.rev_map (fun (n, add, p_opt) ->
+         n ^ add
+         ^ match p_opt with None -> "" | Some p -> string_of_int p) repos
+       |> String.concat ";" in
+  let pin_str =
+    match pin with
+    | None -> ""
+    | Some pins ->
+       List.rev_map (fun (pkg, target) -> pkg ^ ":" ^ target) pins
+       |> String.concat ";" in
+  let input_str = String.concat ";" inputs in
+  let str = task_str ^ repo_str ^ pin_str ^ input_str ^ compiler ^ host in
   let `Hex h =
     str
     |> Cstruct.of_string
@@ -96,8 +121,8 @@ let make_compiler_task compiler = Compiler compiler
 let make_gh_task ~name ?version pull = Github (name, version, pull)
 
 
-let make_job id inputs compiler host task =
-  {id; inputs; compiler; host; task}
+let make_job id inputs compiler host task ?repository ?pin () =
+  {id; inputs; compiler; host; repository; pin; task}
 
 let make_job_entry job dependencies = {job; dependencies}
 

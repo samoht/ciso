@@ -148,7 +148,7 @@ let rec compiler ?state () =
      compiler ~state ()
 
 
-let jobs_of_graph ?pull graph =
+let jobs_of_graph ?pull ?repository ?pin graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -198,8 +198,8 @@ let jobs_of_graph ?pull graph =
         IdSet.union d (IdSet.add pred_id pred_deps))
       graph v ([], IdSet.empty) in
 
-    let id = Task.hash_id task inputs compiler host in
-    let job = Task.make_job id inputs compiler host task in
+    let id = Task.hash_id ?repository ?pin task inputs compiler host in
+    let job = Task.make_job id inputs compiler host task ?repository ?pin () in
 
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
@@ -399,6 +399,7 @@ let export_existed_switch r c =
       else OP.(root // file)) in
     OpamSwitchCommand.export (Some path);
     OpamSwitchCommand.switch ~quiet:false ~warning:false (OpamSwitch.of_string "system");
+    OpamGlobals.yes := true;
     OpamSwitchCommand.remove switch end;
   return_unit
 
@@ -466,3 +467,98 @@ let detect_compiler () =
   let state = load_state () in
   let c = state.OpamState.Types.compiler in
   OpamCompiler.to_string c
+
+
+let clean_repositories () =
+  let t = OpamState.load_state "repository_clean" in
+  let repos = OpamState.sorted_repositories t in
+  List.iter (fun r ->
+    let name = OpamRepositoryName.to_string r.repo_name in
+    if name = "default" then ()
+    else OpamRepositoryCommand.remove r.repo_name) repos
+
+
+let add_repositories repo =
+  let add_one_repo (name, address, priority) =
+    log "repository" ~info:(Printf.sprintf "add %s %s" name address);
+    let name = OpamRepositoryName.of_string name in
+    let address = OpamTypesBase.address_of_string address in
+    let address, kind2 = OpamTypesBase.parse_url address in
+    let kind = OpamMisc.Option.default kind2 None in
+    OpamRepositoryCommand.add name kind address ~priority in
+
+  match Lwt_unix.fork () with
+  | 0 ->
+     clean_repositories ();
+     List.iter add_one_repo repo;
+     exit 0
+  | pid ->
+     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
+       (match stat with
+        | WEXITED i when i = 0 -> return_unit
+        | WEXITED i | WSIGNALED i | WSTOPPED i ->
+           fail_with (Printf.sprintf "exited %d when add repos" i)))
+
+
+let add_pins pin =
+  let add_one_pin (pkg, target) =
+    let name = OpamPackage.Name.of_string pkg in
+    if target = "dev-repo" then
+      OpamClient.SafeAPI.PIN.pin ~edit:false ~action:false name None
+    else
+      let pin_option = OpamTypesBase.pin_option_of_string ?kind:None target in
+      let kind = OpamTypesBase.kind_of_pin_option pin_option in
+      let () = assert (kind <> `local) in
+      OpamClient.SafeAPI.PIN.pin
+        ~edit:false ~action:false name (Some pin_option) in
+  List.iter add_one_pin pin;
+  return_unit
+
+
+let opam_update ~repos_only () =
+  match Lwt_unix.fork () with
+  | 0 ->
+     OpamClient.SafeAPI.update ~repos_only [];
+     exit 0
+  | pid ->
+     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
+       (match stat with
+        | WEXITED i when i = 0 -> ()
+        | WEXITED i | WSIGNALED i | WSTOPPED i ->
+           failwith (Printf.sprintf "exited %d when opam update" i));
+       return_unit)
+
+
+(* only for testing *)
+let show_repo_pin state =
+  let repo = state.OpamState.Types.repositories in
+  let pin = state.OpamState.Types.pinned in
+
+  let repo_str =
+    OpamRepositoryName.Map.fold (fun name repo acc ->
+      let name = OpamRepositoryName.to_string name in
+      let kind = OpamTypesBase.string_of_repository_kind repo.repo_kind in
+      let address =
+        let url, segment = repo.repo_address in
+        match segment with
+        | None -> url
+        | Some s -> url ^ "#" ^ s in
+      let priority = string_of_int repo.repo_priority in
+      Printf.sprintf "[%s] %s %s %s" priority name kind address :: acc) repo  []
+    |> String.concat "\n" in
+
+  let pin_str =
+    OpamPackage.Name.Map.fold (fun name pin_option acc ->
+      let name = OpamPackage.Name.to_string name in
+      let pin_option = OpamTypesBase.string_of_pin_option pin_option in
+      Printf.sprintf "%s %s" name pin_option :: acc) pin []
+    |> String.concat "\n" in
+
+  let info =
+    Printf.sprintf "\n[Repo]:\n%s\n[Pin]:\n%s" repo_str pin_str in
+  log "repo_pin" ~info;
+  return_unit
+
+
+let set_root root =
+  OpamGlobals.root_dir := root

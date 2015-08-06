@@ -640,27 +640,45 @@ let install_compiler base worker (c, host) =
 
 
 let pkg_job_execute base worker jid job deps =
-  (* let inputs = Task.inputs_of_job job in *)
-  let info = Printf.sprintf "of total %d" (List.length deps) in
-  log "execute" "dependency" ~info;
-
   let (c, h) = Task.env_of_job job in
-  let c_curr = Ci_opam.detect_compiler () in
   let root = Ci_opam.detect_root () in
-
-  (if c = c_curr then return_unit
-  else
-    Ci_opam.export_existed_switch root c >>= fun () ->
-    install_compiler base worker (c, h) >>= fun () ->
-    log "execute" "compiler" ~info:(c ^ " installed");
-    return_unit) >>= fun () ->
+  let repo = Task.repo_of_job job in
+  let pin = Task.pin_of_job job in
 
   catch (fun () ->
+    Ci_opam.set_root root;
+    (match repo with
+     | None -> Ci_opam.clean_repositories (); return_unit
+     | Some repo ->
+        Ci_opam.add_repositories repo) >>= fun () ->
+    Ci_opam.opam_update ~repos_only:true () >>= fun () ->
+
+    let c_curr = Ci_opam.detect_compiler () in
+    (if c = c_curr then return_unit
+     else
+       Ci_opam.export_existed_switch root c >>= fun () ->
+       install_compiler base worker (c, h) >>= fun () ->
+       log "execute" "compiler" ~info:(c ^ " installed");
+       return_unit) >>= fun () ->
+
+    (match pin with
+     | None -> return_unit
+     | Some pin ->
+        let build =
+          let dir = Filename.concat root c in
+          Filename.concat dir "build" in
+        Unix.mkdir build 0o775;
+        Ci_opam.add_pins pin) >>= fun () ->
+
     let name, version, depopts = Task.info_of_pkg_task (Task.task_of_job job) in
     let prefix = Ci_opam.get_opam_var "prefix" in
 
     log "execute" "opam" ~info:"load state";
     let state = Ci_opam.load_state () in
+    Ci_opam.show_repo_pin state >>= fun () ->
+
+    let info = Printf.sprintf "of total %d" (List.length deps) in
+    log "execute" "dependency" ~info;
     Lwt_list.fold_left_s (fun s dep ->
         worker_request_object base worker dep >>= fun obj ->
         match Object.result_of_t obj with
@@ -674,7 +692,7 @@ let pkg_job_execute base worker jid job deps =
     let is_resolvable, graph = Ci_opam.resolvable ~name ?version ?depopts s in
     if is_resolvable then
       let () = log "execute" "resolvable" ~info:"true" in
-      let job_lst = Ci_opam.jobs_of_graph graph in
+      let job_lst = Ci_opam.jobs_of_graph ?repository:repo ?pin graph in
       worker_spawn base worker job_lst >>= fun () ->
 
       let delegate_id =
