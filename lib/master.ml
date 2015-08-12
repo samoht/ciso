@@ -183,9 +183,8 @@ let user_pkg_demand_handler params headers body =
   Scheduler.update_tables job_lst >>= fun () ->
 
   let resp = Response.make ~status:`Accepted () in
-  let ids = List.rev_map (fun (id, _, _) -> id) job_lst in
-  let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
-  let body = Body.of_string body_str in
+  let ids = `A (List.rev_map (fun (id, _, _) -> `String id) job_lst) in
+  let body = Body.of_string (Ezjsonm.to_string ids) in
   return (resp, body)
 
 (*
