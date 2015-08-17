@@ -2,7 +2,7 @@ OASISFormat: 0.4
 Name:        ocaml-ci
 Version:     0.0.0
 Synopsis:    distributed integration engine for opam packages
-Authors:     Qi Li, David Sheets
+Authors:     Qi Li, David Sheets, Thomas Gazagnaire
 License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
