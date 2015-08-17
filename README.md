@@ -1,6 +1,17 @@
-# ocaml-ci
+## CISO:
 
-A distributed Continuous Integration engine for opam packages
+A (distributed) Continuous Integration engine for OPAM
+
+### Install
+
+Need the dev version of `opam-lib`:
+
+```shell
+$ opam pin add opam-lib --dev
+$ opam pin add ciso .
+```
+
+### Architecture
 
 There are three major parts in this system: **master** **worker** **scheduler**.
 
