@@ -1,15 +1,15 @@
-open Lwt
+open Lwt.Infix
 
 let store_root ~test () =
-  if test then return "." else
+  if test then Lwt.return "." else
     let home = Sys.getenv "HOME" in
     let path = Filename.concat home "ci-store" in
     (if not (Sys.file_exists path) then Lwt_unix.mkdir path 0o770
      else if not (Sys.is_directory path) then begin
          Sys.remove path;
          Lwt_unix.mkdir path 0o770; end
-     else return ()) >>= fun () ->
-    return path
+     else Lwt.return ()) >>= fun () ->
+    Lwt.return path
 
 let server test uri =
   let module SMaker = Irmin_unix.Irmin_git.FS in

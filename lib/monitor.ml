@@ -1,5 +1,5 @@
 open Common_types
-open Lwt
+open Lwt.Infix
 
 (* set of task/object ids*)
 module IdSet = Set.Make(struct
@@ -23,7 +23,6 @@ type checkin_tbl = (worker_id, int) Hashtbl.t
 type worker_status = Idle | Working of (id * compiler)
 type status_tbl = (worker_token, worker_status) Hashtbl.t
 
-
 let check_round = 120.0
 let worker_cnt = ref 0
 let default_compilers = ["4.00.1"]
@@ -34,24 +33,22 @@ let s_tbl : status_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
 let compilers = ref []
 
+(* FIXME: duplicate code *)
 let hash_token str =
   let `Hex h =
     str
-    |> Cstruct.of_string
+    |> (fun x -> Cstruct.of_string x)
     |> Nocrypto.Hash.SHA1.digest
-    |> Hex.of_cstruct in
+    |> (fun x -> Hex.of_cstruct x) in
   h
-
 
 let new_token info =
   let time = string_of_float (Sys.time ()) in
   hash_token (info ^ time)
 
-
 let worker_checkin id =
   let times = Hashtbl.find c_tbl id in
   Hashtbl.replace c_tbl id (succ times)
-
 
 let new_worker h =
   let id = incr worker_cnt; !worker_cnt in
@@ -64,7 +61,6 @@ let new_worker h =
   worker_checkin id;
   id, token
 
-
 let verify_worker id token =
   let token_record, _, _=
     try Hashtbl.find w_tbl id
@@ -72,13 +68,11 @@ let verify_worker id token =
   if token = token_record then worker_checkin id
   else failwith "fake worker"
 
-
 let update_worker_env token compiler =
   Hashtbl.iter (fun id (t, h, _) ->
     if token = t then
       let new_env = t, h, Some compiler in
       Hashtbl.replace w_tbl id new_env) w_tbl
-
 
 let new_job id compiler token =
   let status = Hashtbl.find s_tbl token in
@@ -86,12 +80,11 @@ let new_job id compiler token =
   Hashtbl.replace s_tbl token (Working (id, compiler));
   update_worker_env token compiler
 
-
-let job_completed id token =
+let job_completed _id token =
+  (* FIXME: id is not used! *)
   match Hashtbl.find s_tbl token with
   | Idle -> ()
   | Working _ -> Hashtbl.replace s_tbl token Idle
-
 
 let publish_object id token =
   let pkgs_set = LogMap.find token !w_map in
@@ -99,17 +92,14 @@ let publish_object id token =
   w_map := LogMap.add token n_set !w_map;
   job_completed id token
 
-
 let worker_statuses () =
   Hashtbl.fold (fun id (token, _, _) acc ->
       let status = Hashtbl.find s_tbl token in
       (id, token, status) :: acc) w_tbl []
 
-
 let info_of_status = function
   | Idle -> "Idle", None
-  | Working (id, c) -> "Working", Some id
-
+  | Working (id, _) -> "Working", Some id
 
 let job_rank token deps =
   let pkgs_set = LogMap.find token !w_map in
@@ -117,12 +107,10 @@ let job_rank token deps =
       IdSet.add input set) IdSet.empty deps in
   IdSet.cardinal (IdSet.inter pkgs_set deps_set)
 
-
 let worker_environments () =
   Hashtbl.fold (fun _ (_, h, _) acc ->
       if List.mem h acc then acc
       else h :: acc) w_tbl []
-
 
 let worker_env token =
   Hashtbl.fold (fun _ (t, h, c_opt) acc ->
@@ -130,14 +118,12 @@ let worker_env token =
       else acc) w_tbl []
   |> (fun lst -> assert (1 = List.length lst); List.hd lst)
 
-
 let compilers () =
   if !compilers = [] then compilers := default_compilers;
   !compilers
 
-
 let eliminate_workers workers =
-  if workers = [] then return () else
+  if workers = [] then Lwt.return () else
     let eliminate_one (id, token) =
       Hashtbl.remove w_tbl id;
       Hashtbl.remove c_tbl id;
@@ -145,12 +131,10 @@ let eliminate_workers workers =
       Hashtbl.remove s_tbl token;
       Store.invalidate_token token in
     Lwt_list.iter_p eliminate_one workers >>= fun () ->
-
     Hashtbl.fold (fun id _ acc -> id :: acc) c_tbl []
     |> List.rev_map (fun id -> "worker" ^ (string_of_int id))
     |> String.concat " "
     |> Lwt_io.printf "\t[Alive workers]: %s\n%!"
-
 
 let worker_monitor () =
   let count () =
@@ -167,10 +151,10 @@ let worker_monitor () =
           if last_times = now_times then id :: acc else acc)
         [] now in
     if down_workers = [] then
-      loop (return now)
+      loop (Lwt.return now)
     else
       let workers = List.rev_map (fun id ->
           let t, _, _ = Hashtbl.find w_tbl id in id, t) down_workers in
       eliminate_workers workers >>= fun () ->
-      return workers in
-  loop (return (count ()))
+      Lwt.return workers in
+  loop (Lwt.return (count ()))

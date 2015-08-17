@@ -37,12 +37,12 @@ type job_entry = {
   dependencies : id list;
 } with sexp
 
-let id_of_job {id} = id
-let inputs_of_job {inputs} = inputs
-let task_of_job {task} = task
-let env_of_job {compiler; host} = (compiler, host)
-let repo_of_job {repository} = repository
-let pin_of_job {pin} = pin
+let id_of_job t = t.id
+let inputs_of_job t = t.inputs
+let task_of_job t = t.task
+let env_of_job t = (t.compiler, t.host)
+let repo_of_job t = t.repository
+let pin_of_job t = t.pin
 
 let info_of_task task =
   match task with
@@ -107,10 +107,8 @@ let hash_id ?repository ?pin task inputs compiler host =
   let input_str = String.concat ";" inputs in
   let str = task_str ^ repo_str ^ pin_str ^ input_str ^ compiler ^ host in
   let `Hex h =
-    str
-    |> Cstruct.of_string
-    |> Nocrypto.Hash.SHA1.digest
-    |> Hex.of_cstruct in
+    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
+  in
   h
 
 

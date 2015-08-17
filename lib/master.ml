@@ -1,5 +1,4 @@
-open Lwt
-open Common_types
+open Lwt.Infix
 
 module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
@@ -21,15 +20,14 @@ let message_of_body body =
   Body.to_string body >>= fun b ->
   Sexplib.Sexp.of_string b
   |> Message.worker_msg_of_sexp
-  |> return
+  |> Lwt.return
 
 let empty_response ~status =
   let resp = Response.make ~status () in
   let body = Body.empty in
-  return (resp, body)
+  Lwt.return (resp, body)
 
-
-let register_handler params headers body =
+let register_handler _params _headers body =
   message_of_body body >>= fun m ->
   let host = Message.(match m with
       | Register h -> h
@@ -37,20 +35,17 @@ let register_handler params headers body =
          failwith "Wrong message for register") in
   let id, token = Monitor.new_worker host in
   Store.register_token token >>= fun () ->
-
   let m = Message.Ack_register (id, token) in
   let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
   log "register" id "new worker registered";
-  return (resp, body)
-
+  Lwt.return (resp, body)
 
 let heartbeat_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
-
   message_of_body body >>= fun m ->
   let resp_m = Message.(match m with
       | Heartbeat None ->
@@ -59,22 +54,19 @@ let heartbeat_handler params headers body =
           | None -> Ack_heartbeat
           | Some (jid, c, desp) -> Monitor.new_job jid c token;
                                    New_job (jid, desp))
-      | Heartbeat (Some jid) ->
+      | Heartbeat (Some _jid) ->
          Message.Ack_heartbeat
       | Register _ | Publish _ | Spawn_jobs _ ->
          failwith "wrong message for heartbeat") in
-
   let resp = Response.make ~status:`OK () in
   let body = body_of_message resp_m in
-  return (resp, body)
-
+  Lwt.return (resp, body)
 
 let publish_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
-
   message_of_body body >>= fun m ->
   let result, jid = Message.(match m with
       | Publish (result, id) -> result, id
@@ -89,16 +81,13 @@ let publish_handler params headers body =
          Monitor.job_completed jid token; "FAIL: " ^ f in
   log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
   Scheduler.publish_object token result jid >>= fun () ->
-
-  empty_response `Created
-
+  empty_response ~status:`Created
 
 let spawn_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token = match Cohttp.Header.get headers "worker" with
     | Some t -> t | None -> "" in
   Monitor.verify_worker id token;
-
   message_of_body body >>= fun m ->
   let m_job_lst = Message.(match m with
       | Spawn_jobs job_lst -> job_lst
@@ -109,31 +98,24 @@ let spawn_handler params headers body =
                 |> Task.job_of_sexp in
       jid, job, deps) m_job_lst in
   Scheduler.update_tables job_lst >>= fun () ->
+  empty_response ~status:`Created
 
-  empty_response `Created
-
-
-let github_hook_handler params headers body =
+let github_hook_handler params _headers _body =
   let pr_num = List.assoc "pr_num" params |> int_of_string in
-  Scheduler.github_hook pr_num
-  >>= fun () ->
-  empty_response `Accepted
+  Scheduler.github_hook pr_num >>= fun () ->
+  empty_response ~status:`Accepted
 
-
-let user_pkg_demand_handler params headers body =
+let user_pkg_demand_handler params _headers _body =
   let c = try List.assoc "compiler" params with _ -> "" in
   let dep = try List.assoc "depopt" params with _ -> "" in
-
   let repo_name = try List.assoc "name" params with _ -> "" in
   let repo_addr = try List.assoc "address" params with _ -> "" in
   let repo_p = try List.assoc "priority" params with _ -> "" in
   let split s ~by = Re.(
     by |> char |> compile
     |> (fun re -> split re s)) in
-
   let pin_pkg = try List.assoc "pin" params with _ -> "" in
   let pin_target = try List.assoc "target" params with _ -> "" in
-
   let compilers = split c ~by:';' in
   let depopts = split dep ~by:';' in
   let repository =
@@ -162,13 +144,11 @@ let user_pkg_demand_handler params headers body =
       let targets = split pin_target ~by:';' in
       assert (List.length pkgs = List.length targets);
       Some (List.combine pkgs targets) end in
-
   let pkg = List.assoc "pkg" params in
   let name, version = Ci_opam.parse_user_demand pkg in
   let depopts = if depopts = [] then None
                 else Some (List.rev_map Ci_opam.parse_user_demand depopts) in
   let ptask = Task.make_pkg_task ~name ?version ?depopts () in
-
   let worker_hosts = Monitor.worker_environments () in
   let envs = List.fold_left (fun acc h ->
     let compilers = if compilers = [] then Monitor.compilers ()
@@ -178,43 +158,23 @@ let user_pkg_demand_handler params headers body =
      let id = Task.hash_id ?repository ?pin ptask [] c h in
      let job = Task.make_job id [] c h ptask ?repository ?pin ()  in
      id, job, []) envs)
-  |> return
+  |> Lwt.return
   >>= fun job_lst ->
   Scheduler.update_tables job_lst >>= fun () ->
-
   let resp = Response.make ~status:`Accepted () in
   let ids = List.rev_map (fun (id, _, _) -> id) job_lst in
   let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
   let body = Body.of_string body_str in
-  return (resp, body)
+  Lwt.return (resp, body)
 
-(*
-let user_compiler_demand_handler params headers body =
-  let c = List.assoc "version" params in
-  let task = Task.make_compiler_task c in
-
-  let envs = Monitor.worker_environments () in
-  if envs = [] then empty_response `OK
-  else
-    let c, h = List.hd env_lst in
-    let id = Task.hash_id task [] c h in
-    let job = Task.make_job id [] c h task in
-    Scheduler.update_tables [id, job, []] >>= fun () ->
-
-    let resp = Response.make ~status:`Accepted () in
-    let body = Body.of_string (Printf.sprintf "%s\n" id) in
-    return (resp, body)*)
-
-
-let user_job_query_handler params headers body =
+let user_job_query_handler params _headers _body =
   let jid = List.assoc "jid" params in
   Scheduler.progress_info jid >>= fun str ->
   let body = Body.of_string str in
   let resp = Response.make ~status:`OK () in
-  return (resp, body)
+  Lwt.return (resp, body)
 
-
-let user_worker_query_handler param headers body =
+let user_worker_query_handler _param _headers _body =
   let statuses = Monitor.worker_statuses () in
   let info = List.rev_map (fun (wid, token, status) ->
       let status_str = match Monitor.info_of_status status with
@@ -224,25 +184,22 @@ let user_worker_query_handler param headers body =
       Printf.sprintf "worker %d, %s, %s" wid h status_str) statuses in
   let str = Printf.sprintf "%s\n"
       (if info <> [] then (String.concat "\n" info) else "No alive workers") in
-
   let resp = Response.make ~status:`OK () in
   let body = Body.of_string str in
-  return (resp, body)
+  Lwt.return (resp, body)
 
-
-let user_object_query_handler params headers body =
+let user_object_query_handler params _headers _body =
   let jid = List.assoc "jid" params in
-  catch (fun () ->
+  Lwt.catch (fun () ->
     Store.retrieve_job jid >>= fun (job, _) ->
     Store.retrieve_object jid >>= fun obj ->
     let inputs = Task.inputs_of_job job in
     let c, h = Task.env_of_job job in
     let task_info = Task.(task_of_job job |> info_of_task) in
     let result = Object.result_of_t obj in
-
     Lwt_list.rev_map_s (fun i ->
       Store.retrieve_job i >>= fun (j, _) ->
-      return (i, Task.(task_of_job j |> info_of_task))) inputs
+      Lwt.return (i, Task.(task_of_job j |> info_of_task))) inputs
     >>= fun inputs_info ->
     let task_info_str (p, v_opt) =
       match v_opt with
@@ -262,9 +219,8 @@ let user_object_query_handler params headers body =
               |> (fun info -> info ^ "\n") in
     let resp = Response.make ~status:`OK () in
     let body = Body.of_string str in
-    return (resp, body))
-    (fun exn -> empty_response ~status:`Not_found)
-
+    Lwt.return (resp, body))
+    (fun _exn -> empty_response ~status:`Not_found)
 
 open Opium.Std
 
@@ -274,7 +230,7 @@ let handler_wrapper handler keys req =
   let body = req.Request.body in
   handler params headers body >>= fun r ->
   Response.of_response_body r
-  |> return
+  |> Lwt.return
 
 let register =
   post "/worker/registration"
@@ -303,12 +259,11 @@ let package_demand =
     let query = List.map (fun (k, vs) -> k, String.concat ";" vs) query' in
     let pkg = param req "pkg" in
     let params = ("pkg", pkg) :: query in
-
     let headers = Request.headers req in
     let body = req.Request.body in
     user_pkg_demand_handler params headers body >>= fun r ->
     Response.of_response_body r
-    |> return)
+    |> Lwt.return)
 
 let job_query =
   get "/object/:jid"
@@ -328,20 +283,18 @@ let server =
   |> package_demand |> github_hook
   |> job_query |> worker_query |> object_info_query
 
-
-let master fresh store ip port =
+let master fresh store _ip port =
+  (* FIXME: ip is not used! *)
   Store.initial_store ~uri:store ~fresh () >>= (fun () ->
-  Scheduler.bootstrap () >>= fun () ->
-
-    let rec t_monitor () =
-      Monitor.worker_monitor () >>= fun workers ->
-      log "monitor" (-1) ("some worker dies " ^ time ());
-      List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
-      t_monitor () in
-
-    join [App.start (server |> App.port port);
-          t_monitor ()])
-
+      Scheduler.bootstrap () >>= fun () ->
+      let rec t_monitor () =
+        Monitor.worker_monitor () >>= fun workers ->
+        log "monitor" (-1) ("some worker dies " ^ time ());
+        List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
+        t_monitor ()
+      in
+      Lwt.join [App.start (server |> App.port port);
+                t_monitor ()])
   |> Lwt_unix.run
 
 let ip = Cmdliner.Arg.(
@@ -359,7 +312,6 @@ let fresh = Cmdliner.Arg.(
 let store = Cmdliner.Arg.(
   required & pos 0 (some string) None & info []
     ~doc:"the address to contact the data store" ~docv:"STORE")
-
 
 let () = Cmdliner.Term.(
   let master_cmd =

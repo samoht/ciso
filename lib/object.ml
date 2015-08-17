@@ -10,10 +10,10 @@ type t = {
               (* archive who holds output and installed files, name * content *)
 } with sexp
 
-let id_of_t {id} = id
-let apply_info {installed; archive} = installed, archive
-let installed_of_t {installed} = installed
-let result_of_t {result} = result
+let id_of_t t = t.id
+let apply_info t = t.installed, t.archive
+let installed_of_t t = t.installed
+let result_of_t t = t.result
 
 let make_obj id result ~output ~installed archive =
   {id; result; output; installed; archive}
@@ -26,5 +26,5 @@ let t_of_string str =
 
 let string_of_result = function
   | `Success -> "SUCCESS"
-  | `Fail f -> "FAIL f"
+  | `Fail f -> "FAIL: " ^ f
   | `Delegate id ->"DELEGATE " ^ id

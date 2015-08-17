@@ -1,4 +1,4 @@
-open Lwt
+open Lwt.Infix
 
 let store_handle = ref None
 
@@ -38,16 +38,16 @@ let initial_store ?(uri = "http://127.0.0.1:8888") ?(fresh = false) () =
                           (module Irmin.Contents.String) in
   let config = Irmin_unix.Irmin_http.config (Uri.of_string uri) in
   Irmin.create basic config Irmin_unix.task >>= fun t ->
-  if fresh then clean_up t else return () >>= fun () ->
+  if fresh then clean_up t else Lwt.return () >>= fun () ->
   store_handle := Some t;
-  return ()
+  Lwt.return ()
 
 
 let rec get_store () =
   match !store_handle with
     | None -> initial_store () >>= fun () ->
               get_store ()
-    | Some store -> return store
+    | Some store -> Lwt.return store
 
 
 let register_token token =
@@ -72,18 +72,18 @@ let publish_object token id obj =
   let info = Printf.sprintf "object %s %s" (sub_abbr id) (time ()) in
   log "publish" "remotely" ~info;
   query_object id >>= fun exist ->
-    (if exist then return () else
+    (if exist then Lwt.return () else
       get_store () >>= fun t ->
       let token_path = path_of_token token in
       Irmin.read (t ("query token " ^ token)) token_path >>= fun t_opt ->
       match t_opt with
-      | None -> fail (raise (Invalid_argument token))
+      | None -> Lwt.fail (raise (Invalid_argument token))
       | Some _ ->
          let path = path_of_obj id in
          let content = Sexplib.Sexp.to_string (Object.sexp_of_t obj) in
          Irmin.update (t ("publish object " ^ id)) path content)
   >>= fun () ->
-    return (log "publish" "remotely" ~info:("completed " ^ (time ())))
+    Lwt.return (log "publish" "remotely" ~info:("completed " ^ (time ())))
 
 
 let retrieve_object id =
@@ -92,10 +92,10 @@ let retrieve_object id =
   get_store () >>= fun t ->
   let path = path_of_obj id in
   Irmin.read (t ("retrieve object " ^ id)) path >>= function
-  | None -> fail Not_found
+  | None -> Lwt.fail Not_found
   | Some v ->
      log "retrieve" "remotely" ~info:("get one " ^ (time ()));
-     return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
+     Lwt.return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
 
 
 let log_job id (job, deps) =
@@ -110,18 +110,18 @@ let archive_job id =
   get_store () >>= fun t ->
   let path = path_of_job id in
   Irmin.read (t ("retrieve job " ^ id)) path >>= function
-  | None -> fail (raise Not_found)
+  | None -> Lwt.fail (raise Not_found)
   | Some c ->
      let arc_path = path_of_arc id in
      Irmin.update (t ("archive job" ^ id)) arc_path c
 
 
 let unlog_job id =
-  catch (fun () -> archive_job id >>= fun () ->
+  Lwt.catch (fun () -> archive_job id >>= fun () ->
     get_store () >>= fun t ->
     let path = path_of_job id in
     Irmin.remove (t ("unlog job" ^ id)) path)
-    (function | _ -> return_unit)
+    (function | _ -> Lwt.return_unit)
 
 
 let retrieve_job id =
@@ -139,8 +139,8 @@ let retrieve_job id =
              else if is_apath then apath
              else [] in
   Irmin.read (t ("get job entry for " ^ id)) path >>= function
-  | Some c -> return (read_job_content c)
-  | None -> fail_with "job missing"
+  | Some c -> Lwt.return (read_job_content c)
+  | None -> Lwt.fail_with "job missing"
 
 
 let retrieve_jobs () =
@@ -156,10 +156,10 @@ let retrieve_jobs () =
   Lwt_list.rev_map_p (fun p ->
       let id = id_of_path p in
       Irmin.read (t ("retrieve job" ^ id)) p >>= function
-      | None -> fail (raise Not_found)
+      | None -> Lwt.fail (raise Not_found)
       | Some c ->
          let job, deps = Task.unwrap_entry (entry_of_content c) in
-         return (id, job, deps)) paths
+         Lwt.return (id, job, deps)) paths
 
 
 let query_compiler id =
@@ -174,18 +174,18 @@ let publish_compiler token id obj =
   let info = Printf.sprintf "compiler %s %s" (sub_abbr id) (time ()) in
   log "publish" "remotely" ~info;
   query_compiler id >>= fun exist ->
-    (if exist then return () else
+    (if exist then Lwt.return () else
       get_store () >>= fun t ->
       let token_path = path_of_token token in
       Irmin.read (t ("query token " ^ token)) token_path >>= fun t_opt ->
       match t_opt with
-      | None -> fail (raise (Invalid_argument token))
+      | None -> Lwt.fail (raise (Invalid_argument token))
       | Some _ ->
          let path = path_of_com id in
          let content = Sexplib.Sexp.to_string (Object.sexp_of_t obj) in
          Irmin.update (t ("publish compiler " ^ id)) path content)
   >>= fun () ->
-    return (log "publish" "remotely" ~info:("completed " ^ (time ())))
+    Lwt.return (log "publish" "remotely" ~info:("completed " ^ (time ())))
 
 
 let retrieve_compiler id =
@@ -194,7 +194,7 @@ let retrieve_compiler id =
   get_store () >>= fun t ->
   let path = path_of_com id in
   Irmin.read (t ("retrieve compiler " ^ id)) path >>= function
-  | None -> fail Not_found
+  | None -> Lwt.fail Not_found
   | Some v ->
      log "retrieve" "remotely" ~info:("get one " ^ (time ()));
-     return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
+     Lwt.return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
