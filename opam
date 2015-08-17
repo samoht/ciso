@@ -1,0 +1,33 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      [ "David Sheets" "Qi Li" "Thomas Gazagnaire"]
+license:      "ISC"
+homepage:     "https://github.com/samoht/ciso-git"
+bug-reports:  "https://github.com/samoht/ciso/issues"
+dev-repo:     "https://github.com/samoht/ciso.git"
+
+build: [
+  ["./configure" "--prefix" prefix]
+  [make]
+]
+build-test: [
+  ["./configure" "--enable-tests"]
+  [make "test"]
+]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "ciso"]
+depends: [
+  "cmdliner"
+  "cohttp"
+  "lwt"
+  "uri"
+  "re"
+  "opam-lib"
+  "ocamlgraph"
+  "github"
+  "opium"
+  "nocrypto"
+  "sexplib"
+  "irmin-unix"
+  "irmin" {>= "0.9.9"}
+]
