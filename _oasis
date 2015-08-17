@@ -7,39 +7,28 @@ License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
 
-Library ci_basic
+Library ciso
   Path: lib
-  Install: false
-  Modules: Object, Task, Message, Host, Common_types
-  BuildDepends: sexplib.syntax, sexplib
+  Modules: Store, Object, Task, Message, Host, Common_types
+  BuildDepends: sexplib.syntax, sexplib, irmin.unix
 
-Library ci_store
-  Path: lib
-  FindlibParent: ci_basic
-  Install: false
-  Modules: Store
-  BuildDepends: irmin.unix
-
-Executable store
+Executable "ciso-store"
   Path: lib
   MainIs: store_server.ml
   Custom: true
-  Install: false
   CompiledObject: best
-  BuildDepends: cmdliner, irmin.unix
+  BuildDepends: cmdliner, irmin.unix, ciso
 
-Executable worker
+Executable "ciso-worker"
   Path: lib
   MainIs: worker.ml
-  Custom: true
-  Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str, opam-lib.client
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str,
+                opam-lib.client, ocamlgraph, ciso
 
-Executable master
+Executable "ciso-master"
   Path: lib
   MainIs: master.ml
-  Custom: true
-  Install: false
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto, irmin.unix, opam-lib.client, opium
+  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto,
+                irmin.unix, opam-lib.client, opium, ciso

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9f3795e8c94ae3f9edc812d176f5a757)
+# DO NOT EDIT (digest: 1273ed104e82845ba9a7623650cf8f49)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -14,27 +14,30 @@ true: annot, bin_annot
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-# Library ci_basic
-"lib/ci_basic.cmxs": use_ci_basic
-<lib/*.ml{,i,y}>: pkg_sexplib
-<lib/*.ml{,i,y}>: pkg_sexplib.syntax
-# Library ci_store
-"lib/ci_store.cmxs": use_ci_store
-# Executable store
+# Library ciso
+"lib/ciso.cmxs": use_ciso
+# Executable ciso-store
 <lib/store_server.{native,byte}>: pkg_cmdliner
 <lib/store_server.{native,byte}>: pkg_irmin.unix
+<lib/store_server.{native,byte}>: pkg_sexplib
+<lib/store_server.{native,byte}>: pkg_sexplib.syntax
+<lib/store_server.{native,byte}>: use_ciso
 <lib/store_server.{native,byte}>: custom
-# Executable worker
+# Executable ciso-worker
 <lib/worker.{native,byte}>: pkg_cmdliner
 <lib/worker.{native,byte}>: pkg_cohttp.lwt
 <lib/worker.{native,byte}>: pkg_irmin.unix
 <lib/worker.{native,byte}>: pkg_lwt
+<lib/worker.{native,byte}>: pkg_ocamlgraph
 <lib/worker.{native,byte}>: pkg_opam-lib.client
 <lib/worker.{native,byte}>: pkg_re.str
+<lib/worker.{native,byte}>: pkg_sexplib
+<lib/worker.{native,byte}>: pkg_sexplib.syntax
 <lib/worker.{native,byte}>: pkg_uri
+<lib/worker.{native,byte}>: use_ciso
+<lib/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/*.ml{,i,y}>: pkg_re.str
-<lib/worker.{native,byte}>: custom
-# Executable master
+# Executable ciso-master
 <lib/master.{native,byte}>: pkg_cmdliner
 <lib/master.{native,byte}>: pkg_cohttp.lwt
 <lib/master.{native,byte}>: pkg_github.unix
@@ -43,7 +46,10 @@ true: annot, bin_annot
 <lib/master.{native,byte}>: pkg_nocrypto
 <lib/master.{native,byte}>: pkg_opam-lib.client
 <lib/master.{native,byte}>: pkg_opium
+<lib/master.{native,byte}>: pkg_sexplib
+<lib/master.{native,byte}>: pkg_sexplib.syntax
 <lib/master.{native,byte}>: pkg_uri
+<lib/master.{native,byte}>: use_ciso
 <lib/*.ml{,i,y}>: pkg_cmdliner
 <lib/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/*.ml{,i,y}>: pkg_github.unix
@@ -52,6 +58,10 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/*.ml{,i,y}>: pkg_opium
+<lib/*.ml{,i,y}>: pkg_sexplib
+<lib/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/*.ml{,i,y}>: pkg_uri
-<lib/master.{native,byte}>: custom
+<lib/*.ml{,i,y}>: use_ciso
 # OASIS_STOP
+true: debug, bin_annot
+true: warn(A-4-41-44), warn(A-4-41-44)

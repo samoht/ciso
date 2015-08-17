@@ -1,22 +1,12 @@
 # OASIS_START
-# DO NOT EDIT (digest: c48bc5cbd00206cc6d833441594356f6)
+# DO NOT EDIT (digest: 8229b58fc9750e4f2d74b89c0c154865)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
-requires = "sexplib.syntax sexplib"
-archive(byte) = "ci_basic.cma"
-archive(byte, plugin) = "ci_basic.cma"
-archive(native) = "ci_basic.cmxa"
-archive(native, plugin) = "ci_basic.cmxs"
-exists_if = "ci_basic.cma"
-package "ci_store" (
- version = "0.0.0"
- description = "distributed integration engine for opam packages"
- requires = "irmin.unix"
- archive(byte) = "ci_store.cma"
- archive(byte, plugin) = "ci_store.cma"
- archive(native) = "ci_store.cmxa"
- archive(native, plugin) = "ci_store.cmxs"
- exists_if = "ci_store.cma"
-)
+requires = "sexplib.syntax sexplib irmin.unix"
+archive(byte) = "ciso.cma"
+archive(byte, plugin) = "ciso.cma"
+archive(native) = "ciso.cmxa"
+archive(native, plugin) = "ciso.cmxs"
+exists_if = "ciso.cma"
 # OASIS_STOP
 
