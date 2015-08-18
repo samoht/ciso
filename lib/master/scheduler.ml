@@ -20,7 +20,6 @@ open Lwt.Infix
 open Common_types
 
 let debug fmt = Gol.debug ~section:"scheduler" fmt
-let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Scheduler: " ^^ fmt)
 
 type job_tbl = (id, Task.job) Hashtbl.t
 type deps_tbl = (id, id list) Hashtbl.t
@@ -172,45 +171,6 @@ let publish_object s _wtoken result id =
   let info_lst = List.rev_map (task_info ~abbr:true) (get_runnables ()) in
   debug "publish: {%s}" (String.concat " ; " info_lst)
 
-let user = "ocaml"
-let repo = "opam-repository"
-let token = ref None
-
-let init_gh_token name =
-  Github_cookie_jar.init ()
-  >>= fun jar -> Github_cookie_jar.get jar ~name
-  >>= function
-  | Some auth -> Lwt.return (Github.Token.of_auth auth)
-  | None -> err "None auth"
-
-(* /packages/<pkg>/<pkg.version>/{opam, url, descr, files/.., etc} *)
-let packages_of_pull token num =
-  let open Github.Monad in
-  Github.Pull.files ~token ~user ~repo ~num () |> Github.Stream.to_list
-  >|= fun files ->
-  List.fold_left (fun acc file ->
-      let parts = Array.of_list
-          (Str.split (Str.regexp "/") file.Github_t.file_filename) in
-      let pkg = try
-          if parts.(0) = "packages" && parts.(3) <> "descr"
-          then parts.(2) else ""
-        with _ -> "" in
-      if pkg <> "" && not (List.mem pkg acc) then pkg :: acc else acc)
-    [] files
-
-let pull_info token num =
-  let open Github_t in
-  let open Github.Monad in
-  Github.Pull.get ~token ~user ~repo ~num ()
-  >|= fun pull_resp ->
-  let pull = Github.Response.value pull_resp in
-  let base = pull.pull_base and head = pull.pull_head in
-  let base_repo =
-    match base.branch_repo with Some repo -> repo | None -> failwith "pr_info"
-  in
-  Task.make_pull
-    num base_repo.repository_clone_url base.branch_sha head.branch_sha
-
 let update_tables s jobs =
   Lwt_list.filter_p (fun (id, _, _) ->
       Store.query_object s id >>= fun in_store ->
@@ -301,7 +261,47 @@ let progress_info s id =
   |> fun str_lst ->
   Printf.sprintf "%s\n" (String.concat "\n" str_lst)
 
+
 (*
+let user = "ocaml"
+let repo = "opam-repository"
+let token = ref None
+
+let init_gh_token name =
+  Github_cookie_jar.init ()
+  >>= fun jar -> Github_cookie_jar.get jar ~name
+  >>= function
+  | Some auth -> Lwt.return (Github.Token.of_auth auth)
+  | None -> err "None auth"
+
+(* /packages/<pkg>/<pkg.version>/{opam, url, descr, files/.., etc} *)
+let packages_of_pull token num =
+  let open Github.Monad in
+  Github.Pull.files ~token ~user ~repo ~num () |> Github.Stream.to_list
+  >|= fun files ->
+  List.fold_left (fun acc file ->
+      let parts = Array.of_list
+          (Str.split (Str.regexp "/") file.Github_t.file_filename) in
+      let pkg = try
+          if parts.(0) = "packages" && parts.(3) <> "descr"
+          then parts.(2) else ""
+        with _ -> "" in
+      if pkg <> "" && not (List.mem pkg acc) then pkg :: acc else acc)
+    [] files
+
+let pull_info token num =
+  let open Github_t in
+  let open Github.Monad in
+  Github.Pull.get ~token ~user ~repo ~num ()
+  >|= fun pull_resp ->
+  let pull = Github.Response.value pull_resp in
+  let base = pull.pull_base and head = pull.pull_head in
+  let base_repo =
+    match base.branch_repo with Some repo -> repo | None -> failwith "pr_info"
+  in
+  Task.make_pull
+    num base_repo.repository_clone_url base.branch_sha head.branch_sha
+
 let resolve_and_add s ?pull pkg =
   let action_graph = Ci_opam.resolve [pkg] in
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
