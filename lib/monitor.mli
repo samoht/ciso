@@ -41,4 +41,4 @@ val worker_env: worker_token -> host * compiler option
 
 val compilers: unit -> compiler list
 
-val worker_monitor: unit -> (worker_id * worker_token) list Lwt.t
+val worker_monitor: Store.t -> (worker_id * worker_token) list Lwt.t

@@ -18,6 +18,7 @@
 
 open Lwt.Infix
 open Message
+open Irmin_unix
 
 let debug fmt = Gol.debug ~section:"worker" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Worker: " ^^ fmt)
@@ -27,17 +28,26 @@ module Code = Cohttp.Code
 module Client = Cohttp_lwt_unix.Client
 module Response = Cohttp_lwt_unix.Response
 
-type t = {
-  id : int;                           (* worker id assigned by master *)
-  token : Common_types.worker_token;  (* used to publish in the store *)
-  store : store;
-  mutable status : worker_status;  (* working on a task of idle *)
-}
-and worker_status =
+module Local = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
+
+type store = string -> Local.t
+
+let task name msg =
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let owner = "worker " ^ name in
+  Irmin.Task.create ~date ~owner msg
+
+type worker_status =
   | Working of Common_types.id
   | Idle
-and store = (string -> ([`BC], Irmin.Contents.String.Path.t,
-                               Irmin.Contents.String.t) Irmin.t)
+
+type t = {
+  id : int;                                   (* worker id assigned by master *)
+  token : Common_types.worker_token;          (* used to publish in the store *)
+  local : store;                                               (* local store *)
+  store: Store.t;                                             (* global store *)
+  mutable status : worker_status;                (* working on a task of idle *)
+}
 
 exception WrongResponse of string * string
 
@@ -79,19 +89,16 @@ let clean_up t =
   in
   let clean_dir = ["object"] in
   Lwt_list.iter_s (fun dir ->
-    Irmin.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
+    Local.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
     Lwt_list.iter_s (fun path ->
       print_path path >>= fun () ->
-      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path
+      Local.remove (t ("remove " ^ (String.concat "/" path))) path
       ) paths
     ) clean_dir
 
 let local_store ?(fresh = false) dir =
-  let basic =
-    Irmin.basic (module Irmin_unix.Irmin_git.FS) (module Irmin.Contents.String)
-  in
   let config = Irmin_git.config ~root:dir ~bare:true () in
-  Irmin.create basic config Irmin_unix.task >>= fun t ->
+  Local.create config (task dir) >>= fun t ->
   (if fresh then clean_up t else Lwt.return_unit) >|= fun () ->
   t
 
@@ -105,7 +112,7 @@ let comp_s = function true -> "compiler" | false -> "object"
 let local_query t ?(compiler = false) id =
   debug "query: %s %s" (comp_s compiler) (sub_abbr id);
   let path = (if compiler then path_of_com else path_of_obj) id in
-  Irmin.mem (t ("query object " ^ id)) path
+  Local.mem (t ("query object " ^ id)) path
 
 let local_publish t ?(compiler = false) id obj =
   debug "publish: %s %s" (comp_s compiler) (sub_abbr id);
@@ -117,23 +124,23 @@ let local_publish t ?(compiler = false) id obj =
      let value = Object.string_of_t obj in
      let ln = String.length value in
      debug "publish: length(%s) = %d" (sub_abbr id) ln;
-     Irmin.update (t ("publish object " ^ id)) path value))
+     Local.update (t ("publish object " ^ id)) path value))
   >|= fun () ->
   debug "publish: %s %s complete!" (comp_s compiler) (sub_abbr id)
 
 let local_retrieve t ?(compiler = false) id =
   debug "retrieve: %s %s" (comp_s compiler) (sub_abbr id);
   let path = (if compiler then path_of_com else path_of_obj) id in
-  Irmin.read_exn (t ("retrieve object" ^ id)) path >|= fun o ->
+  Local.read_exn (t ("retrieve object" ^ id)) path >|= fun o ->
   debug  "retrieve: %s %s complete!" (comp_s compiler) (sub_abbr id);
   Object.t_of_string o
 
 let local_retrieve_all t =
   let retrieve_dir = ["object"] in
   Lwt_list.fold_left_s (fun acc dir ->
-      Irmin.list (t "retrieve objects") [dir] >>= fun paths ->
+      Local.list (t "retrieve objects") [dir] >>= fun paths ->
       Lwt_list.fold_left_s (fun acc' path ->
-          Irmin.read (t ("read from " ^ (String.concat "/" path))) path >>= function
+          Local.read (t ("read from " ^ (String.concat "/" path))) path >>= function
           | None -> Lwt.return acc'
           | Some c ->
             let id = id_of_path path in
@@ -178,7 +185,7 @@ let worker_publish base t result oid _obj =
   else Lwt.fail (WrongResponse (Code.string_of_status status, "publish"))
 
 (* POST base/worker/registration -> `Created *)
-let worker_register base build_store =
+let worker_register store base build_store =
   let host = Host.detect () |> Host.to_string in
   let body = body_of_message (Message.Register host) in
   let uri_path = "worker/registration" in
@@ -193,13 +200,13 @@ let worker_register base build_store =
     | Ack_register (id, token) ->
       debug "register: success: %d token: %s" id (sub_abbr token);
       working_directory () >>= fun dir ->
-      build_store dir >>= fun store ->
-      let worker = { id; token; store; status = Idle} in
-      local_retrieve_all store >>= fun tups ->
+      build_store dir >>= fun local ->
+      let worker = { id; token; store; local; status = Idle} in
+      local_retrieve_all local >>= fun tups ->
       if tups = [] then Lwt.return worker
       else Lwt_list.iter_s (fun (id, o) ->
-          Store.publish_object token id o >>= fun () ->
-          Store.unlog_job id >>= fun () ->
+          Store.publish_object store token id o >>= fun () ->
+          Store.unlog_job store id >>= fun () ->
           worker_publish base worker `Success id o) tups >>= fun () ->
         Lwt.return worker
   else
@@ -253,15 +260,14 @@ let worker_spawn base t job_lst =
 
 (* GET worker_ip:port/path -> `OK *)
 let worker_request_object base worker oid =
-  let store = worker.store in
-  local_query store oid >>= fun exist ->
+  local_query worker.local oid >>= fun exist ->
   if exist then (
     debug "object: get object %s locally" (sub_abbr oid);
-    local_retrieve store oid
+    local_retrieve worker.local oid
   ) else (
     debug "object: get object %s remotely" (sub_abbr oid);
-    Store.retrieve_object oid >>= fun obj ->
-    local_publish store oid obj >>= fun () ->
+    Store.retrieve_object worker.store oid >>= fun obj ->
+    local_publish worker.local oid obj >>= fun () ->
     worker_publish base worker `Success oid obj >>= fun () ->
     Lwt.return obj
   )
@@ -596,24 +602,24 @@ let install_compiler worker (c, host) =
     debug "apply: %s end" c
   in
   let compiler = true in
-  local_query ~compiler worker.store cid >>= fun local_exist ->
+  local_query ~compiler worker.local cid >>= fun local_exist ->
   if local_exist then
     (debug "install: %s retrieve locally" c;
-     local_retrieve ~compiler worker.store cid) >>=
+     local_retrieve ~compiler worker.local cid) >>=
     apply_compiler_obj >>= fun () ->
     compiler_fs_origin root c ()
   else
-    Store.query_compiler cid >>= fun remote_exist ->
+    Store.query_compiler worker.store cid >>= fun remote_exist ->
     if remote_exist then
       (debug "install: %s retrieve remotely" c;
-       Store.retrieve_compiler cid) >>= fun cobj ->
-      local_publish ~compiler worker.store cid cobj >>= fun () ->
+       Store.retrieve_compiler worker.store cid) >>= fun cobj ->
+      local_publish ~compiler worker.local cid cobj >>= fun () ->
       apply_compiler_obj cobj >>= fun () ->
       compiler_fs_origin root c ()
     else
       build_compiler_object cid root c >>= fun cobj ->
-      Store.publish_compiler worker.token cid cobj >>= fun () ->
-      local_publish ~compiler worker.store cid cobj
+      Store.publish_compiler worker.store worker.token cid cobj >>= fun () ->
+      local_publish ~compiler worker.local cid cobj
 
 let pkg_job_execute base worker jid job deps =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
@@ -723,7 +729,7 @@ let compiler_job_execute jid job =
 
 let rec execution_loop base worker cond =
   Lwt_condition.wait cond >>= fun (id, desp) ->
-  local_query worker.store id >>= fun completed ->
+  local_query worker.local id >>= fun completed ->
   if completed then execution_loop base worker cond
   else (
     worker.status <- Working id;
@@ -744,16 +750,16 @@ let rec execution_loop base worker cond =
     >>= fun (result, obj) ->
     (match result with
      | `Delegate _ ->
-       Store.publish_object worker.token id obj >>= fun () ->
-       Store.unlog_job id >>= fun () ->
+       Store.publish_object worker.store worker.token id obj >>= fun () ->
+       Store.unlog_job worker.store id >>= fun () ->
        worker_publish base worker result id obj
      | `Success ->
-       Store.publish_object worker.token id obj >>= fun () ->
-       Store.unlog_job id >>= fun () ->
+       Store.publish_object worker.store worker.token id obj >>= fun () ->
+       Store.unlog_job worker.store id >>= fun () ->
        Lwt.join [worker_publish base worker result id obj;
-                 local_publish worker.store id obj]
+                 local_publish worker.local id obj]
      | `Fail _ ->
-       Store.publish_object worker.token id obj >>= fun () ->
+       Store.publish_object worker.store worker.token id obj >>= fun () ->
        worker_publish base worker result id obj) >>= fun () ->
     worker.status <- Idle;
     execution_loop base worker cond
@@ -775,16 +781,18 @@ let rec heartbeat_loop base worker cond =
     >>= fun () -> heartbeat_loop base worker cond
 
 let worker base_str store_str fresh =
-  Store.initial_store ~uri:store_str () >>= (fun () ->
-      let base = Uri.of_string base_str in
-      let build_store = local_store ~fresh in
-      worker_register base build_store >>= fun worker ->
-      let cond = Lwt_condition.create () in
-      Lwt.pick [
-        heartbeat_loop base worker cond;
-        execution_loop base worker cond;
-      ])
-  |> Lwt_main.run
+  let f () =
+    Store.create ~uri:store_str () >>= fun store ->
+    let base = Uri.of_string base_str in
+    let build_store = local_store ~fresh in
+    worker_register store base build_store >>= fun worker ->
+    let cond = Lwt_condition.create () in
+    Lwt.pick [
+      heartbeat_loop base worker cond;
+      execution_loop base worker cond;
+    ]
+  in
+  Lwt_main.run (f ())
 
 let base = Cmdliner.Arg.(
   required & pos 0 (some string) None & info []

@@ -140,25 +140,27 @@ let compilers () =
   if !compilers = [] then compilers := default_compilers;
   !compilers
 
-let eliminate_workers workers =
-  if workers = [] then Lwt.return () else
+let eliminate_workers store workers =
+  if workers = [] then Lwt.return () else (
     let eliminate_one (id, token) =
       Hashtbl.remove w_tbl id;
       Hashtbl.remove c_tbl id;
       w_map := LogMap.remove token !w_map;
       Hashtbl.remove s_tbl token;
-      Store.invalidate_token token in
+      Store.invalidate_token store token
+    in
     Lwt_list.iter_p eliminate_one workers >>= fun () ->
     Hashtbl.fold (fun id _ acc -> id :: acc) c_tbl []
     |> List.rev_map (fun id -> "worker" ^ (string_of_int id))
     |> String.concat " "
     |> Lwt_io.printf "\t[Alive workers]: %s\n%!"
+  )
 
-let worker_monitor () =
+let worker_monitor store =
   let count () =
-    Hashtbl.fold (fun id times acc -> (id, times) :: acc) c_tbl [] in
-  let rec loop t =
-    t >>= fun last ->
+    Hashtbl.fold (fun id times acc -> (id, times) :: acc) c_tbl []
+  in
+  let rec loop last =
     Lwt_unix.sleep check_round >>= fun () ->
     let now = count () in
     let down_workers =
@@ -169,10 +171,14 @@ let worker_monitor () =
           if last_times = now_times then id :: acc else acc)
         [] now in
     if down_workers = [] then
-      loop (Lwt.return now)
+      loop now
     else
-      let workers = List.rev_map (fun id ->
-          let t, _, _ = Hashtbl.find w_tbl id in id, t) down_workers in
-      eliminate_workers workers >>= fun () ->
-      Lwt.return workers in
-  loop (Lwt.return (count ()))
+      let workers =
+        List.rev_map (fun id ->
+            let t, _, _ = Hashtbl.find w_tbl id in id, t
+          ) down_workers
+      in
+      eliminate_workers store workers >>= fun () ->
+      Lwt.return workers
+  in
+  loop (count ())

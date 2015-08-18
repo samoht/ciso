@@ -40,14 +40,17 @@ let empty_response ~status =
   let body = Body.empty in
   Lwt.return (resp, body)
 
-let register_handler _params _headers body =
+let register_handler s _params _headers body =
   message_of_body body >>= fun m ->
-  let host = Message.(match m with
-      | Register h -> h
-      | Heartbeat _ | Publish _ | Spawn_jobs _ ->
-         failwith "Wrong message for register") in
+  let host =
+    let open Message in
+    match m with
+    | Register h -> h
+    | Heartbeat _ | Publish _ | Spawn_jobs _ ->
+      failwith "Wrong message for register"
+  in
   let id, token = Monitor.new_worker host in
-  Store.register_token token >>= fun () ->
+  Store.register_token s token >>= fun () ->
   let m = Message.Ack_register (id, token) in
   let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
@@ -79,7 +82,7 @@ let heartbeat_handler params headers body =
   let body = body_of_message resp_m in
   Lwt.return (resp, body)
 
-let publish_handler params headers body =
+let publish_handler s params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token =
     match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
@@ -102,10 +105,10 @@ let publish_handler params headers body =
       Monitor.job_completed jid token; "FAIL: " ^ f
   in
   debug "publish: %d object %s %s" id (Scheduler.task_info jid) r;
-  Scheduler.publish_object token result jid >>= fun () ->
+  Scheduler.publish_object s token result jid >>= fun () ->
   empty_response ~status:`Created
 
-let spawn_handler params headers body =
+let spawn_handler s params headers body =
   let id = List.assoc "id" params |> int_of_string in
   let token =
     match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
@@ -125,15 +128,15 @@ let spawn_handler params headers body =
         jid, job, deps
       ) m_job_lst
   in
-  Scheduler.update_tables job_lst >>= fun () ->
+  Scheduler.update_tables s job_lst >>= fun () ->
   empty_response ~status:`Created
 
-let github_hook_handler params _headers _body =
+let github_hook_handler s params _headers _body =
   let pr_num = List.assoc "pr_num" params |> int_of_string in
-  Scheduler.github_hook pr_num >>= fun () ->
+  Scheduler.github_hook s pr_num >>= fun () ->
   empty_response ~status:`Accepted
 
-let user_pkg_demand_handler params _headers _body =
+let user_pkg_demand_handler s params _headers _body =
   let c = try List.assoc "compiler" params with _ -> "" in
   let dep = try List.assoc "depopt" params with _ -> "" in
   let repo_name = try List.assoc "name" params with _ -> "" in
@@ -199,16 +202,16 @@ let user_pkg_demand_handler params _headers _body =
         id, job, []
       ) envs
   in
-  Scheduler.update_tables job_lst >|= fun () ->
+  Scheduler.update_tables s job_lst >|= fun () ->
   let resp = Response.make ~status:`Accepted () in
   let ids = List.rev_map (fun (id, _, _) -> id) job_lst in
   let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
   let body = Body.of_string body_str in
   resp, body
 
-let user_job_query_handler params _headers _body =
+let user_job_query_handler s params _headers _body =
   let jid = List.assoc "jid" params in
-  Scheduler.progress_info jid >|= fun str ->
+  Scheduler.progress_info s jid >|= fun str ->
   let body = Body.of_string str in
   let resp = Response.make ~status:`OK () in
   resp, body
@@ -232,17 +235,17 @@ let user_worker_query_handler _param _headers _body =
   let body = Body.of_string str in
   Lwt.return (resp, body)
 
-let user_object_query_handler params _headers _body =
+let user_object_query_handler s params _headers _body =
   let jid = List.assoc "jid" params in
   Lwt.catch (fun () ->
-      Store.retrieve_job jid >>= fun (job, _) ->
-      Store.retrieve_object jid >>= fun obj ->
+      Store.retrieve_job s jid >>= fun (job, _) ->
+      Store.retrieve_object s jid >>= fun obj ->
       let inputs = Task.inputs_of_job job in
       let c, h = Task.env_of_job job in
       let task_info = Task.(task_of_job job |> info_of_task) in
       let result = Object.result_of_t obj in
       Lwt_list.rev_map_s (fun i ->
-          Store.retrieve_job i >|= fun (j, _) ->
+          Store.retrieve_job s i >|= fun (j, _) ->
           i, Task.(task_of_job j |> info_of_task)
         ) inputs
       >|= fun inputs_info ->
@@ -284,27 +287,27 @@ let handler_wrapper handler keys req =
   Response.of_response_body r
   |> Lwt.return
 
-let register =
+let register s =
   post "/worker/registration"
-       (handler_wrapper register_handler [])
+       (handler_wrapper (register_handler s) [])
 
 let heartbeat =
   post "/workers/:id/state"
        (handler_wrapper heartbeat_handler ["id"])
 
-let publish =
+let publish s =
   post "/workers/:id/objects"
-       (handler_wrapper publish_handler ["id"])
+       (handler_wrapper (publish_handler s) ["id"])
 
-let spawn =
+let spawn s =
   post "/workers/:id/newjobs"
-       (handler_wrapper spawn_handler ["id"])
+       (handler_wrapper (spawn_handler s) ["id"])
 
-let github_hook =
+let github_hook s =
   post "/github/:pr_num"
-       (handler_wrapper github_hook_handler ["pr_num"])
+       (handler_wrapper (github_hook_handler s) ["pr_num"])
 
-let package_demand =
+let package_demand s =
   post "/package/:pkg" (fun req ->
     let uri = Request.uri req in
     let query' = Uri.query uri in
@@ -313,40 +316,48 @@ let package_demand =
     let params = ("pkg", pkg) :: query in
     let headers = Request.headers req in
     let body = req.Request.body in
-    user_pkg_demand_handler params headers body >>= fun r ->
+    user_pkg_demand_handler s params headers body >>= fun r ->
     Response.of_response_body r
     |> Lwt.return)
 
-let job_query =
+let job_query s =
   get "/object/:jid"
-      (handler_wrapper user_job_query_handler ["jid"])
+      (handler_wrapper (user_job_query_handler s) ["jid"])
 
 let worker_query =
   get "/workers/statuses"
       (handler_wrapper user_worker_query_handler [])
 
-let object_info_query =
+let object_info_query t =
   get "/object/:jid/info"
-      (handler_wrapper user_object_query_handler ["jid"])
+      (handler_wrapper (user_object_query_handler t) ["jid"])
 
-let server =
+let server s =
   App.empty
-  |> register |> heartbeat |> publish |> spawn
-  |> package_demand |> github_hook
-  |> job_query |> worker_query |> object_info_query
+  |> register s
+  |> heartbeat
+  |> publish s
+  |> spawn s
+  |> package_demand s
+  |> github_hook s
+  |> job_query s
+  |> worker_query
+  |> object_info_query s
 
 let master fresh store _ip port =
   (* FIXME: ip is not used! *)
-  Store.initial_store ~uri:store ~fresh () >>= (fun () ->
-      Scheduler.bootstrap () >>= fun () ->
-      let rec t_monitor () =
-        Monitor.worker_monitor () >>= fun workers ->
-        debug "monitor: some worker died!";
-        List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
-        t_monitor ()
-      in
-      Lwt.join [App.start (server |> App.port port); t_monitor ()])
-  |> Lwt_unix.run
+  let f () =
+    Store.create ~uri:store ~fresh () >>= fun s ->
+    Scheduler.bootstrap s >>= fun () ->
+    let rec t_monitor () =
+      Monitor.worker_monitor s >>= fun workers ->
+      debug "monitor: a worker died!";
+      List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
+      t_monitor ()
+    in
+    Lwt.join [App.start (server s |> App.port port); t_monitor ()]
+  in
+  Lwt_unix.run (f ())
 
 let ip = Cmdliner.Arg.(
   value & opt string "127.0.0.1" & info ["ip"]

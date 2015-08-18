@@ -111,7 +111,7 @@ let find_job wtoken =
 
 let err_not_found id = Printf.ksprintf failwith "%s: not found" (sub_abbr id)
 
-let publish_object_hook id =
+let publish_object_hook s id =
   if not (Hashtbl.mem h_tbl id) then Lwt.return_unit
   else (
     let ids = Hashtbl.find_all h_tbl id in
@@ -137,7 +137,7 @@ let publish_object_hook id =
           in
           if List.exists (fun input -> false = List.assoc input cache) cached
           then Lwt.return cache else
-            Lwt_list.rev_map_s (fun input -> Store.query_object input) store
+            Lwt_list.rev_map_s (fun input -> Store.query_object s input) store
             >>= fun store_results ->
             let store_tups = List.combine store (List.rev store_results) in
             Lwt_list.fold_left_s (fun acc tup ->
@@ -150,12 +150,12 @@ let publish_object_hook id =
     >>= fun _ -> Lwt.return_unit
   )
 
-let publish_object _wtoken result id =
+let publish_object s _wtoken result id =
   (* FIXME: wtoken is not used!! *)
   (match result with
    | `Delegate _ | `Success ->
       Hashtbl.replace s_tbl id `Completed;
-      publish_object_hook id
+      publish_object_hook s id
    | `Fail _ ->
       let cnt = try Hashtbl.find f_tbl id with Not_found -> 0 in
       let n_cnt = succ cnt in
@@ -211,22 +211,21 @@ let pull_info token num =
   Task.make_pull
     num base_repo.repository_clone_url base.branch_sha head.branch_sha
 
-let update_tables jobs =
+let update_tables s jobs =
   Lwt_list.filter_p (fun (id, _, _) ->
-      Store.query_object id >>= fun in_store ->
+      Store.query_object s id >>= fun in_store ->
       Lwt.return (not (in_store || Hashtbl.mem j_tbl id))) jobs
   >>=fun new_jobs ->
   (* cache contains the results of Store.query_object, it can answer
      whether a previously queried dep is in the data store or not *)
   Lwt_list.fold_left_s (fun cache (id, j, deps) ->
-      Store.log_job id (j, deps) >>= fun () ->
+      Store.log_job s id (j, deps) >>= fun () ->
       Hashtbl.replace j_tbl id j;
       Hashtbl.replace d_tbl id deps;
-
       let _cached, to_lookup =
         List.partition (fun d -> List.mem_assoc d cache) deps
       in
-      Lwt_list.rev_map_s (fun d -> Store.query_object d) to_lookup
+      Lwt_list.rev_map_s (fun d -> Store.query_object s d) to_lookup
       >>= fun lookup_results ->
       let new_cache = List.combine to_lookup (List.rev lookup_results) in
       let cache = List.rev_append new_cache cache in
@@ -244,44 +243,44 @@ let update_tables jobs =
   let run, sum = count_runnables () in
   debug "update: %d/%d jobs" run sum
 
-let bootstrap () =
+let bootstrap s =
   debug "bootstrap: read unfinished jobs";
-  Store.retrieve_jobs () >>=
-  update_tables >|= fun () ->
+  Store.retrieve_jobs s >>=
+  update_tables s >|= fun () ->
   let r, sum = count_runnables () in
   debug "bootstrap: %d/%d jobs" r sum
 
-let state_of_id id =
+let state_of_id s id =
   if Hashtbl.mem s_tbl id then
     Lwt.return (Hashtbl.find s_tbl id)
   else
-    Store.query_object id >>= fun in_store ->
+    Store.query_object s id >>= fun in_store ->
     if in_store then Lwt.return `Completed
     else err_not_found id
 
-let progress_of_id id =
+let progress_of_id s id =
   (if Hashtbl.mem d_tbl id then Lwt.return (Hashtbl.find d_tbl id)
-   else Store.retrieve_job id >>= fun (_, deps) -> Lwt.return deps)
+   else Store.retrieve_job s id >>= fun (_, deps) -> Lwt.return deps)
   >>= fun deps ->
-  Lwt_list.rev_map_s (fun d -> state_of_id d >>= fun s -> Lwt.return (d, s)) deps
+  Lwt_list.rev_map_s (fun d -> state_of_id s d >|= fun s -> d, s) deps
   >>= fun dep_states ->
-  state_of_id id >|= fun s ->
+  state_of_id s id >|= fun s ->
   (id, s) :: dep_states
 
-let get_progress id =
-  state_of_id id >>= fun s ->
-  if s <> `Completed then progress_of_id id
+let get_progress s id =
+  state_of_id s id >>= fun state ->
+  if state <> `Completed then progress_of_id s id
   else
-    Store.retrieve_object id >>= fun obj ->
+    Store.retrieve_object s id >>= fun obj ->
     match Object.result_of_t obj with
     | `Delegate del ->
-      progress_of_id del >|= fun delegates ->
+      progress_of_id s del >|= fun delegates ->
       let delegate_state = List.assoc del delegates in
       let state =
         if delegate_state <> `Completed then `Pending else `Completed
       in
       (id, state) :: delegates
-    | `Success | `Fail _ -> progress_of_id id
+    | `Success | `Fail _ -> progress_of_id s id
 
 let string_of_state = function
   | `Completed -> "Completed"
@@ -289,8 +288,8 @@ let string_of_state = function
   | `Runnable -> "Runnalbe"
   | `Dispatched _ -> "Dispatched"
 
-let progress_info id =
-  get_progress id >|= fun progress ->
+let progress_info s id =
+  get_progress s id >|= fun progress ->
   List.rev_map (fun (_id, s) ->
       let format =
         if _id = id then Printf.sprintf " -> %s %s"
@@ -302,14 +301,14 @@ let progress_info id =
   |> fun str_lst ->
   Printf.sprintf "%s\n" (String.concat "\n" str_lst)
 
-let resolve_and_add ?pull pkg =
+let resolve_and_add s ?pull pkg =
   let action_graph = Ci_opam.resolve [pkg] in
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
-  update_tables jobs >|= fun () ->
+  update_tables s jobs >|= fun () ->
   let r, sum = count_runnables () in
   debug "resolve %d/%d jobs" r sum
 
-let github_hook num =
+let github_hook s num =
   (match !token with
    | Some t -> Lwt.return t
    | None -> begin
@@ -320,7 +319,6 @@ let github_hook num =
      end)
   >>= fun token -> Github.Monad.run (pull_info token num)
   >>= fun pull -> Github.Monad.run (packages_of_pull token num)
-  >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add ~pull) pkgs
+  >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add s ~pull) pkgs
 
-let user_demand ~pkg =
-  resolve_and_add pkg
+let user_demand s ~pkg = resolve_and_add s pkg

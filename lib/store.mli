@@ -18,28 +18,30 @@
 
 open Common_types
 
-val initial_store: ?uri:string -> ?fresh:bool -> unit -> unit Lwt.t
+type t
 
-val register_token: worker_token -> unit Lwt.t
+val create: ?uri:string -> ?fresh:bool -> unit -> t Lwt.t
 
-val invalidate_token: worker_token -> unit Lwt.t
+val register_token: t -> worker_token -> unit Lwt.t
 
-val query_object: id -> bool Lwt.t
+val invalidate_token: t -> worker_token -> unit Lwt.t
 
-val publish_object: worker_token -> id -> Object.t -> unit Lwt.t
+val query_object: t -> id -> bool Lwt.t
 
-val retrieve_object: id -> Object.t Lwt.t
+val publish_object: t -> worker_token -> id -> Object.t -> unit Lwt.t
 
-val log_job: id -> Task.job * (id list) -> unit Lwt.t
+val retrieve_object: t -> id -> Object.t Lwt.t
 
-val unlog_job: id -> unit Lwt.t
+val log_job: t -> id -> Task.job * (id list) -> unit Lwt.t
 
-val retrieve_jobs: unit -> (id * Task.job * (id list)) list Lwt.t
+val unlog_job: t -> id -> unit Lwt.t
 
-val retrieve_job: id -> (Task.job * (id list)) Lwt.t
+val retrieve_jobs: t -> (id * Task.job * (id list)) list Lwt.t
 
-val query_compiler: id -> bool Lwt.t
+val retrieve_job: t -> id -> (Task.job * (id list)) Lwt.t
 
-val publish_compiler: worker_token -> id -> Object.t -> unit Lwt.t
+val query_compiler: t -> id -> bool Lwt.t
 
-val retrieve_compiler: id -> Object.t Lwt.t
+val publish_compiler: t -> worker_token -> id -> Object.t -> unit Lwt.t
+
+val retrieve_compiler: t -> id -> Object.t Lwt.t
