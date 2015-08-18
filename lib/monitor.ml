@@ -111,8 +111,9 @@ let info_of_status = function
 
 let job_rank token deps =
   let pkgs_set = LogMap.find token !w_map in
-  let deps_set = List.fold_left (fun set input ->
-      IdSet.add input set) IdSet.empty deps in
+  let deps_set =
+    List.fold_left (fun set input -> IdSet.add input set) IdSet.empty deps
+  in
   IdSet.cardinal (IdSet.inter pkgs_set deps_set)
 
 let worker_environments () =

@@ -23,7 +23,7 @@ val new_worker: host -> worker_id * Store.token
 
 val verify_worker: worker_id -> Store.token -> unit
 
-val job_rank: Store.token -> id list -> job_rank
+val job_rank: Store.token -> id list -> int
 
 val new_job: id -> compiler -> Store.token -> unit
 
