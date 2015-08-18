@@ -16,7 +16,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Detection of host configuration. *)
+
 type t
+(** The type for host configuration. *)
 
 val detect: unit -> t
+(** Detects the host configuration. *)
+
 val to_string: t -> string
+(** Pretty-print the host configuration. *)
