@@ -41,9 +41,10 @@ let hash_token str =
   in
   h
 
-let create_token info =
+let create_token () =
   let time = string_of_float (Sys.time ()) in
-  token_of_string (hash_token (info ^ time))
+  let uuid = Uuidm.to_bytes (Uuidm.create `V4) in
+  token_of_string (hash_token (uuid ^ time))
 
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in

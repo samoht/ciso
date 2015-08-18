@@ -42,7 +42,7 @@ type worker_status =
   | Idle
 
 type t = {
-  id   : int;                                 (* worker id assigned by master *)
+  id   : [`Worker] Id.t;                      (* worker id assigned by master *)
   token: Store.token;                         (* used to publish in the store *)
   local: store;                                                (* local store *)
   store: Store.t;                                             (* global store *)
@@ -176,7 +176,7 @@ let worker_publish base t result oid _obj =
   let headers = Cohttp.Header.of_list ["worker", Store.string_of_token t.token] in
   let m = Message.Publish (result, oid) in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "workers/%d/objects" t.id in
+  let uri_path = Printf.sprintf "workers/%s/objects" (Id.to_string t.id) in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
   with_client_request "publish" (Client.post ~headers ~body uri)
   >>= fun (resp, _) ->
@@ -198,7 +198,7 @@ let worker_register store base build_store =
     match m with
     | Ack_heartbeat | New_job _ -> Lwt.fail exn
     | Ack_register (id, token) ->
-      debug "register: success: %d token: %s" id
+      debug "register: success: %s token: %s" (Id.to_string id)
         (sub_abbr (Store.string_of_token token));
       working_directory () >>= fun dir ->
       build_store dir >>= fun local ->
@@ -227,7 +227,7 @@ let worker_heartbeat base t =
       debug "heartbeat: idle";
       Heartbeat None in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "workers/%d/state" t.id in
+  let uri_path = Printf.sprintf "workers/%s/state" (Id.to_string t.id) in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
   with_client_request "heartbeat" (Client.post ~headers ~body uri)
   >>= fun (resp, body) ->
@@ -254,7 +254,7 @@ let worker_spawn base t job_lst =
   in
   let m = Message.Spawn_jobs m_job_lst in
   let body = body_of_message m in
-  let uri_path = Printf.sprintf "workers/%d/newjobs" t.id in
+  let uri_path = Printf.sprintf "workers/%s/newjobs" (Id.to_string t.id) in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
   with_client_request "spawn" (Client.post ~headers ~body uri)
   >>= fun (resp, _body) ->

@@ -16,31 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Common_types
-type worker_status
+open Sexplib.Std
 
-type worker_id = [`Worker] Id.t
+type 'a t = string with sexp
 
-val new_worker: host -> worker_id * Store.token
+let to_string x = x
+let of_string _ x = x
 
-val verify_worker: worker_id -> Store.token -> unit
-
-val job_rank: Store.token -> id list -> int
-
-val new_job: id -> compiler -> Store.token -> unit
-
-val job_completed: id -> Store.token -> unit
-
-val publish_object: id -> Store.token -> unit
-
-val worker_statuses: unit -> (worker_id * Store.token * worker_status) list
-
-val info_of_status: worker_status -> string * string option
-
-val worker_environments: unit -> host list
-
-val worker_env: Store.token -> host * compiler option
-
-val compilers: unit -> compiler list
-
-val worker_monitor: Store.t -> (worker_id * Store.token) list Lwt.t
+let of_uuid kind = of_string kind (Uuidm.to_bytes (Uuidm.create `V4))

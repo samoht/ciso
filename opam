@@ -18,6 +18,7 @@ install: [make "install"]
 remove: ["ocamlfind" "remove" "ciso"]
 depends: [
   "cmdliner"
+  "uuidm"
   "cohttp"
   "lwt"
   "uri"

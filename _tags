@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d2bcf549319029409cb50c6c6f036dd4)
+# DO NOT EDIT (digest: 05f5910047520fdf9692d6c732cd03e0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -20,6 +20,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_sexplib
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/*.ml{,i,y}>: pkg_uuidm
 # Library ciso-worker
 "lib/worker/ciso-worker.cmxs": use_ciso-worker
 <lib/worker/*.ml{,i,y}>: pkg_cohttp.lwt
@@ -29,6 +30,7 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/worker/*.ml{,i,y}>: pkg_sexplib
 <lib/worker/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/worker/*.ml{,i,y}>: pkg_uuidm
 <lib/worker/*.ml{,i,y}>: use_ciso
 # Library ciso-master
 "lib/master/ciso-master.cmxs": use_ciso-master
@@ -40,6 +42,7 @@ true: annot, bin_annot
 <lib/master/*.ml{,i,y}>: pkg_sexplib
 <lib/master/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/master/*.ml{,i,y}>: pkg_uri
+<lib/master/*.ml{,i,y}>: pkg_uuidm
 <lib/master/*.ml{,i,y}>: use_ciso
 # Library ciso-github
 "lib/github/ciso-github.cmxs": use_ciso-github
@@ -51,6 +54,7 @@ true: annot, bin_annot
 <lib/github/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/github/*.ml{,i,y}>: pkg_sexplib
 <lib/github/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/github/*.ml{,i,y}>: pkg_uuidm
 <lib/github/*.ml{,i,y}>: use_ciso
 <lib/github/*.ml{,i,y}>: use_ciso-worker
 # Executable ciso-store
@@ -59,6 +63,7 @@ true: annot, bin_annot
 <bin/store_main.{native,byte}>: pkg_lwt
 <bin/store_main.{native,byte}>: pkg_sexplib
 <bin/store_main.{native,byte}>: pkg_sexplib.syntax
+<bin/store_main.{native,byte}>: pkg_uuidm
 <bin/store_main.{native,byte}>: use_ciso
 <bin/store_main.{native,byte}>: custom
 # Executable ciso-worker
@@ -70,6 +75,7 @@ true: annot, bin_annot
 <bin/worker_main.{native,byte}>: pkg_opam-lib.client
 <bin/worker_main.{native,byte}>: pkg_sexplib
 <bin/worker_main.{native,byte}>: pkg_sexplib.syntax
+<bin/worker_main.{native,byte}>: pkg_uuidm
 <bin/worker_main.{native,byte}>: use_ciso
 <bin/worker_main.{native,byte}>: use_ciso-worker
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
@@ -85,6 +91,7 @@ true: annot, bin_annot
 <bin/master_main.{native,byte}>: pkg_sexplib
 <bin/master_main.{native,byte}>: pkg_sexplib.syntax
 <bin/master_main.{native,byte}>: pkg_uri
+<bin/master_main.{native,byte}>: pkg_uuidm
 <bin/master_main.{native,byte}>: use_ciso
 <bin/master_main.{native,byte}>: use_ciso-master
 <bin/*.ml{,i,y}>: pkg_cmdliner
@@ -96,6 +103,7 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_sexplib.syntax
 <bin/*.ml{,i,y}>: pkg_uri
+<bin/*.ml{,i,y}>: pkg_uuidm
 <bin/*.ml{,i,y}>: use_ciso
 <bin/*.ml{,i,y}>: use_ciso-master
 # OASIS_STOP

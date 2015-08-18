@@ -20,8 +20,6 @@ open Sexplib.Std
 
 type id = string with sexp
 
-type worker_id = int with sexp
-
 type compiler = string with sexp
 type host = string with sexp
 type root = string with sexp

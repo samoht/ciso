@@ -26,7 +26,7 @@ type t
 type token with sexp
 val string_of_token: token -> string
 val token_of_string: string -> token
-val create_token: string -> token
+val create_token: unit -> token
 
 val create: ?uri:string -> ?fresh:bool -> unit -> t Lwt.t
 

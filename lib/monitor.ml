@@ -19,6 +19,8 @@
 open Common_types
 open Lwt.Infix
 
+type worker_id = [`Worker] Id.t
+
 (* set of task/object ids*)
 module IdSet = Set.Make(struct
   type t = id
@@ -43,7 +45,6 @@ type worker_status = Idle | Working of (id * compiler)
 type status_tbl = (Store.token, worker_status) Hashtbl.t
 
 let check_round = 120.0
-let worker_cnt = ref 0
 let default_compilers = ["4.00.1"]
 
 let w_tbl : worker_tbl = Hashtbl.create 16
@@ -57,9 +58,8 @@ let worker_checkin id =
   Hashtbl.replace c_tbl id (succ times)
 
 let new_worker h =
-  let id = incr worker_cnt; !worker_cnt in
-  let info = (string_of_int id) ^ h in
-  let token = Store.create_token info in
+  let id = Id.of_uuid `Worker in
+  let token = Store.create_token () in
   w_map := LogMap.add token IdSet.empty !w_map;
   Hashtbl.replace s_tbl token Idle;
   Hashtbl.replace w_tbl id (token, h, None);
@@ -67,7 +67,8 @@ let new_worker h =
   worker_checkin id;
   id, token
 
-let err_invalid_worker id = Printf.ksprintf failwith "invalid worker: %d" id
+let err_invalid_worker id =
+  Printf.ksprintf failwith "invalid worker: %s" (Id.to_string id)
 
 let verify_worker id token =
   let token_record, _, _=
@@ -142,7 +143,7 @@ let eliminate_workers store workers =
     in
     Lwt_list.iter_p eliminate_one workers >>= fun () ->
     Hashtbl.fold (fun id _ acc -> id :: acc) c_tbl []
-    |> List.rev_map (fun id -> "worker" ^ (string_of_int id))
+    |> List.rev_map (fun id -> "worker" ^ Id.to_string id)
     |> String.concat " "
     |> Lwt_io.printf "\t[Alive workers]: %s\n%!"
   )

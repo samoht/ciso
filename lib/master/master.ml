@@ -53,7 +53,7 @@ let register_handler s _params _headers body =
   let m = Message.Ack_register (id, token) in
   let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
-  debug "register: %d new worker registered" id;
+  debug "register: %s new worker registered" (Id.to_string id);
   Lwt.return (resp, body)
 
 let err_no_token () = failwith "no token!"
@@ -62,8 +62,10 @@ let parse_token headers =
   | Some t -> Store.token_of_string t
   | None   -> err_no_token ()
 
+let parse_id params = List.assoc "id" params |> Id.of_string `Worker
+
 let heartbeat_handler params headers body =
-  let id = List.assoc "id" params |> int_of_string in
+  let id = parse_id params in
   let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >|= fun m ->
@@ -71,7 +73,7 @@ let heartbeat_handler params headers body =
     let open Message in
     match m with
     | Heartbeat None ->
-      debug "heartbeat: %d idle" id;
+      debug "heartbeat: %s idle" (Id.to_string id);
       (match Scheduler.find_job token with
        | None -> Ack_heartbeat
        | Some (jid, c, desp) -> Monitor.new_job jid c token;
@@ -86,7 +88,7 @@ let heartbeat_handler params headers body =
   resp, body
 
 let publish_handler s params headers body =
-  let id = List.assoc "id" params |> int_of_string in
+  let id = parse_id params in
   let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
@@ -105,12 +107,12 @@ let publish_handler s params headers body =
     | `Fail f ->
       Monitor.job_completed jid token; "FAIL: " ^ f
   in
-  debug "publish: %d object %s %s" id (Scheduler.task_info jid) r;
+  debug "publish: %s object %s %s" (Id.to_string id) (Scheduler.task_info jid) r;
   Scheduler.publish_object s token result jid >>= fun () ->
   empty_response ~status:`Created
 
 let spawn_handler s params headers body =
-  let id = List.assoc "id" params |> int_of_string in
+  let id = parse_id params in
   let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
@@ -214,7 +216,7 @@ let user_worker_query_handler _param _headers _body =
           | s, None -> s
           | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
         let h, _ = Monitor.worker_env token in
-        Printf.sprintf "worker %d, %s, %s" wid h status_str
+        Printf.sprintf "worker %s, %s, %s" (Id.to_string wid) h status_str
       ) statuses
   in
   let str =

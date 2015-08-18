@@ -16,31 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Common_types
-type worker_status
+(* FIXME: doc *)
 
-type worker_id = [`Worker] Id.t
+type 'a t with sexp
 
-val new_worker: host -> worker_id * Store.token
+val to_string: 'a t -> string
+val of_string: 'a -> string -> 'a t
 
-val verify_worker: worker_id -> Store.token -> unit
-
-val job_rank: Store.token -> id list -> int
-
-val new_job: id -> compiler -> Store.token -> unit
-
-val job_completed: id -> Store.token -> unit
-
-val publish_object: id -> Store.token -> unit
-
-val worker_statuses: unit -> (worker_id * Store.token * worker_status) list
-
-val info_of_status: worker_status -> string * string option
-
-val worker_environments: unit -> host list
-
-val worker_env: Store.token -> host * compiler option
-
-val compilers: unit -> compiler list
-
-val worker_monitor: Store.t -> (worker_id * Store.token) list Lwt.t
+val of_uuid: 'a -> 'a t
