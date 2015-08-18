@@ -91,4 +91,4 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: use_ciso-master
 # OASIS_STOP
 true: debug, bin_annot
-true: warn(A-4-41-44), warn(A-4-41-44)
+true: warn(A-4-41-44), warn_error(A-4-41-44)
