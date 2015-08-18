@@ -13,17 +13,18 @@ Library ciso
   BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt
 
 Library "ciso-worker"
-  Path: lib
+  Path: lib/worker
   FindlibParent: ciso
   FindlibName: worker
-  InternalModules: Ci_opam
+  InternalModules: Opam
   Modules: Worker
   BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt, cohttp.lwt
 
 Library "ciso-master"
-  Path: lib
+  Path: lib/master
   FindlibParent: ciso
   FindlibName: master
+  InternalModules: Scheduler
   Modules: Master
   BuildDepends: ciso, github.unix, lwt, nocrypto, cohttp.lwt, uri, opium
 
