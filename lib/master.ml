@@ -19,7 +19,6 @@
 open Lwt.Infix
 
 let debug fmt = Gol.debug ~section:"master" fmt
-let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Master: " ^^ fmt)
 
 module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
@@ -63,7 +62,7 @@ let heartbeat_handler params headers body =
     match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
   in
   Monitor.verify_worker id token;
-  message_of_body body >>= fun m ->
+  message_of_body body >|= fun m ->
   let resp_m =
     let open Message in
     match m with
@@ -80,7 +79,7 @@ let heartbeat_handler params headers body =
   in
   let resp = Response.make ~status:`OK () in
   let body = body_of_message resp_m in
-  Lwt.return (resp, body)
+  resp, body
 
 let publish_handler s params headers body =
   let id = List.assoc "id" params |> int_of_string in
