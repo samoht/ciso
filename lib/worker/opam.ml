@@ -376,12 +376,12 @@ let clean_repositories () =
     else OpamRepositoryCommand.remove r.repo_name) repos
 
 let add_repositories repo =
-  let add_one_repo (name, address, priority) =
+  let add_one_repo (name, address) =
     debug "repository: add %s %s" name address;
     let name = OpamRepositoryName.of_string name in
     let address = OpamTypesBase.address_of_string address in
     let address, kind = OpamTypesBase.parse_url address in
-    OpamRepositoryCommand.add name kind address ~priority
+    OpamRepositoryCommand.add name kind address ~priority:None
   in
   (* FIXME: review use of fork *)
   match Lwt_unix.fork () with

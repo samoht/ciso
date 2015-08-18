@@ -21,8 +21,8 @@ open Sexplib.Std
 (* name, verison option *)
 type depopt = string * string option with sexp
 
-(* name, address, priority option *)
-type repository = string * string * int option with sexp
+(* name, address option *)
+type repository = string * string with sexp
 
 (* package, target *)
 type pin = string * string with sexp
@@ -69,15 +69,13 @@ let hash_id ?(repositories=[]) ?(pins=[]) task inputs compiler host =
           |> String.concat ";" in
       n ^ v_str ^ depopt_str
   in
-  let repo_str = match repositories with
+  let repo_str = match (repositories: repository list) with
     | [] -> ""
     | _  ->
-      List.rev_map (fun (n, add, p_opt) ->
-          n ^ add
-          ^ match p_opt with None -> "" | Some p -> string_of_int p) repositories
+      List.rev_map (fun (n, add) -> n ^ add) repositories
       |> String.concat ";"
   in
-  let pin_str = match pins with
+  let pin_str = match (pins: pin list) with
     | [] -> ""
     | _  ->
       List.rev_map (fun (pkg, target) -> pkg ^ ":" ^ target) pins

@@ -146,7 +146,6 @@ let user_pkg_demand_handler s params _headers _body =
   let dep = try List.assoc "depopt" params with _ -> "" in
   let repo_name = try List.assoc "name" params with _ -> "" in
   let repo_addr = try List.assoc "address" params with _ -> "" in
-  let repo_p = try List.assoc "priority" params with _ -> "" in
   let split s ~by = Re.(by |> char |> compile |> (fun re -> split re s)) in
   let pin_pkg = try List.assoc "pin" params with _ -> "" in
   let pin_target = try List.assoc "target" params with _ -> "" in
@@ -159,19 +158,7 @@ let user_pkg_demand_handler s params _headers _body =
       let names = split repo_name ~by:';' in
       let addrs = split repo_addr ~by:';' in
       assert (List.length names = List.length addrs);
-      let tups = List.combine names addrs in
-      if repo_p = "" then
-        List.map (fun (n, add) -> n, add, None) tups
-      else
-        let p = split repo_p ~by:';' in
-        assert (List.length names = List.length p);
-        let priorities = List.map (fun p -> Some (int_of_string p)) p in
-        let rec combine acc = function
-          | [], [] -> acc
-          | (h1, h2) :: tup_tl, h :: tl ->
-            combine ((h1, h2, h) :: acc) (tup_tl, tl)
-          | _ -> failwith "uneven list for combine" in
-        combine [] (tups, priorities)
+      List.combine names addrs
     )
   in
   let pins: Task.pin list =

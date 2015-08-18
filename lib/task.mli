@@ -20,7 +20,7 @@
 
 type t with sexp
 
-type repository = string * string * int option with sexp
+type repository = string * string with sexp
 type pin = string * string with sexp
 type depopt = string * string option
 
