@@ -27,3 +27,7 @@ Any other **worker** who needs this _object_ to execute their own _task_ will ma
 
 There are more parts to add, like a github repo listener, who listens PR from ocaml/opam-repository, and add tasks in the task table of the **master**
 Rigth now, this project is in phase **pre-alpha**
+
+### License
+
+ISC. See the [LICENSE](./blob/master/LICENSE) file.
