@@ -19,4 +19,3 @@
 open Sexplib.Std
 
 type id = string with sexp
-type root = string with sexp
