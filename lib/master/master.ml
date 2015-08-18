@@ -123,7 +123,7 @@ let spawn_handler s params headers body =
   in
   let job_lst =
     List.rev_map (fun (jid, desp, deps) ->
-        let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
+        let job = Task.job_of_string desp in
         jid, job, deps
       ) m_job_lst
   in

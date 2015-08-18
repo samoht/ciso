@@ -35,7 +35,6 @@ and pull = {
 (* name, verison option *)
 and depopt = string * string option with sexp
 
-
 type job = {
   id : id;           (* task is referenced by this id *)
   inputs : id list;  (* inputs are object ids *)
@@ -55,7 +54,6 @@ type job_entry = {
   dependencies : id list;
 } with sexp
 
-let id_of_job t = t.id
 let inputs_of_job t = t.inputs
 let task_of_job t = t.task
 let env_of_job t = (t.compiler, t.host)
@@ -82,12 +80,13 @@ let info_of_pkg_task = function
   | Package (n, v, depopts) -> n, v, depopts
   | Compiler _ | Github _ -> assert false
 
-
+(*
 let make_pull num url base head = {
     pull_num = num;
     repo_url = url;
     base_sha = base;
     head_sha = head;}
+*)
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
@@ -129,13 +128,9 @@ let hash_id ?repository ?pin task inputs compiler host =
   in
   h
 
-
 let make_pkg_task ~name ?version ?depopts () = Package (name, version, depopts)
 
-let make_compiler_task compiler = Compiler compiler
-
 let make_gh_task ~name ?version pull = Github (name, version, pull)
-
 
 let make_job id inputs compiler host task ?repository ?pin () =
   {id; inputs; compiler; host; repository; pin; task}
@@ -143,3 +138,14 @@ let make_job id inputs compiler host task ?repository ?pin () =
 let make_job_entry job dependencies = {job; dependencies}
 
 let unwrap_entry {job; dependencies} = job, dependencies
+
+let string_of_job_entry entry = Sexplib.Sexp.to_string (sexp_of_job_entry entry)
+let job_entry_of_string s = job_entry_of_sexp (Sexplib.Sexp.of_string s)
+
+let string_of_job job = Sexplib.Sexp.to_string (sexp_of_job job)
+
+let to_compiler = function
+  | Compiler c -> Some c
+  | _ -> None
+
+let job_of_string s = job_of_sexp (Sexplib.Sexp.of_string s)

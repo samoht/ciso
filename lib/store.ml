@@ -98,7 +98,7 @@ let retrieve_object t id =
 let log_job t id (job, deps) =
   let path = path_of_job id in
   let entry = Task.make_job_entry job deps in
-  let content = Sexplib.Sexp.to_string (Task.sexp_of_job_entry entry) in
+  let content = Task.string_of_job_entry entry in
   Store.update (t ("log job " ^ id)) path content
 
 let archive_job t id =
@@ -120,8 +120,8 @@ let retrieve_job t id =
   let jpath = path_of_job id in
   let apath = path_of_arc id in
   let read_job_content c =
-    c |> Sexplib.Sexp.of_string
-    |> Task.job_entry_of_sexp
+    c
+    |> Task.job_entry_of_string
     |> Task.unwrap_entry
   in
   Store.mem (t ("query job " ^ id)) jpath >>= fun is_jpath ->
@@ -130,17 +130,19 @@ let retrieve_job t id =
   Store.read_exn (t ("get job entry for " ^ id)) path >|= fun c ->
   read_job_content c
 
+let err_empty_path () = err "empty path"
+
 let retrieve_jobs t =
   let par_dir = ["job"] in
   Store.list (t "list ids") par_dir >>= fun paths ->
   let rec id_of_path = function
-    | [id]  -> id
+    | [id]  -> Lwt.return id
     | _::tl -> id_of_path tl
-    | []    -> raise (Invalid_argument "empty path")
+    | []    -> err_empty_path ()
   in
-  let entry_of_content c = Task.job_entry_of_sexp (Sexplib.Sexp.of_string c) in
+  let entry_of_content c = Task.job_entry_of_string c in
   Lwt_list.rev_map_p (fun p ->
-      let id = id_of_path p in
+      id_of_path p >>= fun id ->
       Store.read_exn (t ("retrieve job" ^ id)) p >|= fun c ->
       let job, deps = Task.unwrap_entry (entry_of_content c) in
       id, job, deps

@@ -101,8 +101,7 @@ let find_job wtoken =
     let deps = Hashtbl.find d_tbl id in
     let desp =
       Task.make_job_entry job deps
-      |> Task.sexp_of_job_entry
-      |> Sexplib.Sexp.to_string
+      |> Task.string_of_job_entry
     in
     let c, _ = Task.env_of_job job in
     Some (id, c, desp)

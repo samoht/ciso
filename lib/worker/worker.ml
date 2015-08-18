@@ -243,7 +243,7 @@ let worker_spawn base t job_lst =
   let headers = Cohttp.Header.of_list ["worker", t.token] in
   let m_job_lst =
     List.rev_map (fun (id, job, deps) ->
-        let desp = Task.sexp_of_job job |> Sexplib.Sexp.to_string in
+        let desp = Task.string_of_job job in
         id, desp, deps
       ) job_lst
   in
@@ -705,9 +705,9 @@ let pkg_job_execute base worker jid job deps =
 
 let compiler_job_execute jid job =
   let task = Task.task_of_job job in
-  let comp = Task.(match task with
-      | Compiler c -> c
-      | Package _ | Github _ -> failwith "not compiler build task")
+  let comp = match Task.to_compiler task with
+      | Some c -> c
+      | None   -> failwith "not compiler build task"
   in
   debug "execute: build compiler: %s" comp;
   try
@@ -740,19 +740,16 @@ let rec execution_loop base worker cond =
   else (
     worker.status <- Working id;
     (try
-       Sexplib.Sexp.of_string desp
-       |> Task.job_entry_of_sexp
+       Task.job_entry_of_string desp
        |> Task.unwrap_entry
        |> Lwt.return
      with _ ->
        err "execute: sexp %s" desp
     ) >>= fun (job, deps) ->
     let task = Task.task_of_job job in
-    let open Task in
-    (match task with
-     | Package _  -> pkg_job_execute base worker id job deps
-     | Compiler _ -> compiler_job_execute id job
-     | Github _   -> Lwt.fail_with "to be implemented")
+    (match Task.to_compiler task with
+     | None   -> pkg_job_execute base worker id job deps
+     | Some _ -> compiler_job_execute id job)
     >>= fun (result, obj) ->
     (match result with
      | `Delegate _ ->
