@@ -135,6 +135,11 @@ let github_hook_handler s params _headers _body =
   Scheduler.github_hook s pr_num >>= fun () ->
   empty_response ~status:`Accepted
 
+let name_version_of_pkg str =
+  match Stringext.cut str ~on:"." with
+  | None        -> str, None
+  | Some (n, v) -> n  , Some v
+
 let user_pkg_demand_handler s params _headers _body =
   let c = try List.assoc "compiler" params with _ -> "" in
   let dep = try List.assoc "depopt" params with _ -> "" in
@@ -179,10 +184,10 @@ let user_pkg_demand_handler s params _headers _body =
     )
   in
   let pkg = List.assoc "pkg" params in
-  let name, version = Ci_opam.parse_user_demand pkg in
+  let name, version = name_version_of_pkg pkg in
   let depopts =
     if depopts = [] then None
-    else Some (List.rev_map Ci_opam.parse_user_demand depopts)
+    else Some (List.rev_map name_version_of_pkg depopts)
   in
   let ptask = Task.make_pkg_task ~name ?version ?depopts () in
   let worker_hosts = Monitor.worker_environments () in
