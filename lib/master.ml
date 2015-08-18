@@ -1,15 +1,10 @@
 open Lwt.Infix
 
+let debug fmt = Gol.debug ~section:"master" fmt
+let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Master: " ^^ fmt)
+
 module Response = Cohttp_lwt_unix.Response
 module Body = Cohttp_lwt_body
-
-let log handler worker_id info =
-  let title = Printf.sprintf "worker%d@%s" worker_id handler in
-  Printf.eprintf "[%s]: %s\n%!" title info
-
-let time () = Unix.(
-  let tm = localtime (time ()) in
-  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
 
 let body_of_message m =
   Message.sexp_of_master_msg m
@@ -38,65 +33,80 @@ let register_handler _params _headers body =
   let m = Message.Ack_register (id, token) in
   let resp = Response.make ~status:`Created () in
   let body = body_of_message m in
-  log "register" id "new worker registered";
+  debug "register: %d new worker registered" id;
   Lwt.return (resp, body)
 
 let heartbeat_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token = match Cohttp.Header.get headers "worker" with
-    | Some t -> t | None -> "" in
+  let token =
+    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
+  in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
-  let resp_m = Message.(match m with
-      | Heartbeat None ->
-         log "heartbeat" id "idle";
-         (match Scheduler.find_job token with
-          | None -> Ack_heartbeat
-          | Some (jid, c, desp) -> Monitor.new_job jid c token;
-                                   New_job (jid, desp))
-      | Heartbeat (Some _jid) ->
-         Message.Ack_heartbeat
-      | Register _ | Publish _ | Spawn_jobs _ ->
-         failwith "wrong message for heartbeat") in
+  let resp_m =
+    let open Message in
+    match m with
+    | Heartbeat None ->
+      debug "heartbeat: %d idle" id;
+      (match Scheduler.find_job token with
+       | None -> Ack_heartbeat
+       | Some (jid, c, desp) -> Monitor.new_job jid c token;
+         New_job (jid, desp))
+    | Heartbeat (Some _jid) ->
+      Message.Ack_heartbeat
+    | Register _ | Publish _ | Spawn_jobs _ ->
+      failwith "wrong message for heartbeat"
+  in
   let resp = Response.make ~status:`OK () in
   let body = body_of_message resp_m in
   Lwt.return (resp, body)
 
 let publish_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token = match Cohttp.Header.get headers "worker" with
-    | Some t -> t | None -> "" in
+  let token =
+    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
+  in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
-  let result, jid = Message.(match m with
-      | Publish (result, id) -> result, id
-      | Register _ | Heartbeat _ | Spawn_jobs _ ->
-         failwith "wrong message for publish") in
+  let result, jid =
+    let open Message in
+    match m with
+    | Publish (result, id) -> result, id
+    | Register _ | Heartbeat _ | Spawn_jobs _ ->
+      failwith "wrong message for publish"
+  in
   let r = match result with
-      | `Success ->
-         Monitor.publish_object jid token; "SUCCESS"
-      | `Delegate d ->
-         Monitor.job_completed jid token; "DELEGATE: " ^ Scheduler.task_info d
-      | `Fail f ->
-         Monitor.job_completed jid token; "FAIL: " ^ f in
-  log "publish" id (Printf.sprintf "object %s %s" (Scheduler.task_info jid) r);
+    | `Success ->
+      Monitor.publish_object jid token; "SUCCESS"
+    | `Delegate d ->
+      Monitor.job_completed jid token; "DELEGATE: " ^ Scheduler.task_info d
+    | `Fail f ->
+      Monitor.job_completed jid token; "FAIL: " ^ f
+  in
+  debug "publish: %d object %s %s" id (Scheduler.task_info jid) r;
   Scheduler.publish_object token result jid >>= fun () ->
   empty_response ~status:`Created
 
 let spawn_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token = match Cohttp.Header.get headers "worker" with
-    | Some t -> t | None -> "" in
+  let token =
+    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
+  in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
-  let m_job_lst = Message.(match m with
-      | Spawn_jobs job_lst -> job_lst
-      | Publish _ | Register _ | Heartbeat _ ->
-         failwith "wrong message for spawn") in
-  let job_lst = List.rev_map (fun (jid, desp, deps) ->
-      let job = Sexplib.Sexp.of_string desp
-                |> Task.job_of_sexp in
-      jid, job, deps) m_job_lst in
+  let m_job_lst =
+    let open Message in
+    match m with
+    | Spawn_jobs job_lst -> job_lst
+    | Publish _ | Register _ | Heartbeat _ ->
+      failwith "wrong message for spawn"
+  in
+  let job_lst =
+    List.rev_map (fun (jid, desp, deps) ->
+        let job = Sexplib.Sexp.of_string desp |> Task.job_of_sexp in
+        jid, job, deps
+      ) m_job_lst
+  in
   Scheduler.update_tables job_lst >>= fun () ->
   empty_response ~status:`Created
 
@@ -111,16 +121,15 @@ let user_pkg_demand_handler params _headers _body =
   let repo_name = try List.assoc "name" params with _ -> "" in
   let repo_addr = try List.assoc "address" params with _ -> "" in
   let repo_p = try List.assoc "priority" params with _ -> "" in
-  let split s ~by = Re.(
-    by |> char |> compile
-    |> (fun re -> split re s)) in
+  let split s ~by = Re.(by |> char |> compile |> (fun re -> split re s)) in
   let pin_pkg = try List.assoc "pin" params with _ -> "" in
   let pin_target = try List.assoc "target" params with _ -> "" in
   let compilers = split c ~by:';' in
   let depopts = split dep ~by:';' in
   let repository =
-    if repo_name = "" || repo_addr = "" then None
-    else begin
+    if repo_name = "" || repo_addr = "" then
+      None
+    else (
       let names = split repo_name ~by:';' in
       let addrs = split repo_addr ~by:';' in
       assert (List.length names = List.length addrs);
@@ -134,56 +143,73 @@ let user_pkg_demand_handler params _headers _body =
         let rec combine acc = function
           | [], [] -> acc
           | (h1, h2) :: tup_tl, h :: tl ->
-             combine ((h1, h2, h) :: acc) (tup_tl, tl)
+            combine ((h1, h2, h) :: acc) (tup_tl, tl)
           | _ -> failwith "uneven list for combine" in
-        Some (combine [] (tups, priorities)) end in
+        Some (combine [] (tups, priorities))
+    )
+  in
   let pin =
-    if pin_pkg = "" || pin_target = "" then None
-    else begin
+    if pin_pkg = "" || pin_target = "" then
+      None
+    else (
       let pkgs = split pin_pkg ~by:';' in
       let targets = split pin_target ~by:';' in
       assert (List.length pkgs = List.length targets);
-      Some (List.combine pkgs targets) end in
+      Some (List.combine pkgs targets)
+    )
+  in
   let pkg = List.assoc "pkg" params in
   let name, version = Ci_opam.parse_user_demand pkg in
-  let depopts = if depopts = [] then None
-                else Some (List.rev_map Ci_opam.parse_user_demand depopts) in
+  let depopts =
+    if depopts = [] then None
+    else Some (List.rev_map Ci_opam.parse_user_demand depopts)
+  in
   let ptask = Task.make_pkg_task ~name ?version ?depopts () in
   let worker_hosts = Monitor.worker_environments () in
-  let envs = List.fold_left (fun acc h ->
-    let compilers = if compilers = [] then Monitor.compilers ()
-                    else compilers in
-    (List.rev_map (fun c -> h, c) compilers) @ acc) [] worker_hosts in
-  (List.rev_map (fun (h, c) ->
-     let id = Task.hash_id ?repository ?pin ptask [] c h in
-     let job = Task.make_job id [] c h ptask ?repository ?pin ()  in
-     id, job, []) envs)
-  |> Lwt.return
-  >>= fun job_lst ->
-  Scheduler.update_tables job_lst >>= fun () ->
+  let envs =
+    List.fold_left (fun acc h ->
+        let compilers =
+          if compilers = [] then Monitor.compilers () else compilers
+        in
+        (List.rev_map (fun c -> h, c) compilers) @ acc
+      ) [] worker_hosts
+  in
+  let job_lst =
+    List.rev_map (fun (h, c) ->
+        let id = Task.hash_id ?repository ?pin ptask [] c h in
+        let job = Task.make_job id [] c h ptask ?repository ?pin ()  in
+        id, job, []
+      ) envs
+  in
+  Scheduler.update_tables job_lst >|= fun () ->
   let resp = Response.make ~status:`Accepted () in
   let ids = List.rev_map (fun (id, _, _) -> id) job_lst in
   let body_str = Printf.sprintf "%s\n" (String.concat "\n" ids) in
   let body = Body.of_string body_str in
-  Lwt.return (resp, body)
+  resp, body
 
 let user_job_query_handler params _headers _body =
   let jid = List.assoc "jid" params in
-  Scheduler.progress_info jid >>= fun str ->
+  Scheduler.progress_info jid >|= fun str ->
   let body = Body.of_string str in
   let resp = Response.make ~status:`OK () in
-  Lwt.return (resp, body)
+  resp, body
 
 let user_worker_query_handler _param _headers _body =
   let statuses = Monitor.worker_statuses () in
-  let info = List.rev_map (fun (wid, token, status) ->
-      let status_str = match Monitor.info_of_status status with
-        | s, None -> s
-        | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
-      let h, _ = Monitor.worker_env token in
-      Printf.sprintf "worker %d, %s, %s" wid h status_str) statuses in
-  let str = Printf.sprintf "%s\n"
-      (if info <> [] then (String.concat "\n" info) else "No alive workers") in
+  let info =
+    List.rev_map (fun (wid, token, status) ->
+        let status_str = match Monitor.info_of_status status with
+          | s, None -> s
+          | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
+        let h, _ = Monitor.worker_env token in
+        Printf.sprintf "worker %d, %s, %s" wid h status_str
+      ) statuses
+  in
+  let str =
+    Printf.sprintf "%s\n"
+      (if info <> [] then (String.concat "\n" info) else "No alive workers")
+  in
   let resp = Response.make ~status:`OK () in
   let body = Body.of_string str in
   Lwt.return (resp, body)
@@ -191,36 +217,44 @@ let user_worker_query_handler _param _headers _body =
 let user_object_query_handler params _headers _body =
   let jid = List.assoc "jid" params in
   Lwt.catch (fun () ->
-    Store.retrieve_job jid >>= fun (job, _) ->
-    Store.retrieve_object jid >>= fun obj ->
-    let inputs = Task.inputs_of_job job in
-    let c, h = Task.env_of_job job in
-    let task_info = Task.(task_of_job job |> info_of_task) in
-    let result = Object.result_of_t obj in
-    Lwt_list.rev_map_s (fun i ->
-      Store.retrieve_job i >>= fun (j, _) ->
-      Lwt.return (i, Task.(task_of_job j |> info_of_task))) inputs
-    >>= fun inputs_info ->
-    let task_info_str (p, v_opt) =
-      match v_opt with
-      | None -> p
-      | Some v -> Printf.sprintf "%s %s" p v in
-    let cut str = String.sub str 0 5 in
-    let ass_lst = [
-       "Id", cut jid;
-       "Task", task_info_str task_info;
-       "Inputs", List.rev_map (fun (id, info) ->
-         Printf.sprintf "  %s %s" (cut id) (task_info_str info)) inputs_info
-         |> (fun lst -> Printf.sprintf "\n%s" (String.concat "\n" lst));
-       "Env", Printf.sprintf "%s %s" c h;
-       "Result", Object.string_of_result result] in
-    let str = List.map (fun (n, v) -> Printf.sprintf "[%s]: %s" n v) ass_lst
-              |> String.concat "\n"
-              |> (fun info -> info ^ "\n") in
-    let resp = Response.make ~status:`OK () in
-    let body = Body.of_string str in
-    Lwt.return (resp, body))
-    (fun _exn -> empty_response ~status:`Not_found)
+      Store.retrieve_job jid >>= fun (job, _) ->
+      Store.retrieve_object jid >>= fun obj ->
+      let inputs = Task.inputs_of_job job in
+      let c, h = Task.env_of_job job in
+      let task_info = Task.(task_of_job job |> info_of_task) in
+      let result = Object.result_of_t obj in
+      Lwt_list.rev_map_s (fun i ->
+          Store.retrieve_job i >|= fun (j, _) ->
+          i, Task.(task_of_job j |> info_of_task)
+        ) inputs
+      >|= fun inputs_info ->
+      let task_info_str (p, v_opt) =
+        match v_opt with
+        | None -> p
+        | Some v -> Printf.sprintf "%s %s" p v
+      in
+      let cut str = String.sub str 0 5 in
+      let ass_lst = [
+        "Id"    , cut jid;
+        "Task"  , task_info_str task_info;
+        "Inputs",
+        List.rev_map (fun (id, info) ->
+            Printf.sprintf "  %s %s" (cut id) (task_info_str info)
+          ) inputs_info
+        |> (fun lst -> Printf.sprintf "\n%s" (String.concat "\n" lst));
+        "Env"   , Printf.sprintf "%s %s" c h;
+        "Result", Object.string_of_result result
+      ] in
+      let str =
+        List.map (fun (n, v) -> Printf.sprintf "[%s]: %s" n v) ass_lst
+        |> String.concat "\n"
+        |> (fun info -> info ^ "\n")
+      in
+      let resp = Response.make ~status:`OK () in
+      let body = Body.of_string str in
+      resp, body)
+    (fun _exn ->
+       empty_response ~status:`Not_found)
 
 open Opium.Std
 
@@ -289,12 +323,11 @@ let master fresh store _ip port =
       Scheduler.bootstrap () >>= fun () ->
       let rec t_monitor () =
         Monitor.worker_monitor () >>= fun workers ->
-        log "monitor" (-1) ("some worker dies " ^ time ());
+        debug "monitor: some worker died!";
         List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
         t_monitor ()
       in
-      Lwt.join [App.start (server |> App.port port);
-                t_monitor ()])
+      Lwt.join [App.start (server |> App.port port); t_monitor ()])
   |> Lwt_unix.run
 
 let ip = Cmdliner.Arg.(

@@ -1,6 +1,9 @@
 open Lwt.Infix
 open Common_types
 
+let debug fmt = Gol.debug ~section:"scheduler" fmt
+let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Scheduler: " ^^ fmt)
+
 type job_tbl = (id, Task.job) Hashtbl.t
 type deps_tbl = (id, id list) Hashtbl.t
 
@@ -20,11 +23,6 @@ let fail_limit = 2
 let f_tbl : fail_tbl = Hashtbl.create 16
 
 let sub_abbr str = String.sub str 0 5
-
-let log subject func ~info =
-  let title = Printf.sprintf "%s@%s" subject func in
-  if info = "" then Printf.eprintf "[%s]\n%!" title
-  else Printf.eprintf "\t[%s]: %s\n%!" title info
 
 let task_info ?(abbr = true) id =
   try
@@ -67,8 +65,7 @@ let invalidate_token wtoken =
       then Hashtbl.replace s_tbl id `Runnable
     ) s_tbl;
   let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "invalidate" ~info
+  debug "invalidate %d/%d jobs" r sum
 
 let find_job wtoken =
   let host, compiler = Monitor.worker_env wtoken in
@@ -82,7 +79,7 @@ let find_job wtoken =
       ) ("", (-1)) runnables
     in
     Hashtbl.replace s_tbl id (`Dispatched wtoken);
-    log "scheduler" "find_job" ~info:(" -> " ^ (task_info id));
+    debug "find_job:  -> %s" (task_info id);
     let job = Hashtbl.find j_tbl id in
     let deps = Hashtbl.find d_tbl id in
     let desp =
@@ -94,23 +91,25 @@ let find_job wtoken =
     Some (id, c, desp)
   )
 
+let err_not_found id = Printf.ksprintf failwith "%s: not found" (sub_abbr id)
+
 let publish_object_hook id =
-  if not (Hashtbl.mem h_tbl id) then Lwt.return ()
-  else begin
-      let ids = Hashtbl.find_all h_tbl id in
-      let tups =
-        List.rev_map (fun i -> i,
+  if not (Hashtbl.mem h_tbl id) then Lwt.return_unit
+  else (
+    let ids = Hashtbl.find_all h_tbl id in
+    let tups =
+      List.rev_map (fun i ->
+          i,
           try Hashtbl.find j_tbl i with Not_found ->
-            let info = "Not_found J_TBL " ^ (sub_abbr i) in
-            log "scheduler" "publish_hook" ~info;
-            raise Not_found) ids
-      in
-      Lwt_list.fold_left_s (fun cache (i, job) ->
+            debug "publish_hook: Not_found J_TBL %s" (sub_abbr i);
+            err_not_found i
+        ) ids
+    in
+    Lwt_list.fold_left_s (fun cache (i, job) ->
         let state =
           try Hashtbl.find s_tbl i with Not_found ->
-            let info = "Not_found S_TBL " ^ (sub_abbr i) in
-            log "scheduler" "publish_hook" ~info;
-            raise Not_found
+            debug "publish_hook: Not_found S_TBL %s" (sub_abbr i);
+            err_not_found i
         in
         if state <> `Pending then Lwt.return cache
         else (
@@ -125,13 +124,13 @@ let publish_object_hook id =
             let store_tups = List.combine store (List.rev store_results) in
             Lwt_list.fold_left_s (fun acc tup ->
                 Lwt.return (tup :: acc)) cache store_tups
-            >>= fun new_cache ->
+            >|= fun new_cache ->
             if List.for_all (fun re -> re = true) store_results then
               Hashtbl.replace s_tbl i `Runnable;
-            Lwt.return new_cache
+            new_cache
         )) [] tups
-      >>= fun _ -> Lwt.return ()
-    end
+    >>= fun _ -> Lwt.return_unit
+  )
 
 let publish_object _wtoken result id =
   (* FIXME: wtoken is not used!! *)
@@ -143,18 +142,17 @@ let publish_object _wtoken result id =
       let cnt = try Hashtbl.find f_tbl id with Not_found -> 0 in
       let n_cnt = succ cnt in
       if n_cnt >= fail_limit then
-        (log "scheduler" "publish" ~info:"Fail -> FAIL";
+        (debug "publish: Fail -> FAIL";
          Hashtbl.replace s_tbl id `Completed)
       else
-        (log "schduer" "publish" ~info:"Fail -> RETRY";
+        (debug "publish: Fail -> RETRY";
          Hashtbl.replace f_tbl id n_cnt;
          Hashtbl.replace s_tbl id `Runnable);
-      Lwt.return_unit) >>= fun () ->
-  log "scheduler" "publish" ~info:"publish hook completed";
+      Lwt.return_unit)
+  >|= fun () ->
+  debug "publish: publish hook completed";
   let info_lst = List.rev_map (task_info ~abbr:true) (get_runnables ()) in
-  let info = Printf.sprintf "{%s}" (String.concat " ; " info_lst) in
-  log "scheduler" "publish" ~info;
-  Lwt.return_unit
+  debug "publish: {%s}" (String.concat " ; " info_lst)
 
 let user = "ocaml"
 let repo = "opam-repository"
@@ -164,8 +162,8 @@ let init_gh_token name =
   Github_cookie_jar.init ()
   >>= fun jar -> Github_cookie_jar.get jar ~name
   >>= function
-    | Some auth -> Lwt.return (Github.Token.of_auth auth)
-    | None -> Lwt.fail (failwith "None auth")
+  | Some auth -> Lwt.return (Github.Token.of_auth auth)
+  | None -> err "None auth"
 
 (* /packages/<pkg>/<pkg.version>/{opam, url, descr, files/.., etc} *)
 let packages_of_pull token num =
@@ -190,8 +188,8 @@ let pull_info token num =
   let pull = Github.Response.value pull_resp in
   let base = pull.pull_base and head = pull.pull_head in
   let base_repo =
-    match base.branch_repo with
-    | Some repo -> repo | None -> failwith "pr_info" in
+    match base.branch_repo with Some repo -> repo | None -> failwith "pr_info"
+  in
   Task.make_pull
     num base_repo.repository_clone_url base.branch_sha head.branch_sha
 
@@ -224,20 +222,16 @@ let update_tables jobs =
          List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
          Hashtbl.replace s_tbl id `Pending; end);
       Lwt.return cache) [] new_jobs
-  >>= fun _ ->
+  >|= fun _ ->
   let run, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" run sum in
-  log "scheduler" "update" ~info;
-  Lwt.return_unit
+  debug "update: %d/%d jobs" run sum
 
 let bootstrap () =
-  log "scheduler" "bootstrap" ~info:"read unfinished jobs";
-  Store.retrieve_jobs ()
-  >>= update_tables >>= fun () ->
+  debug "bootstrap: read unfinished jobs";
+  Store.retrieve_jobs () >>=
+  update_tables >|= fun () ->
   let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "bootstrap" ~info;
-  Lwt.return_unit
+  debug "bootstrap: %d/%d jobs" r sum
 
 let state_of_id id =
   if Hashtbl.mem s_tbl id then
@@ -245,7 +239,7 @@ let state_of_id id =
   else
     Store.query_object id >>= fun in_store ->
     if in_store then Lwt.return `Completed
-    else Lwt.fail (raise Not_found)
+    else err_not_found id
 
 let progress_of_id id =
   (if Hashtbl.mem d_tbl id then Lwt.return (Hashtbl.find d_tbl id)
@@ -253,8 +247,8 @@ let progress_of_id id =
   >>= fun deps ->
   Lwt_list.rev_map_s (fun d -> state_of_id d >>= fun s -> Lwt.return (d, s)) deps
   >>= fun dep_states ->
-  state_of_id id >>= fun s ->
-  Lwt.return ((id, s) :: dep_states)
+  state_of_id id >|= fun s ->
+  (id, s) :: dep_states
 
 let get_progress id =
   state_of_id id >>= fun s ->
@@ -263,11 +257,12 @@ let get_progress id =
     Store.retrieve_object id >>= fun obj ->
     match Object.result_of_t obj with
     | `Delegate del ->
-      progress_of_id del >>= fun delegates ->
+      progress_of_id del >|= fun delegates ->
       let delegate_state = List.assoc del delegates in
-      let state = if delegate_state <> `Completed then `Pending
-        else `Completed in
-      Lwt.return ((id, state) :: delegates)
+      let state =
+        if delegate_state <> `Completed then `Pending else `Completed
+      in
+      (id, state) :: delegates
     | `Success | `Fail _ -> progress_of_id id
 
 let string_of_state = function
@@ -277,24 +272,24 @@ let string_of_state = function
   | `Dispatched _ -> "Dispatched"
 
 let progress_info id =
-  get_progress id >>= fun progress ->
+  get_progress id >|= fun progress ->
   List.rev_map (fun (_id, s) ->
       let format =
         if _id = id then Printf.sprintf " -> %s %s"
         else Printf.sprintf "    %s %s"
       in
-      format (task_info ~abbr:false _id) (string_of_state s)) progress
+      format (task_info ~abbr:false _id) (string_of_state s)
+    ) progress
   |> List.rev
   |> fun str_lst ->
-  Lwt.return (Printf.sprintf "%s\n" (String.concat "\n" str_lst))
+  Printf.sprintf "%s\n" (String.concat "\n" str_lst)
 
 let resolve_and_add ?pull pkg =
   let action_graph = Ci_opam.resolve [pkg] in
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
   update_tables jobs >|= fun () ->
   let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "resolve" ~info
+  debug "resolve %d/%d jobs" r sum
 
 let github_hook num =
   (match !token with

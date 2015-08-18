@@ -1,13 +1,8 @@
 open OpamTypes
 open Lwt.Infix
 
-let log action ~info =
-  let title = Printf.sprintf "ci_opam@%s" action in
-  Printf.eprintf "[%s]: %s\n%!" title info
-
-let time () = Unix.(
-  let tm = localtime (time ()) in
-  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
+let debug fmt = Gol.debug ~section:"opam" fmt
+let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
 
 let package p = OpamPackage.((name_to_string p) ^ "." ^ (version_to_string p))
 
@@ -55,8 +50,7 @@ let resolve str_lst =
   let universe = OpamState.universe state action in
   let request = OpamSolver.request ~install:atoms () in
   let switch = OpamSwitch.to_string state.OpamState.Types.switch in
-  log "resolve" ~info:("@switch " ^ switch ^
-                       " preinstalled: " ^ get_var "preinstalled");
+  debug "resolve: switch:%s preinstalled:%s" switch (get_var "preinstalled");
   let result =
     OpamSolver.resolve ~orphans:OpamPackage.Set.empty universe request
   in
@@ -81,29 +75,26 @@ let jobs_of_graph ?pull ?repository ?pin graph =
   let package_of_action = function
     | `Install target -> target
     | `Change (_, origin, target) ->
-      let info =
-        Printf.sprintf "WARNING: %s -> %s" (package origin) (package target)
-      in
-      log "jobs_of_graph" ~info;
+      debug "jobs_of_graph: WARNING %s -> %s" (package origin) (package target);
       origin
     | `Remove p | `Reinstall p | `Build p ->
       failwith ("Not expect delete/recompile " ^ (package p))  in
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
-      if Graph.out_degree graph v = 0 then Queue.add v process_queue) graph;
-
+      if Graph.out_degree graph v = 0 then Queue.add v process_queue
+    ) graph;
   while not (Queue.is_empty process_queue) do
     let v = Queue.pop process_queue in
     Graph.iter_pred (fun pred -> Queue.add pred process_queue) graph v;
     Stack.push v add_stack;
   done;
-
   let compiler = compiler () in
   let host = Host.detect () |> Host.to_string in
   let module IdSet = struct
     include Set.Make(String)
-    let to_list s = fold (fun e acc -> e :: acc) s [] end in
+    let to_list s = fold (fun e acc -> e :: acc) s []
+  end in
   let id_map = ref Pkg.Map.empty in
   let deps_map = ref Pkg.Map.empty in
   let j_lst = ref [] in
@@ -115,20 +106,19 @@ let jobs_of_graph ?pull ?repository ?pin graph =
       if Graph.out_degree graph v = 0 && pull <> None then
         let pull = match pull with None -> assert false | Some p -> p in
         Task.make_gh_task ~name ~version pull
-      else Task.make_pkg_task ~name ~version () in
-
+      else
+        Task.make_pkg_task ~name ~version ()
+    in
     let inputs, deps = Graph.fold_pred (fun pred (i, d) ->
         let pred_pkg = package_of_action pred in
         let pred_id = Pkg.Map.find pred_pkg !id_map in
         let pred_deps = Pkg.Map.find pred_pkg !deps_map in
-
         pred_id :: i,
-        IdSet.union d (IdSet.add pred_id pred_deps))
-        graph v ([], IdSet.empty) in
-
+        IdSet.union d (IdSet.add pred_id pred_deps)
+      ) graph v ([], IdSet.empty)
+    in
     let id = Task.hash_id ?repository ?pin task inputs compiler host in
     let job = Task.make_job id inputs compiler host task ?repository ?pin () in
-
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
     j_lst := (id, job, IdSet.to_list deps) :: !j_lst
@@ -142,7 +132,9 @@ let resolvable ~name ?version ?depopts () =
     | Some lst ->
        List.rev_map (fun (n, v_opt) ->
          match v_opt with
-         |None -> n | Some v -> n ^ "." ^ v) lst in
+           |None -> n | Some v -> n ^ "." ^ v
+        ) lst
+  in
   let graph = resolve (str :: depopt_str) in
   if 1 = OpamSolver.ActionGraph.nb_vertex graph then false, graph
   else true, graph
@@ -155,7 +147,8 @@ let read_conf conf =
        let eg = String.index line '=' in
        let name = String.sub line 0 eg in
        let value = String.sub line (eg + 2) (String.length line - eg - 3) in
-       read_conf_aux ((name, value) :: acc) ic in
+       read_conf_aux ((name, value) :: acc) ic
+  in
   Lwt_io.with_file ~mode:Lwt_io.input conf (read_conf_aux [])
 
 let write_conf conf tups =
@@ -167,14 +160,16 @@ let write_conf conf tups =
         let dir = Filename.dirname path in
         base (basename :: acc) dir
       else acc, path in
-    let rec prepare_dir path = Lwt_unix.(function
+    let rec prepare_dir path = function
       | [] -> Lwt.return_unit
       | [f] ->
-         openfile f [O_RDWR; O_CREAT] 0o664 >>= fun fd -> close fd
+        let open Lwt_unix in
+        Lwt_unix.openfile f [O_RDWR; O_CREAT] 0o664 >>= Lwt_unix.close
       | hd :: tl ->
-         (let new_dir = Filename.concat path hd in
-          mkdir new_dir 0o775 >>= fun () ->
-          prepare_dir new_dir tl)) in
+        let new_dir = Filename.concat path hd in
+        Lwt_unix.mkdir new_dir 0o775 >>= fun () ->
+        prepare_dir new_dir tl
+    in
     let names, dir = base [] conf in
     prepare_dir dir names in
 
@@ -297,7 +292,7 @@ let export_switch c =
   if not (OpamSwitch.Map.mem switch aliases) then ()
   else (
     OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
-    let file = Printf.sprintf "ci_%s_%s.export" c (time ()) in
+    let file = Printf.sprintf "ci_%s_%s.export" c (Gol.timestamp ()) in
     let path = OpamFilename.(
       let dir = Op.(root / "log") in
       if exists_dir dir then Op.( dir // file)
@@ -370,22 +365,24 @@ let clean_repositories () =
 
 let add_repositories repo =
   let add_one_repo (name, address, priority) =
-    log "repository" ~info:(Printf.sprintf "add %s %s" name address);
+    debug "repository: add %s %s" name address;
     let name = OpamRepositoryName.of_string name in
     let address = OpamTypesBase.address_of_string address in
     let address, kind = OpamTypesBase.parse_url address in
-    OpamRepositoryCommand.add name kind address ~priority in
+    OpamRepositoryCommand.add name kind address ~priority
+  in
+  (* FIXME: review use of fork *)
   match Lwt_unix.fork () with
   | 0 ->
-     clean_repositories ();
-     List.iter add_one_repo repo;
-     exit 0
+    clean_repositories ();
+    List.iter add_one_repo repo;
+    exit 0
   | pid ->
-     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
-       (match stat with
-        | WEXITED i when i = 0 -> Lwt.return_unit
-        | WEXITED i | WSIGNALED i | WSTOPPED i ->
-           Lwt.fail_with (Printf.sprintf "exited %d when add repos" i)))
+    Lwt_unix.waitpid [] pid >>= fun (_, s) ->
+    let open Lwt_unix in
+    match s with
+    | WEXITED i when i = 0 -> Lwt.return_unit
+    | WEXITED i | WSIGNALED i | WSTOPPED i -> err "exited %d when add repos" i
 
 let add_pins pin =
   let add_one_pin (pkg, target) =
@@ -397,7 +394,8 @@ let add_pins pin =
       let kind = OpamTypesBase.kind_of_pin_option pin_option in
       let () = assert (kind <> `local) in
       OpamClient.SafeAPI.PIN.pin
-        ~edit:false ~action:false name (Some pin_option) in
+        ~edit:false ~action:false name (Some pin_option)
+  in
   List.iter add_one_pin pin;
   Lwt.return_unit
 
@@ -407,12 +405,12 @@ let update () =
      OpamClient.SafeAPI.update ~repos_only:false ~dev_only:false [];
      exit 0
   | pid ->
-     Lwt_unix.(waitpid [] pid >>= fun (_, stat) ->
-       (match stat with
-        | WEXITED i when i = 0 -> ()
-        | WEXITED i | WSIGNALED i | WSTOPPED i ->
-           failwith (Printf.sprintf "exited %d when opam update" i));
-       Lwt.return_unit)
+    Lwt_unix.waitpid [] pid >>= fun (_, s) ->
+    let open Lwt_unix in
+    (* FIXME: review use of fork *)
+    match s with
+    | WEXITED i when i = 0 -> Lwt.return_unit
+    | WEXITED i | WSIGNALED i | WSTOPPED i -> err "exited %d when opam update" i
 
 (* only for testing *)
 let show_repo_pin () =
@@ -421,25 +419,25 @@ let show_repo_pin () =
   let pin = state.OpamState.Types.pinned in
   let repo_str =
     OpamRepositoryName.Map.fold (fun name repo acc ->
-      let name = OpamRepositoryName.to_string name in
-      let kind = OpamTypesBase.string_of_repository_kind repo.repo_kind in
-      let address =
-        let url, segment = repo.repo_address in
-        match segment with
-        | None -> url
-        | Some s -> url ^ "#" ^ s in
-      let priority = string_of_int repo.repo_priority in
-      Printf.sprintf "[%s] %s %s %s" priority name kind address :: acc) repo  []
-    |> String.concat "\n" in
-
+        let name = OpamRepositoryName.to_string name in
+        let kind = OpamTypesBase.string_of_repository_kind repo.repo_kind in
+        let address =
+          let url, segment = repo.repo_address in
+          match segment with
+          | None -> url
+          | Some s -> url ^ "#" ^ s in
+        let priority = string_of_int repo.repo_priority in
+        Printf.sprintf "[%s] %s %s %s" priority name kind address :: acc
+      ) repo  []
+    |> String.concat "\n"
+  in
   let pin_str =
     OpamPackage.Name.Map.fold (fun name pin_option acc ->
-      let name = OpamPackage.Name.to_string name in
-      let pin_option = OpamTypesBase.string_of_pin_option pin_option in
-      Printf.sprintf "%s %s" name pin_option :: acc) pin []
-    |> String.concat "\n" in
-
-  let info =
-    Printf.sprintf "\n[Repo]:\n%s\n[Pin]:\n%s" repo_str pin_str in
-  log "repo_pin" ~info;
+        let name = OpamPackage.Name.to_string name in
+        let pin_option = OpamTypesBase.string_of_pin_option pin_option in
+        Printf.sprintf "%s %s" name pin_option :: acc
+      ) pin []
+    |> String.concat "\n"
+  in
+  debug "repo_pin:\n[Repo]:\n%s\n[Pin]:\n%s" repo_str pin_str;
   Lwt.return_unit

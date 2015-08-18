@@ -1,6 +1,9 @@
 open Lwt.Infix
 open Message
 
+let debug fmt = Gol.debug ~section:"worker" fmt
+let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Worker: " ^^ fmt)
+
 module Body = Cohttp_lwt_body
 module Code = Cohttp.Code
 module Client = Cohttp_lwt_unix.Client
@@ -29,17 +32,6 @@ let sub_abbr = sub 5
 
 let origin_fs = ref []
 
-let log action func fmt =
-  Printf.kprintf (fun info ->
-      let title = Printf.sprintf "%s@%s" action func in
-      if info = "" then Printf.eprintf "[%s]\n%!" title
-      else Printf.eprintf "[%s]: %s\n%!" title info
-    ) fmt
-
-let time () = Unix.(
-  let tm = localtime (time ()) in
-  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec)
-
 let body_of_message m =
   Message.sexp_of_worker_msg m
   |> Sexplib.Sexp.to_string
@@ -53,11 +45,11 @@ let message_of_body body =
 
 let working_directory ?(test = true) () =
   let home = Sys.getenv "HOME" in
-  let path = if test then Sys.getcwd ()
-             else Filename.concat home "ci-worker" in
+  let path = if test then Sys.getcwd () else Filename.concat home "ci-worker" in
   if not (Sys.file_exists path) then
-    Lwt_unix.mkdir path 0o770 >>= fun () -> Lwt.return path
-  else Lwt.return path
+    Lwt_unix.mkdir path 0o770 >|= fun () -> path
+  else
+    Lwt.return path
 
 let path_of_obj id = ["object"; id]
 let path_of_com id = ["compiler"; id]
@@ -65,59 +57,58 @@ let path_of_com id = ["compiler"; id]
 let clean_up t =
   let print_path k =
     let path = String.concat "/" k in
-    Lwt_io.printf "remove %s\n%!" path  in
+    Lwt_io.printf "remove %s\n%!" path
+  in
   let clean_dir = ["object"] in
   Lwt_list.iter_s (fun dir ->
     Irmin.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
     Lwt_list.iter_s (fun path ->
       print_path path >>= fun () ->
-      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path) paths)
-    clean_dir
+      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path
+      ) paths
+    ) clean_dir
 
 let local_store ?(fresh = false) dir =
-  let basic = Irmin.basic (module Irmin_unix.Irmin_git.FS)
-                          (module Irmin.Contents.String) in
+  let basic =
+    Irmin.basic (module Irmin_unix.Irmin_git.FS) (module Irmin.Contents.String)
+  in
   let config = Irmin_git.config ~root:dir ~bare:true () in
   Irmin.create basic config Irmin_unix.task >>= fun t ->
-  (if fresh then clean_up t else Lwt.return ()) >>= fun () ->
-  Lwt.return t
+  (if fresh then clean_up t else Lwt.return_unit) >|= fun () ->
+  t
 
 let rec id_of_path = function
   | [id] -> id
   | _ :: tl -> id_of_path tl
   | _ -> failwith "empty path"
 
+let comp_s = function true -> "compiler" | false -> "object"
+
 let local_query t ?(compiler = false) id =
-  log "query" "local" "%s %s %s"
-    (if compiler then "compiler" else "object") (sub_abbr id) (time ());
+  debug "query: %s %s" (comp_s compiler) (sub_abbr id);
   let path = (if compiler then path_of_com else path_of_obj) id in
   Irmin.mem (t ("query object " ^ id)) path
 
 let local_publish t ?(compiler = false) id obj =
-  log "publish" "local" "%s %s %s"
-    (if compiler then "compiler" else "object") (sub_abbr id) (time ());
+  debug "publish: %s %s" (comp_s compiler) (sub_abbr id);
   local_query t ~compiler id >>= fun exist ->
   (if exist then Lwt.return ()
    else (
-     log "publish" "local" "doesn't exist %s" (time ());
+     debug "publish: %s doesn't exist!" (sub_abbr id);
      let path = (if compiler then path_of_com else path_of_obj) id in
      let value = Object.string_of_t obj in
      let ln = String.length value in
-     log "publish" "local" "length of value %d %s" ln (time ());
+     debug "publish: length(%s) = %d" (sub_abbr id) ln;
      Irmin.update (t ("publish object " ^ id)) path value))
-  >>= fun () ->
-  log "publish" "local" "completed %s" (time ());
-  Lwt.return_unit
+  >|= fun () ->
+  debug "publish: %s %s complete!" (comp_s compiler) (sub_abbr id)
 
 let local_retrieve t ?(compiler = false) id =
-  log "retrieve" "local" "%s %s %s"
-    (if compiler then "compiler" else "object") (sub_abbr id) (time ());
+  debug "retrieve: %s %s" (comp_s compiler) (sub_abbr id);
   let path = (if compiler then path_of_com else path_of_obj) id in
-  Irmin.read (t ("retrieve object" ^ id)) path >>= function
-  | None -> Lwt.fail (raise (Invalid_argument ("no object for " ^ id)))
-  | Some o ->
-    log "retrieve" "local" "completed %s" (time ());
-    Lwt.return (Object.t_of_string o)
+  Irmin.read_exn (t ("retrieve object" ^ id)) path >|= fun o ->
+  debug  "retrieve: %s %s complete!" (comp_s compiler) (sub_abbr id);
+  Object.t_of_string o
 
 let local_retrieve_all t =
   let retrieve_dir = ["object"] in
@@ -129,30 +120,34 @@ let local_retrieve_all t =
           | Some c ->
             let id = id_of_path path in
             let obj = Object.t_of_string c in
-            Lwt.return ((id, obj) :: acc')) acc paths) [] retrieve_dir
+            Lwt.return ((id, obj) :: acc')
+        ) acc paths
+    ) [] retrieve_dir
 
 let with_client_request tag request =
   let timeout_response () =
-    Lwt_unix.sleep master_timeout >>= fun () ->
+    Lwt_unix.sleep master_timeout >|= fun () ->
     let resp = Response.make ~status:`I_m_a_teapot () in
     let body = Body.empty in
-    Lwt.return (resp, body) in
-
-  let err_handler exn =
-    (match exn with
-     | Failure f -> Printf.eprintf "[ERROR]: %s\n%!" f
-     | _  -> Printf.eprintf "[ERROR]: connection to master failed\n%!");
-    Lwt.return (exit 1) in
+    resp, body
+  in
+  let err_handler = function
+    | Failure f -> err "[ERROR]: %s\n%!" f
+    | exn       ->
+      err "[ERROR]: connection to master failed:\n%s" (Printexc.to_string exn)
+  in
   Lwt.catch (fun () ->
       Lwt.pick [timeout_response (); request] >>= fun ((resp, _) as r) ->
+      (* FIXME: use correct status code *)
       if Response.status resp = `I_m_a_teapot
-      then Lwt.fail_with ("master timeout " ^ tag)
-      else Lwt.return r) err_handler
+      then err "master timeout %s " tag
+      else Lwt.return r
+    ) err_handler
 
 (* POST base/worker<id>/objects -> `Created *)
 let worker_publish base t result oid _obj =
   (* FIXME: obj is not used! *)
-  log "send" "publish" "object %s" (sub_abbr oid);
+  debug "publish: object %s" (sub_abbr oid);
   let headers = Cohttp.Header.of_list ["worker", t.token] in
   let m = Message.Publish (result, oid) in
   let body = body_of_message m in
@@ -161,7 +156,7 @@ let worker_publish base t result oid _obj =
   with_client_request "publish" (Client.post ~headers ~body uri)
   >>= fun (resp, _) ->
   let status = Response.status resp in
-  if status = `Created then Lwt.return ()
+  if status = `Created then Lwt.return_unit
   else Lwt.fail (WrongResponse (Code.string_of_status status, "publish"))
 
 (* POST base/worker/registration -> `Created *)
@@ -170,7 +165,6 @@ let worker_register base build_store =
   let body = body_of_message (Message.Register host) in
   let uri_path = "worker/registration" in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
-
   with_client_request "register" (Client.post ~body uri) >>= fun (resp, body) ->
   message_of_body body >>= fun m ->
   let status = Response.status resp in
@@ -179,7 +173,7 @@ let worker_register base build_store =
     match m with
     | Ack_heartbeat | New_job _ -> Lwt.fail exn
     | Ack_register (id, token) ->
-      log "send" "register" "success: %d token: %s" id (sub_abbr token);
+      debug "register: success: %d token: %s" id (sub_abbr token);
       working_directory () >>= fun dir ->
       build_store dir >>= fun store ->
       let worker = { id; token; store; status = Idle} in
@@ -190,7 +184,8 @@ let worker_register base build_store =
           Store.unlog_job id >>= fun () ->
           worker_publish base worker `Success id o) tups >>= fun () ->
         Lwt.return worker
-  else Lwt.fail exn
+  else
+    Lwt.fail exn
 
 (* POST base/worker<id>/state -> `Ok *)
 let worker_heartbeat base t =
@@ -198,10 +193,10 @@ let worker_heartbeat base t =
   let m =
     match t.status with
     | Working jid ->
-      log "send" "heartbeat" "working %s" (time ());
+      debug "heartbeat: working";
       Heartbeat (Some jid)
     | Idle ->
-      log "send" "heartbeat" "idle %s" (time ());
+      debug "heartbeat: idle";
       Heartbeat None in
   let body = body_of_message m in
   let uri_path = Printf.sprintf "workers/%d/state" t.id in
@@ -243,10 +238,10 @@ let worker_request_object base worker oid =
   let store = worker.store in
   local_query store oid >>= fun exist ->
   if exist then (
-    log "requst" "object" "get object %s locally" (sub_abbr oid);
+    debug "object: get object %s locally" (sub_abbr oid);
     local_retrieve store oid
   ) else (
-    log "request" "object" "get object %s remotely" (sub_abbr oid);
+    debug "object: get object %s remotely" (sub_abbr oid);
     Store.retrieve_object oid >>= fun obj ->
     local_publish store oid obj >>= fun () ->
     worker_publish base worker `Success oid obj >>= fun () ->
@@ -278,10 +273,7 @@ let extract_archive tar =
   if not (Filename.check_suffix tar ".tar.gz") then
     raise (Invalid_argument tar);
   let comm = Printf.sprintf "tar -xzf %s -C /" tar in
-  let fail () =
-    log "extract" tar "failed";
-    Lwt.return_unit
-  in
+  let fail () = err "extract: cannot untar %s" tar in
   (* let success () = return (log "extract" tar ~info:"OK") in *)
   with_lwt_comm ~fail comm
 
@@ -295,15 +287,13 @@ let install_files ~src ~dst files =
         (if not (Sys.file_exists dir && Sys.is_directory dir)
          then Lwt_unix.mkdir dir 0o770
          else Lwt.return ())
-        >>= fun () -> mkdir dir path
+        >>= fun () ->
+        mkdir dir path
     in
     mkdir dst file_lt in
   let cp src dst =
     let comm = Printf.sprintf "cp %s %s" src dst in
-    let fail () =
-      log "install" src "failed";
-        Lwt.return_unit
-    in
+    let fail () = err "cp: cannot copy %s to %s" src dst in
     with_lwt_comm ~fail comm
   in
   Lwt_list.iter_s (fun f ->
@@ -322,7 +312,7 @@ let clean_tmp action name =
   in
   let comm = Printf.sprintf "rm -r %s %s" file dir in
   let success () =
-    log action "clean" "%s %s" file dir;
+    debug "clean_tmp: %s done (%s %s)!" action file dir;
     Lwt.return_unit
   in
   with_lwt_comm ~success comm
@@ -344,11 +334,12 @@ let apply_object prefix obj =
   Ci_opam.update_metadata ~install:true ~path >>= fun () ->
   clean_tmp "apply" (Filename.basename arch_path)
 
+(* FIXME: shoubd not be used *)
 let patch_ocamlfind prefix =
   let bin_path = Filename.concat prefix "bin/ocamlfind" in
   if not (Sys.file_exists bin_path) then Lwt.return ""
   else (
-    log "execute" "patch" "%s/bin/ocamlfind" prefix;
+    debug "patch: %s/bin/ocamlfind" prefix;
     Lwt_io.open_file ~mode:Lwt_io.input bin_path >>= fun ic ->
     Lwt_io.read ic >>= fun c ->
     Lwt_io.close ic >>= fun () ->
@@ -369,11 +360,11 @@ let patch_ocamlfind prefix =
     done;
     let pb, pe = get_ofs subs 0 in
     let conf_path = String.sub c pb (pe - pb) in
-    log "findlib.conf" "path" "%s" conf_path;
+    debug "findlib.conf: path=%s" conf_path;
     Lwt_io.open_file ~mode:Lwt_io.output bin_path >>= fun oc ->
     Lwt_io.write oc c >>= fun () ->
-    Lwt_io.close oc >>= fun () ->
-    Lwt.return (Filename.concat (Sys.getenv "HOME") conf_path)
+    Lwt_io.close oc >|= fun () ->
+    Filename.concat (Sys.getenv "HOME") conf_path
   )
 
 let hash str =
@@ -389,7 +380,8 @@ let fs_snapshots ?white_list dir =
     let checksum_of_ic ic =
       Lwt_io.read ic >>= fun content ->
       Lwt.return (hash (file ^ content)) in
-    Lwt_io.with_file ~mode:Lwt_io.input file checksum_of_ic in
+    Lwt_io.with_file ~mode:Lwt_io.input file checksum_of_ic
+  in
   let rec loop checksums = function
     | [] -> Lwt.return checksums
     | path :: tl ->
@@ -403,14 +395,16 @@ let fs_snapshots ?white_list dir =
           Sys.readdir path
           |> Array.to_list
           |> List.rev_map (fun f -> Filename.concat path f) in
-        loop checksums (List.rev_append files tl) in
+        loop checksums (List.rev_append files tl)
+  in
   let sub_dirs =
     Sys.readdir dir |> Array.to_list
     |> (fun lst ->
         match white_list with
         | Some wl -> List.filter (fun n -> List.mem n wl) lst
         | None -> lst)
-    |> List.rev_map (fun n -> Filename.concat dir n) in
+    |> List.rev_map (fun n -> Filename.concat dir n)
+  in
   loop [] sub_dirs
 
 let read_installed dir =
@@ -419,7 +413,8 @@ let read_installed dir =
   let rec collect_lines acc ic =
     Lwt_io.read_line_opt ic >>= function
     | None -> Lwt.return acc
-    | Some l -> collect_lines (l :: acc) ic in
+    | Some l -> collect_lines (l :: acc) ic
+  in
   Lwt_io.with_file ~mode:Lwt_io.input path (collect_lines [])
 
 let collect_output prefix p v = function
@@ -435,23 +430,31 @@ let collect_output prefix p v = function
              [".info"; ".err"; ".out"; ".env"]) files
        |> List.rev_map (fun f -> Filename.concat relative_path f)
        |> Lwt.return
-     else Lwt.return []
+     else
+       Lwt.return []
 
 let collect_installed prefix ~before ~after =
   let module CsMap = Map.Make(String) in
-  let cmap = List.fold_left (fun acc (f, checksum) ->
-      CsMap.add f checksum acc) CsMap.empty before in
+  let cmap =
+    List.fold_left
+      (fun acc (f, checksum) -> CsMap.add f checksum acc)
+      CsMap.empty before
+  in
   (* TODO: collect deleted files *)
-  let installed = List.fold_left (fun acc (f, checksum) ->
-      if not (CsMap.mem f cmap) then f :: acc else
-        let cs = CsMap.find f cmap in
-        if cs <> checksum then f :: acc
-        else acc) [] after in
+  let installed =
+    List.fold_left (fun acc (f, checksum) ->
+        if not (CsMap.mem f cmap) then f :: acc else
+          let cs = CsMap.find f cmap in
+          if cs <> checksum then f :: acc
+          else acc
+      ) [] after
+  in
   (* 1 is for the delimiter *)
   let len = 1 + String.length prefix in
   let chop_prefix f =
     try String.sub f len (String.length f - len)
-    with e -> print_endline f; raise e in
+    with e -> print_endline f; raise e
+  in
   Lwt.return (List.rev_map chop_prefix installed)
 
 let create_archive prefix id output installed old nw =
@@ -461,20 +464,20 @@ let create_archive prefix id output installed old nw =
   Lwt_unix.mkdir dir 0o770 >>= fun () ->
   (List.rev_append output installed
    |> install_files ~src:prefix ~dst:dir) >>= fun () ->
-
   let pkg_file = Filename.concat dir "installed" in
   let write_pkgs old nw oc =
     let installed_pkgs = List.filter (fun p -> not (List.mem p old)) nw in
     let content = String.concat "\n" installed_pkgs in
-    Lwt_io.write oc content in
+    Lwt_io.write oc content
+  in
   Lwt_io.with_file ~mode:Lwt_io.output pkg_file (write_pkgs old nw) >>= fun () ->
   let name = (sub_abbr id) ^ ".tar.gz" in
   let path = Filename.concat "/tmp" name in
   let comm = Printf.sprintf "tar -zcf %s %s" path dir in
   with_lwt_comm comm >>= fun () ->
   Lwt_io.with_file ~mode:Lwt_io.input path (fun x -> Lwt_io.read x)
-  >>= fun content ->
-  Lwt.return (name, content)
+  >|= fun content ->
+  name, content
 
 let pkg_build prefix jid name version =
   (* TODO: disable ocamlfind patch *)
@@ -482,17 +485,16 @@ let pkg_build prefix jid name version =
   (if write_path = "" then Lwt.return_unit
    else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
   let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"] in
-  log "execute" "snapshot" "%s BEFORE" prefix;
+  debug "pkg_build: snapshot %s BEFORE" prefix;
   fs_snapshots ~white_list prefix >>= fun before ->
   read_installed prefix >>= fun old_pkgs ->
-  log "execute" "FOR REAL" "%s.%s" name version;
+  debug "pkg_build: FOR REAL %s.%s" name version;
   Ci_opam.install ~name ~version >>= fun result ->
   (match result with
    | `Delegate _ -> assert false
-   | `Success -> log "execute" name "SUCCESS"
-   | `Fail f  -> log "execute" name "FAIL: %s" f);
-  Lwt.return_unit >>= fun () ->
-  log "execute" "snapshot" "%s AFTER" prefix;
+   | `Success -> debug "pkg_build: %s SUCCESS" name
+   | `Fail f  -> debug "pkg_build: %s FAIL: %s" name f);
+  debug "pkg_build: snapshot %s AFTER" prefix;
   fs_snapshots ~white_list prefix >>= fun after ->
   read_installed prefix >>= fun new_pkgs ->
   collect_output prefix name version result >>= fun output ->
@@ -500,29 +502,30 @@ let pkg_build prefix jid name version =
   create_archive prefix jid output installed old_pkgs new_pkgs
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
-  Ci_opam.uninstall ~name ~version >>= fun () ->
-  Lwt.return (result, output, installed, archive)
+  Ci_opam.uninstall ~name ~version >|= fun () ->
+  result, output, installed, archive
 
 let compiler_fs_origin root compiler ?snapshots () =
   (match snapshots with
    | Some s -> Lwt.return s
    | None -> fs_snapshots ~white_list:[compiler] root)
-  >>= fun ss ->
-  log "snapshots" compiler "origin fs state";
-  origin_fs := List.rev_map fst ss;
-  Lwt.return_unit
+  >|= fun ss ->
+  debug "snapshots: %s origin fs state" compiler;
+  origin_fs := List.rev_map fst ss
 
 let switch_clean_up  root compiler =
   let fs = !origin_fs in
   if fs = [] then ()
   else (
     let module FileSet = Set.Make(String) in
-    let fset = List.fold_left (fun acc f ->
-        FileSet.add f acc) FileSet.empty fs in
+    let fset =
+      List.fold_left (fun acc f -> FileSet.add f acc) FileSet.empty fs
+    in
     let read_dir dir =
       Sys.readdir dir
       |> Array.to_list
-      |> List.rev_map (Filename.concat dir) in
+      |> List.rev_map (Filename.concat dir)
+    in
     (* post-order iterate the fs,
        remove non-origin files and empty direcoties *)
     let q = Queue.create () in
@@ -547,24 +550,23 @@ let switch_clean_up  root compiler =
   )
 
 let build_compiler_object cid root compiler =
-  log "execute" "snapshot" "%s BEFORE" root;
+  debug "snapshot: %s BEFORE" root;
   fs_snapshots ~white_list:[compiler] root >>= fun before ->
   Ci_opam.install_switch compiler >>= fun () ->
-  log "execute" "snapshot" "%s AFTER" root;
+  debug "snapshot: %s AFTER" root;
   fs_snapshots ~white_list:[compiler] root >>= fun after ->
   compiler_fs_origin root compiler ~snapshots:after () >>= fun () ->
   let prefix = Filename.concat root compiler in
   collect_installed prefix ~before ~after >>= fun installed ->
   read_installed prefix >>= fun new_pkgs ->
-  create_archive prefix cid [] installed [] new_pkgs >>= fun archive ->
-  let obj = Object.make_obj cid `Success ~output:[] ~installed archive in
-  Lwt.return obj
+  create_archive prefix cid [] installed [] new_pkgs >|= fun archive ->
+  Object.make_obj cid `Success ~output:[] ~installed archive
 
 let install_compiler worker (c, host) =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
   let cid = hash (host ^ root ^ c) in
   let apply_compiler_obj obj =
-    log "apply" c "start %s" (time ());
+    debug "apply: %s start" c;
     (* prefix directory has to be existe for apply_archive to work *)
     let prefix = Filename.concat root c in
     (if not (Sys.file_exists prefix && Sys.is_directory prefix)
@@ -572,19 +574,20 @@ let install_compiler worker (c, host) =
      else Lwt.return ()) >>= fun () ->
     apply_archive prefix obj >>= fun _ ->
     (* TODO: clean tmp archive file *)
-    Ci_opam.switch c >>= fun () ->
-    log "apply" c "end %s" (time ());
-    Lwt.return_unit in
+    Ci_opam.switch c >|= fun () ->
+    debug "apply: %s end" c
+  in
   let compiler = true in
   local_query ~compiler worker.store cid >>= fun local_exist ->
   if local_exist then
-    (log "install" c "retrieve locally";
-     local_retrieve ~compiler worker.store cid) >>= apply_compiler_obj
-    >>= fun () -> compiler_fs_origin root c ()
+    (debug "install: %s retrieve locally" c;
+     local_retrieve ~compiler worker.store cid) >>=
+    apply_compiler_obj >>= fun () ->
+    compiler_fs_origin root c ()
   else
     Store.query_compiler cid >>= fun remote_exist ->
     if remote_exist then
-      (log "install" c "retrieve remotely %s" (time ());
+      (debug "install: %s retrieve remotely" c;
        Store.retrieve_compiler cid) >>= fun cobj ->
       local_publish ~compiler worker.store cid cobj >>= fun () ->
       apply_compiler_obj cobj >>= fun () ->
@@ -603,28 +606,29 @@ let pkg_job_execute base worker jid job deps =
       (match repo with
        | None -> Ci_opam.clean_repositories (); Lwt.return_unit
        | Some repo ->
-         Ci_opam.add_repositories repo) >>= fun () ->
+         Ci_opam.add_repositories repo)
+      >>= fun () ->
       Ci_opam.update () >>= fun () ->
       let c_curr = Ci_opam.compiler () in
       (if c = c_curr then Lwt.return_unit
        else
          Ci_opam.export_switch c >>= fun () ->
-         install_compiler worker (c, h) >>= fun () ->
-         log "execute" "compiler" "%s installed" c;
-         Lwt.return_unit) >>= fun () ->
+         install_compiler worker (c, h) >|= fun () ->
+         debug "execute: compiler %s installed" c) >>= fun () ->
       (match pin with
        | None -> Lwt.return_unit
        | Some pin ->
          let build =
            let dir = Filename.concat root c in
-           Filename.concat dir "build" in
+           Filename.concat dir "build"
+         in
          Unix.mkdir build 0o775;
          Ci_opam.add_pins pin) >>= fun () ->
       let name, version, depopts = Task.info_of_pkg_task (Task.task_of_job job) in
       let prefix = Ci_opam.get_var "prefix" in
-      log "execute" "opam" "load state";
+      debug "execute: opam load state";
       Ci_opam.show_repo_pin () >>= fun () ->
-      log "execute" "dependency" "of total %d" (List.length deps);
+      debug "execute: %d dependencies" (List.length deps);
       Lwt_list.iter_s (fun dep ->
           worker_request_object base worker dep >>= fun obj ->
           match Object.result_of_t obj with
@@ -639,21 +643,23 @@ let pkg_job_execute base worker jid job deps =
         Ci_opam.resolvable ~name ?version ?depopts ()
       in
       if is_resolvable then (
-        log "execute" "resolvable" "true";
+        debug "execute: resolvable=true";
         let job_lst = Ci_opam.jobs_of_graph ?repository:repo ?pin graph in
         worker_spawn base worker job_lst >>= fun () ->
         let delegate_id =
           List.fold_left (fun acc (id, job, _) ->
               let name', _ = Task.info_of_task (Task.task_of_job job) in
               if name' = name then id :: acc
-              else acc) [] job_lst
-          |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst) in
+              else acc
+            ) [] job_lst
+          |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst)
+        in
         let result = `Delegate delegate_id in
         let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
         switch_clean_up root c;
         Lwt.return (result, obj)
       ) else (
-        log "execute" "resolvable" "false";
+        debug "execute: resolvable=false";
         let v = match version with Some v -> v | None -> assert false in
         pkg_build prefix jid name v
         >>= fun (result, output, installed, archive) ->
@@ -672,25 +678,27 @@ let compiler_job_execute jid job =
   let task = Task.task_of_job job in
   let comp = Task.(match task with
       | Compiler c -> c
-      | Package _ | Github _ -> failwith "not compiler build task") in
-  log "execute" "compiler" "build compiler: %s" comp;
+      | Package _ | Github _ -> failwith "not compiler build task")
+  in
+  debug "execute: build compiler: %s" comp;
   try
     Ci_opam.switch comp >>= fun () ->
     let switch = comp in
     let prefix = Ci_opam.get_var "prefix" in
     let path = Filename.concat (Filename.dirname prefix) switch in
-    log "execute" "snapshot" "%s AFTER" path;
+    debug "execute: snapshot %s AFTER" path;
     read_installed path >>= fun new_pkgs ->
     fs_snapshots path >>= fun after_build ->
     collect_installed path ~before:[] ~after:after_build >>= fun installed ->
     create_archive path jid [] installed [] new_pkgs >>= fun archive ->
     let result = `Success in
-    log "execute" "compiler" "create object";
+    debug "execute: create object";
     let obj = Object.make_obj jid result ~output:[] ~installed archive in
     clean_tmp "compiler" (fst archive) >>= fun () ->
     Ci_opam.remove_switch switch >>= fun () ->
     Lwt.return (result, obj)
   with _ ->
+    (* FIXME: catch-all is bad *)
     let result = `Fail (comp ^ " build fail") in
     let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
     Lwt.return (result, obj)
@@ -701,15 +709,20 @@ let rec execution_loop base worker cond =
   if completed then execution_loop base worker cond
   else (
     worker.status <- Working id;
-    let job, deps = try Sexplib.Sexp.of_string desp
-                        |> Task.job_entry_of_sexp
-                        |> Task.unwrap_entry
-      with _ -> log "execute" "sexp" "%s" desp; exit 1 in
+    (try
+       Sexplib.Sexp.of_string desp
+       |> Task.job_entry_of_sexp
+       |> Task.unwrap_entry
+       |> Lwt.return
+     with _ ->
+       err "execute: sexp %s" desp
+    ) >>= fun (job, deps) ->
     let task = Task.task_of_job job in
-    Task.(match task with
-        | Package _  -> pkg_job_execute base worker id job deps
-        | Compiler _ -> compiler_job_execute id job
-        | Github _   -> Lwt.fail_with "to be implemented")
+    let open Task in
+    (match task with
+     | Package _  -> pkg_job_execute base worker id job deps
+     | Compiler _ -> compiler_job_execute id job
+     | Github _   -> Lwt.fail_with "to be implemented")
     >>= fun (result, obj) ->
     (match result with
      | `Delegate _ ->
@@ -743,15 +756,16 @@ let rec heartbeat_loop base worker cond =
     Lwt_unix.sleep working_sleep
     >>= fun () -> heartbeat_loop base worker cond
 
-
 let worker base_str store_str fresh =
   Store.initial_store ~uri:store_str () >>= (fun () ->
       let base = Uri.of_string base_str in
       let build_store = local_store ~fresh in
       worker_register base build_store >>= fun worker ->
       let cond = Lwt_condition.create () in
-      Lwt.pick [heartbeat_loop base worker cond;
-                execution_loop base worker cond;])
+      Lwt.pick [
+        heartbeat_loop base worker cond;
+        execution_loop base worker cond;
+      ])
   |> Lwt_main.run
 
 let base = Cmdliner.Arg.(
