@@ -20,6 +20,3 @@ open Sexplib.Std
 
 type id = string with sexp
 type root = string with sexp
-
-(* for the string from Sexplib.Sexp.to_string *)
-type description = string with sexp

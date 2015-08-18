@@ -23,11 +23,11 @@ type worker_msg =
   | Register of Host.t
   | Heartbeat of id option
   | Publish of [`Success | `Fail of string | `Delegate of id] * id
-  | Spawn_jobs of (id * description * (id list)) list
+  | Spawn_jobs of (id * string * (id list)) list
   with sexp
 
 type master_msg =
   | Ack_register of [`Worker] Id.t * Store.token
   | Ack_heartbeat
-  | New_job of id * description
+  | New_job of id * string
 with sexp

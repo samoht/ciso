@@ -32,7 +32,7 @@ val worker_register: Store.t -> Uri.t -> (string -> store Lwt.t) -> t Lwt.t
     or idle, if idle and the master has assigned a new task A to it,
     the task A produces object a, the function returns a thread holds
     Some (A.id, a.id) *)
-val worker_heartbeat: Uri.t -> t -> (id * description) option Lwt.t
+val worker_heartbeat: Uri.t -> t -> (id * string) option Lwt.t
 
 (** [worker_publish master_uri worker object]:
     if produces a new object or get a copy from other workers,
@@ -60,13 +60,13 @@ val worker_request_object: Uri.t -> t -> id -> Object.t Lwt.t
 (** [execution_loop master_uri worker cond]:
     infinite loop to execute tasks, the conditional variable this function waits
     for is task_id and obj_id *)
-val execution_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+val execution_loop: Uri.t -> t -> (id * string) Lwt_condition.t -> 'a Lwt.t
 
 (** [heartbeat_loop master_uri worker cond]:
     infinite loop to send out heartbeats to master,
     under the idle state, if gets the response of Some (task_id, obj_id),
     the function will send a signl to the conditional variable cond *)
-val heartbeat_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+val heartbeat_loop: Uri.t -> t -> (id * string) Lwt_condition.t -> 'a Lwt.t
 
 (* FIXME *)
 val run: base:string -> uri:string -> fresh:bool -> unit Lwt.t
