@@ -33,7 +33,7 @@ Library "ciso-github"
   Path: lib/github
   FindlibParent: ciso
   FindlibName: github
-  Modules: Github
+  Modules: Github_pr
   BuildDepends: ciso, ciso.worker, github.unix, lwt
 
 Executable "ciso-store"
