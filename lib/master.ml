@@ -348,39 +348,14 @@ let server s =
   |> worker_query
   |> object_info_query s
 
-let master fresh store _ip port =
+let run ~fresh ~uri ~ip:_ip ~port =
   (* FIXME: ip is not used! *)
-  let f () =
-    Store.create ~uri:store ~fresh () >>= fun s ->
-    Scheduler.bootstrap s >>= fun () ->
-    let rec t_monitor () =
-      Monitor.worker_monitor s >>= fun workers ->
-      debug "monitor: a worker died!";
-      List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
-      t_monitor ()
-    in
-    Lwt.join [App.start (server s |> App.port port); t_monitor ()]
+  Store.create ~uri ~fresh () >>= fun s ->
+  Scheduler.bootstrap s >>= fun () ->
+  let rec t_monitor () =
+    Monitor.worker_monitor s >>= fun workers ->
+    debug "monitor: a worker died!";
+    List.iter (fun (_, t) -> Scheduler.invalidate_token t) workers;
+    t_monitor ()
   in
-  Lwt_unix.run (f ())
-
-let ip = Cmdliner.Arg.(
-  value & opt string "127.0.0.1" & info ["ip"]
-    ~doc:"the ip address of the master")
-
-let port = Cmdliner.Arg.(
-  value & opt int 8080 & info ["port"]
-    ~doc:"the port number of the master")
-
-let fresh = Cmdliner.Arg.(
-  value & flag & info ["fresh"; "f"]
-    ~doc:"start with a fresh new store")
-
-let store = Cmdliner.Arg.(
-  required & pos 0 (some string) None & info []
-    ~doc:"the address to contact the data store" ~docv:"STORE")
-
-let () = Cmdliner.Term.(
-  let master_cmd =
-    pure master $ fresh $ store $ ip $ port,
-    info ~doc:"start the master" "master" in
-  match eval master_cmd with `Error _ -> exit 1 | _ -> exit 0)
+  Lwt.join [App.start (server s |> App.port port); t_monitor ()]

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1273ed104e82845ba9a7623650cf8f49)
+# DO NOT EDIT (digest: 9f991cb80076c6671fb878eb42e714d2)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,41 +16,11 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Library ciso
 "lib/ciso.cmxs": use_ciso
-# Executable ciso-store
-<lib/store_server.{native,byte}>: pkg_cmdliner
-<lib/store_server.{native,byte}>: pkg_irmin.unix
-<lib/store_server.{native,byte}>: pkg_sexplib
-<lib/store_server.{native,byte}>: pkg_sexplib.syntax
-<lib/store_server.{native,byte}>: use_ciso
-<lib/store_server.{native,byte}>: custom
-# Executable ciso-worker
-<lib/worker.{native,byte}>: pkg_cmdliner
-<lib/worker.{native,byte}>: pkg_cohttp.lwt
-<lib/worker.{native,byte}>: pkg_irmin.unix
-<lib/worker.{native,byte}>: pkg_lwt
-<lib/worker.{native,byte}>: pkg_ocamlgraph
-<lib/worker.{native,byte}>: pkg_opam-lib.client
-<lib/worker.{native,byte}>: pkg_re.str
-<lib/worker.{native,byte}>: pkg_sexplib
-<lib/worker.{native,byte}>: pkg_sexplib.syntax
-<lib/worker.{native,byte}>: pkg_uri
-<lib/worker.{native,byte}>: use_ciso
+# Library ciso-worker
+"lib/ciso-worker.cmxs": use_ciso-worker
 <lib/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/*.ml{,i,y}>: pkg_re.str
-# Executable ciso-master
-<lib/master.{native,byte}>: pkg_cmdliner
-<lib/master.{native,byte}>: pkg_cohttp.lwt
-<lib/master.{native,byte}>: pkg_github.unix
-<lib/master.{native,byte}>: pkg_irmin.unix
-<lib/master.{native,byte}>: pkg_lwt
-<lib/master.{native,byte}>: pkg_nocrypto
-<lib/master.{native,byte}>: pkg_opam-lib.client
-<lib/master.{native,byte}>: pkg_opium
-<lib/master.{native,byte}>: pkg_sexplib
-<lib/master.{native,byte}>: pkg_sexplib.syntax
-<lib/master.{native,byte}>: pkg_uri
-<lib/master.{native,byte}>: use_ciso
-<lib/*.ml{,i,y}>: pkg_cmdliner
+# Library ciso-master
+"lib/ciso-master.cmxs": use_ciso-master
 <lib/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/*.ml{,i,y}>: pkg_github.unix
 <lib/*.ml{,i,y}>: pkg_irmin.unix
@@ -62,6 +32,54 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/*.ml{,i,y}>: pkg_uri
 <lib/*.ml{,i,y}>: use_ciso
+# Executable ciso-store
+<bin/store_main.{native,byte}>: pkg_cmdliner
+<bin/store_main.{native,byte}>: pkg_irmin.unix
+<bin/store_main.{native,byte}>: pkg_lwt
+<bin/store_main.{native,byte}>: pkg_sexplib
+<bin/store_main.{native,byte}>: pkg_sexplib.syntax
+<bin/store_main.{native,byte}>: use_ciso
+<bin/store_main.{native,byte}>: custom
+# Executable ciso-worker
+<bin/worker_main.{native,byte}>: pkg_cmdliner
+<bin/worker_main.{native,byte}>: pkg_cohttp.lwt
+<bin/worker_main.{native,byte}>: pkg_irmin.unix
+<bin/worker_main.{native,byte}>: pkg_lwt
+<bin/worker_main.{native,byte}>: pkg_ocamlgraph
+<bin/worker_main.{native,byte}>: pkg_opam-lib.client
+<bin/worker_main.{native,byte}>: pkg_sexplib
+<bin/worker_main.{native,byte}>: pkg_sexplib.syntax
+<bin/worker_main.{native,byte}>: use_ciso
+<bin/worker_main.{native,byte}>: use_ciso-worker
+<bin/*.ml{,i,y}>: pkg_ocamlgraph
+<bin/*.ml{,i,y}>: use_ciso-worker
+# Executable ciso-master
+<bin/master_main.{native,byte}>: pkg_cmdliner
+<bin/master_main.{native,byte}>: pkg_cohttp.lwt
+<bin/master_main.{native,byte}>: pkg_github.unix
+<bin/master_main.{native,byte}>: pkg_irmin.unix
+<bin/master_main.{native,byte}>: pkg_lwt
+<bin/master_main.{native,byte}>: pkg_nocrypto
+<bin/master_main.{native,byte}>: pkg_opam-lib.client
+<bin/master_main.{native,byte}>: pkg_opium
+<bin/master_main.{native,byte}>: pkg_sexplib
+<bin/master_main.{native,byte}>: pkg_sexplib.syntax
+<bin/master_main.{native,byte}>: pkg_uri
+<bin/master_main.{native,byte}>: use_ciso
+<bin/master_main.{native,byte}>: use_ciso-master
+<bin/*.ml{,i,y}>: pkg_cmdliner
+<bin/*.ml{,i,y}>: pkg_cohttp.lwt
+<bin/*.ml{,i,y}>: pkg_github.unix
+<bin/*.ml{,i,y}>: pkg_irmin.unix
+<bin/*.ml{,i,y}>: pkg_lwt
+<bin/*.ml{,i,y}>: pkg_nocrypto
+<bin/*.ml{,i,y}>: pkg_opam-lib.client
+<bin/*.ml{,i,y}>: pkg_opium
+<bin/*.ml{,i,y}>: pkg_sexplib
+<bin/*.ml{,i,y}>: pkg_sexplib.syntax
+<bin/*.ml{,i,y}>: pkg_uri
+<bin/*.ml{,i,y}>: use_ciso
+<bin/*.ml{,i,y}>: use_ciso-master
 # OASIS_STOP
 true: debug, bin_annot
 true: warn(A-4-41-44), warn(A-4-41-44)

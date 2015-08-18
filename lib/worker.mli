@@ -1,4 +1,4 @@
-(*
+ (*
  * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
  * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
  * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
@@ -15,6 +15,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+(** The worker API. *)
 
 open Common_types
 type t
@@ -65,3 +67,6 @@ val execution_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
     under the idle state, if gets the response of Some (task_id, obj_id),
     the function will send a signl to the conditional variable cond *)
 val heartbeat_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+
+(* FIXME *)
+val run: base:string -> uri:string -> fresh:bool -> unit Lwt.t

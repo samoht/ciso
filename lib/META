@@ -1,12 +1,34 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8229b58fc9750e4f2d74b89c0c154865)
+# DO NOT EDIT (digest: 785494cbec97907844aec70fb699298d)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
-requires = "sexplib.syntax sexplib irmin.unix"
+requires = "sexplib.syntax sexplib irmin.unix lwt"
 archive(byte) = "ciso.cma"
 archive(byte, plugin) = "ciso.cma"
 archive(native) = "ciso.cmxa"
 archive(native, plugin) = "ciso.cmxs"
 exists_if = "ciso.cma"
+package "worker" (
+ version = "0.0.0"
+ description = "distributed integration engine for opam packages"
+ requires = "ciso irmin.unix opam-lib.client ocamlgraph lwt cohttp.lwt"
+ archive(byte) = "ciso-worker.cma"
+ archive(byte, plugin) = "ciso-worker.cma"
+ archive(native) = "ciso-worker.cmxa"
+ archive(native, plugin) = "ciso-worker.cmxs"
+ exists_if = "ciso-worker.cma"
+)
+
+package "master" (
+ version = "0.0.0"
+ description = "distributed integration engine for opam packages"
+ requires =
+ "ciso github.unix lwt nocrypto cohttp.lwt uri opium opam-lib.client"
+ archive(byte) = "ciso-master.cma"
+ archive(byte, plugin) = "ciso-master.cma"
+ archive(native) = "ciso-master.cmxa"
+ archive(native, plugin) = "ciso-master.cmxs"
+ exists_if = "ciso-master.cma"
+)
 # OASIS_STOP
 

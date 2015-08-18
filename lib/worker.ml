@@ -780,34 +780,13 @@ let rec heartbeat_loop base worker cond =
     Lwt_unix.sleep working_sleep
     >>= fun () -> heartbeat_loop base worker cond
 
-let worker base_str store_str fresh =
-  let f () =
-    Store.create ~uri:store_str () >>= fun store ->
-    let base = Uri.of_string base_str in
-    let build_store = local_store ~fresh in
-    worker_register store base build_store >>= fun worker ->
-    let cond = Lwt_condition.create () in
-    Lwt.pick [
-      heartbeat_loop base worker cond;
-      execution_loop base worker cond;
-    ]
-  in
-  Lwt_main.run (f ())
-
-let base = Cmdliner.Arg.(
-  required & pos 0 (some string) None & info []
-    ~docv:"HOST" ~doc:"the uri string of master node")
-
-let store = Cmdliner.Arg.(
-  required & pos 1 (some string) None & info []
-    ~docv:"STORE" ~doc:"the uri string of data store")
-
-let fresh = Cmdliner.Arg.(
-  value & flag & info ["fresh"; "f"]
-    ~doc:"start with a fresh new local store")
-
-let () = Cmdliner.Term.(
-  let worker_cmd =
-    pure worker $ base $store $ fresh,
-    info ~doc:"start a worker" "worker" in
-  match eval worker_cmd with `Error _ -> exit 1 | _ -> exit 0)
+let run ~base ~uri ~fresh =
+  Store.create ~uri () >>= fun store ->
+  let base = Uri.of_string base in
+  let build_store = local_store ~fresh in
+  worker_register store base build_store >>= fun worker ->
+  let cond = Lwt_condition.create () in
+  Lwt.pick [
+    heartbeat_loop base worker cond;
+    execution_loop base worker cond;
+  ]

@@ -9,27 +9,39 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
-  InternalModules: Gol
-  Modules: Store, Object, Task, Message, Host, Common_types
-  BuildDepends: sexplib.syntax, sexplib, irmin.unix
+  Modules: Gol, Store, Object, Task, Message, Host, Common_types
+  BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt
+
+Library "ciso-worker"
+  Path: lib
+  FindlibParent: ciso
+  FindlibName: worker
+  InternalModules: Ci_opam
+  Modules: Worker
+  BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt, cohttp.lwt
+
+Library "ciso-master"
+  Path: lib
+  FindlibParent: ciso
+  FindlibName: master
+  Modules: Master
+  BuildDepends: ciso, github.unix, lwt, nocrypto, cohttp.lwt, uri, opium
 
 Executable "ciso-store"
-  Path: lib
-  MainIs: store_server.ml
+  Path: bin
+  MainIs: store_main.ml
   Custom: true
   CompiledObject: best
-  BuildDepends: cmdliner, irmin.unix, ciso
+  BuildDepends: ciso, cmdliner
 
 Executable "ciso-worker"
-  Path: lib
-  MainIs: worker.ml
+  Path: bin
+  MainIs: worker_main.ml
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str,
-                opam-lib.client, ocamlgraph, ciso
+  BuildDepends: ciso.worker, cmdliner
 
 Executable "ciso-master"
-  Path: lib
-  MainIs: master.ml
+  Path: bin
+  MainIs: master_main.ml
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto,
-                irmin.unix, opam-lib.client, opium, ciso
+  BuildDepends: ciso.master, cmdliner
