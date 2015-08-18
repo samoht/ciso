@@ -243,7 +243,7 @@ let worker_spawn base t job_lst =
   let headers = Cohttp.Header.of_list ["worker", t.token] in
   let m_job_lst =
     List.rev_map (fun (id, job, deps) ->
-        let desp = Task.string_of_job job in
+        let desp = Job.to_string job in
         id, desp, deps
       ) job_lst
   in
@@ -623,14 +623,13 @@ let install_compiler worker (c, host) =
 
 let pkg_job_execute base worker jid job deps =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
-  let (c, h) = Task.env_of_job job in
-  let repo = Task.repo_of_job job in
-  let pin = Task.pin_of_job job in
+  let (c, h) = Job.env job in
+  let repositories = Job.repositories job in
+  let pins = Job.pins job in
   Lwt.catch (fun () ->
-      (match repo with
-       | None -> Opam.clean_repositories (); Lwt.return_unit
-       | Some repo ->
-         Opam.add_repositories repo)
+      (match repositories with
+       | [] -> Opam.clean_repositories (); Lwt.return_unit
+       | _  -> Opam.add_repositories repositories)
       >>= fun () ->
       Opam.update () >>= fun () ->
       let c_curr = Opam.compiler () in
@@ -638,17 +637,19 @@ let pkg_job_execute base worker jid job deps =
        else
          Opam.export_switch c >>= fun () ->
          install_compiler worker (c, h) >|= fun () ->
-         debug "execute: compiler %s installed" c) >>= fun () ->
-      (match pin with
-       | None -> Lwt.return_unit
-       | Some pin ->
+         debug "execute: compiler %s installed" c
+      ) >>= fun () ->
+      (match pins with
+       | [] -> Lwt.return_unit
+       | _  ->
          let build =
            let dir = Filename.concat root c in
            Filename.concat dir "build"
          in
          Unix.mkdir build 0o775;
-         Opam.add_pins pin) >>= fun () ->
-      let name, version, depopts = Task.info_of_pkg_task (Task.task_of_job job) in
+         Opam.add_pins pins
+      ) >>= fun () ->
+      let name, version, depopts = Task.info_of_pkg_task (Job.task job) in
       let prefix = Opam.get_var "prefix" in
       debug "execute: opam load state";
       Opam.show_repo_pin () >>= fun () ->
@@ -668,11 +669,11 @@ let pkg_job_execute base worker jid job deps =
       in
       if is_resolvable then (
         debug "execute: resolvable=true";
-        let job_lst = Opam.jobs_of_graph ?repository:repo ?pin graph in
+        let job_lst = Opam.jobs_of_graph ~repositories ~pins graph in
         worker_spawn base worker job_lst >>= fun () ->
         let delegate_id =
           List.fold_left (fun acc (id, job, _) ->
-              let name', _ = Task.info_of_task (Task.task_of_job job) in
+              let name', _ = Task.info_of_task (Job.task job) in
               if name' = name then id :: acc
               else acc
             ) [] job_lst
@@ -704,7 +705,7 @@ let pkg_job_execute base worker jid job deps =
       Lwt.return (result, obj))
 
 let compiler_job_execute jid job =
-  let task = Task.task_of_job job in
+  let task = Job.task job in
   let comp = match Task.to_compiler task with
       | Some c -> c
       | None   -> failwith "not compiler build task"
@@ -740,13 +741,13 @@ let rec execution_loop base worker cond =
   else (
     worker.status <- Working id;
     (try
-       Task.job_entry_of_string desp
-       |> Task.unwrap_entry
+       Job.entry_of_string desp
+       |> Job.unwrap_entry
        |> Lwt.return
      with _ ->
        err "execute: sexp %s" desp
     ) >>= fun (job, deps) ->
-    let task = Task.task_of_job job in
+    let task = Job.task job in
     (match Task.to_compiler task with
      | None   -> pkg_job_execute base worker id job deps
      | Some _ -> compiler_job_execute id job)

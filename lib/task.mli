@@ -18,48 +18,25 @@
 
 (* FIXME: rework the API *)
 
-type task
-type job
-type job_entry
+type t with sexp
+
 type pull
-type repository = string * string * int option
-type pin = string * string
+type repository = string * string * int option with sexp
+type pin = string * string with sexp
 type depopt = string * string option
 
-val make_job:
-  Common_types.id ->
-  Common_types.id list ->
-  Common_types.compiler ->
-  Common_types.host ->
-  task -> ?repository:repository list -> ?pin:pin list -> unit -> job
-
-val make_job_entry: job -> Common_types.id list -> job_entry
-
-val string_of_job_entry: job_entry -> string
-val job_entry_of_string: string -> job_entry
-val unwrap_entry: job_entry -> job * Common_types.id list
-
-val string_of_job: job -> string
-val job_of_string: string -> job
-
-val env_of_job: job -> Common_types.compiler * Common_types.host
-val inputs_of_job: job -> Common_types.id list
-val repo_of_job: job -> repository list option
-val pin_of_job: job -> pin list option
-val task_of_job: job -> task
-
 (* FIXME: weird type *)
-val info_of_task: task -> string * string option
-val to_compiler: task -> string option
+val info_of_task: t -> string * string option
+val to_compiler: t -> string option
 
 (* FIXME: weird *)
 val info_of_pkg_task:
-  task -> string * string option * (string * string option) list option
+  t -> string * string option * (string * string option) list option
 
-val make_gh_task: name:string -> ?version:string -> pull -> task
+val make_gh_task: name:string -> ?version:string -> pull -> t
 val make_pkg_task:
-  name:string -> ?version:string -> ?depopts:depopt list -> unit -> task
+  name:string -> ?version:string -> ?depopts:depopt list -> unit -> t
 
 val hash_id:
-  ?repository:repository list -> ?pin:pin list ->
-  task -> string list -> string -> string -> string
+  ?repositories:repository list -> ?pins:pin list ->
+  t -> string list -> string -> string -> string

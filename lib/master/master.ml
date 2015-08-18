@@ -123,7 +123,7 @@ let spawn_handler s params headers body =
   in
   let job_lst =
     List.rev_map (fun (jid, desp, deps) ->
-        let job = Task.job_of_string desp in
+        let job = Job.of_string desp in
         jid, job, deps
       ) m_job_lst
   in
@@ -152,16 +152,16 @@ let user_pkg_demand_handler s params _headers _body =
   let pin_target = try List.assoc "target" params with _ -> "" in
   let compilers = split c ~by:';' in
   let depopts = split dep ~by:';' in
-  let repository =
+  let repositories: Task.repository list =
     if repo_name = "" || repo_addr = "" then
-      None
+      []
     else (
       let names = split repo_name ~by:';' in
       let addrs = split repo_addr ~by:';' in
       assert (List.length names = List.length addrs);
       let tups = List.combine names addrs in
       if repo_p = "" then
-        Some (List.map (fun (n, add) -> n, add, None) tups)
+        List.map (fun (n, add) -> n, add, None) tups
       else
         let p = split repo_p ~by:';' in
         assert (List.length names = List.length p);
@@ -171,17 +171,17 @@ let user_pkg_demand_handler s params _headers _body =
           | (h1, h2) :: tup_tl, h :: tl ->
             combine ((h1, h2, h) :: acc) (tup_tl, tl)
           | _ -> failwith "uneven list for combine" in
-        Some (combine [] (tups, priorities))
+        combine [] (tups, priorities)
     )
   in
-  let pin =
+  let pins: Task.pin list =
     if pin_pkg = "" || pin_target = "" then
-      None
+      []
     else (
       let pkgs = split pin_pkg ~by:';' in
       let targets = split pin_target ~by:';' in
       assert (List.length pkgs = List.length targets);
-      Some (List.combine pkgs targets)
+      List.combine pkgs targets
     )
   in
   let pkg = List.assoc "pkg" params in
@@ -202,8 +202,10 @@ let user_pkg_demand_handler s params _headers _body =
   in
   let job_lst =
     List.rev_map (fun (h, c) ->
-        let id = Task.hash_id ?repository ?pin ptask [] c h in
-        let job = Task.make_job id [] c h ptask ?repository ?pin ()  in
+        let id = Task.hash_id ~repositories ~pins ptask [] c h in
+        let job =
+          Job.create ~id ~inputs:[] ~compiler:c ~host:h ~repositories ~pins ptask
+        in
         id, job, []
       ) envs
   in
@@ -245,13 +247,13 @@ let user_object_query_handler s params _headers _body =
   Lwt.catch (fun () ->
       Store.retrieve_job s jid >>= fun (job, _) ->
       Store.retrieve_object s jid >>= fun obj ->
-      let inputs = Task.inputs_of_job job in
-      let c, h = Task.env_of_job job in
-      let task_info = Task.(task_of_job job |> info_of_task) in
+      let inputs = Job.inputs job in
+      let c, h = Job.env job in
+      let task_info = Job.task job |> Task.info_of_task in
       let result = Object.result obj in
       Lwt_list.rev_map_s (fun i ->
           Store.retrieve_job s i >|= fun (j, _) ->
-          i, Task.(task_of_job j |> info_of_task)
+          i, Job.task j |> Task.info_of_task
         ) inputs
       >|= fun inputs_info ->
       let task_info_str (p, v_opt) =

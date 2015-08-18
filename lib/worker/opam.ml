@@ -87,7 +87,7 @@ let compiler () =
   let s = load_state "compier" in
   s.OpamState.Types.compiler |> OpamCompiler.to_string
 
-let jobs_of_graph ?pull ?repository ?pin graph =
+let jobs_of_graph ?pull ?(repositories=[]) ?(pins=[]) graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -135,8 +135,8 @@ let jobs_of_graph ?pull ?repository ?pin graph =
         IdSet.union d (IdSet.add pred_id pred_deps)
       ) graph v ([], IdSet.empty)
     in
-    let id = Task.hash_id ?repository ?pin task inputs compiler host in
-    let job = Task.make_job id inputs compiler host task ?repository ?pin () in
+    let id = Task.hash_id ~repositories ~pins task inputs compiler host in
+    let job = Job.create ~id ~inputs ~compiler ~host ~repositories ~pins task in
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
     j_lst := (id, job, IdSet.to_list deps) :: !j_lst

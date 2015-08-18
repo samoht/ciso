@@ -9,7 +9,7 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
-  Modules: Gol, Store, Object, Task, Message, Host, Common_types
+  Modules: Gol, Store, Object, Task, Message, Host, Job, Common_types
   BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt
 
 Library "ciso-worker"

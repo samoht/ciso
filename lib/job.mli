@@ -16,32 +16,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Common_types
+(* FIXME: doc *)
 
 type t
 
-val create: ?uri:string -> ?fresh:bool -> unit -> t Lwt.t
+val create:
+  id:Common_types.id ->
+  inputs:Common_types.id list ->
+  compiler:Common_types.compiler ->
+  host:Common_types.host ->
+  repositories:Task.repository list ->
+  pins:Task.pin list ->
+  Task.t -> t
 
-val register_token: t -> worker_token -> unit Lwt.t
+val to_string: t -> string
+val of_string: string -> t
 
-val invalidate_token: t -> worker_token -> unit Lwt.t
+val env: t -> Common_types.compiler * Common_types.host
+val inputs: t -> Common_types.id list
+val repositories: t -> Task.repository list
+val pins: t -> Task.pin list
+val task: t -> Task.t
 
-val query_object: t -> id -> bool Lwt.t
+type entry
 
-val publish_object: t -> worker_token -> id -> Object.t -> unit Lwt.t
-
-val retrieve_object: t -> id -> Object.t Lwt.t
-
-val log_job: t -> id -> Job.t * (id list) -> unit Lwt.t
-
-val unlog_job: t -> id -> unit Lwt.t
-
-val retrieve_jobs: t -> (id * Job.t * (id list)) list Lwt.t
-
-val retrieve_job: t -> id -> (Job.t * (id list)) Lwt.t
-
-val query_compiler: t -> id -> bool Lwt.t
-
-val publish_compiler: t -> worker_token -> id -> Object.t -> unit Lwt.t
-
-val retrieve_compiler: t -> id -> Object.t Lwt.t
+val create_entry: t -> Common_types.id list -> entry
+val string_of_entry: entry -> string
+val entry_of_string: string -> entry
+val unwrap_entry: entry -> t * Common_types.id list

@@ -97,8 +97,8 @@ let retrieve_object t id =
 
 let log_job t id (job, deps) =
   let path = path_of_job id in
-  let entry = Task.make_job_entry job deps in
-  let content = Task.string_of_job_entry entry in
+  let entry = Job.create_entry job deps in
+  let content = Job.string_of_entry entry in
   Store.update (t ("log job " ^ id)) path content
 
 let archive_job t id =
@@ -119,11 +119,7 @@ let unlog_job t id =
 let retrieve_job t id =
   let jpath = path_of_job id in
   let apath = path_of_arc id in
-  let read_job_content c =
-    c
-    |> Task.job_entry_of_string
-    |> Task.unwrap_entry
-  in
+  let read_job_content c = c |> Job.entry_of_string |> Job.unwrap_entry in
   Store.mem (t ("query job " ^ id)) jpath >>= fun is_jpath ->
   Store.mem (t ("query archive " ^ id)) apath >>= fun is_apath ->
   let path = if is_jpath then jpath else if is_apath then apath else [] in
@@ -140,11 +136,11 @@ let retrieve_jobs t =
     | _::tl -> id_of_path tl
     | []    -> err_empty_path ()
   in
-  let entry_of_content c = Task.job_entry_of_string c in
+  let entry_of_content c = Job.entry_of_string c in
   Lwt_list.rev_map_p (fun p ->
       id_of_path p >>= fun id ->
       Store.read_exn (t ("retrieve job" ^ id)) p >|= fun c ->
-      let job, deps = Task.unwrap_entry (entry_of_content c) in
+      let job, deps = Job.unwrap_entry (entry_of_content c) in
       id, job, deps
     ) paths
 

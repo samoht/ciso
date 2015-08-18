@@ -32,11 +32,10 @@ val resolve : string list -> OpamSolver.ActionGraph.t
    given the action graph from resolv and return the id of corresponding
    task, the ids are deterministic *)
 val jobs_of_graph: ?pull:Task.pull ->
-  ?repository:Task.repository list ->
-  ?pin:Task.pin list ->
+  ?repositories:Task.repository list ->
+  ?pins:Task.pin list ->
   OpamSolver.ActionGraph.t ->
-  (Common_types.id * Task.job * (Common_types.id list)) list
-
+  (Common_types.id * Job.t * (Common_types.id list)) list
 
 val resolvable:
   name:string -> ?version:string -> ?depopts:(string * string option) list ->

@@ -21,7 +21,7 @@ open Common_types
 
 let debug fmt = Gol.debug ~section:"scheduler" fmt
 
-type job_tbl = (id, Task.job) Hashtbl.t
+type job_tbl = (id, Job.t) Hashtbl.t
 type deps_tbl = (id, id list) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
@@ -44,7 +44,7 @@ let sub_abbr str = String.sub str 0 5
 let task_info ?(abbr = true) id =
   try
     let job = Hashtbl.find j_tbl id in
-    let name, version = Task.(task_of_job job |> info_of_task) in
+    let name, version = Job.task job |> Task.info_of_task in
     (if abbr then String.sub id 0 5
      else id ) ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
   with
@@ -65,7 +65,7 @@ let rec get_runnables ?host ?compiler () =
   in
   Hashtbl.fold (fun id j acc ->
       if `Runnable = Hashtbl.find s_tbl id
-         && env_match (Task.env_of_job j) (host, compiler)
+         && env_match (Job.env j) (host, compiler)
       then id :: acc
       else acc) j_tbl []
   |> fun lst ->
@@ -99,11 +99,8 @@ let find_job wtoken =
     debug "find_job:  -> %s" (task_info id);
     let job = Hashtbl.find j_tbl id in
     let deps = Hashtbl.find d_tbl id in
-    let desp =
-      Task.make_job_entry job deps
-      |> Task.string_of_job_entry
-    in
-    let c, _ = Task.env_of_job job in
+    let desp = Job.create_entry job deps |> Job.string_of_entry in
+    let c, _ = Job.env job in
     Some (id, c, desp)
   )
 
@@ -129,7 +126,7 @@ let publish_object_hook s id =
         in
         if state <> `Pending then Lwt.return cache
         else (
-          let inputs = Task.inputs_of_job job in
+          let inputs = Job.inputs job in
           let cached, store =
             List.partition (fun input -> List.mem_assoc input cache) inputs
           in
@@ -188,16 +185,16 @@ let update_tables s jobs =
       >>= fun lookup_results ->
       let new_cache = List.combine to_lookup (List.rev lookup_results) in
       let cache = List.rev_append new_cache cache in
-
       let in_store d = List.assoc d cache in
-      (if List.for_all (fun d -> in_store d) deps then
-         Hashtbl.replace s_tbl id `Runnable
-       else begin
-         let hooks = List.filter (fun i -> not (in_store i))
-             (Task.inputs_of_job j) in
-         List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
-         Hashtbl.replace s_tbl id `Pending; end);
-      Lwt.return cache) [] new_jobs
+      if List.for_all (fun d -> in_store d) deps then
+        Hashtbl.replace s_tbl id `Runnable
+      else (
+        let hooks = List.filter (fun i -> not (in_store i)) (Job.inputs j) in
+        List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
+         Hashtbl.replace s_tbl id `Pending;
+      );
+      Lwt.return cache
+    ) [] new_jobs
   >|= fun _ ->
   let run, sum = count_runnables () in
   debug "update: %d/%d jobs" run sum

@@ -60,7 +60,7 @@ val bootstrap: Store.t -> unit Lwt.t
 val invalidate_token: worker_token -> unit
 
 (* add new jobs into jobs/tables*)
-val update_tables: Store.t -> (id * Task.job * id list) list -> unit Lwt.t
+val update_tables: Store.t -> (id * Job.t * id list) list -> unit Lwt.t
 
 (* get related jobs of an id and the corresponding state *)
 val progress_info: Store.t -> id -> string Lwt.t

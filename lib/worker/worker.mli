@@ -43,7 +43,7 @@ val worker_publish: Uri.t -> t -> [`Success | `Fail of string | `Delegate of id]
 (** [worker_spawn master_uri worker job_lst]:
     when a job fetched can be resolved,
     worker post the resolved jobs to master *)
-val worker_spawn: Uri.t -> t -> (id * Task.job * (id list)) list -> unit Lwt.t
+val worker_spawn: Uri.t -> t -> (id * Job.t * (id list)) list -> unit Lwt.t
 
 (** [worker_request_object master_uri worker obj_id]:
     before task execution, the worker will gather all the dependencies by this
