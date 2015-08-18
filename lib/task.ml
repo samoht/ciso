@@ -18,9 +18,6 @@
 
 open Sexplib.Std
 
-(* name, verison option *)
-type depopt = string * string option with sexp
-
 (* name, address option *)
 type repository = string * string with sexp
 
@@ -28,7 +25,7 @@ type repository = string * string with sexp
 type pin = string * string with sexp
 
 type t =
-  | Package of string * string option * depopt list option
+  | Package of Package.t * Package.t list
   (* package name * version * depopts *)
   | Compiler of string
  (* compiler version[+tag] *)
@@ -36,21 +33,18 @@ with sexp
 
 let info_of_task task =
   match task with
-  | Package (p, v, None) -> p, v
-  | Package (p, v, Some depopts) ->
+  | Package (p, []) -> Package.to_string p
+  | Package (p, depopts) ->
      let depopt_info =
-       depopts
-       |> List.rev_map (fun (n, v_opt) ->
-            match v_opt with
-            | None -> n
-            |Some v -> n ^ "." ^ v)
-       |> String.concat ";" in
-     p ^ "+" ^ depopt_info, v
-  | Compiler c -> c, None
+       List.rev_map Package.to_string depopts
+       |> String.concat ";"
+     in
+     Package.to_string p ^ "+" ^ depopt_info
+  | Compiler c -> c
 
 
-let info_of_pkg_task = function
-  | Package (n, v, depopts) -> n, v, depopts
+let packages = function
+  | Package (n, depopts) -> n :: depopts
   | Compiler _ -> assert false
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
@@ -58,16 +52,9 @@ let info_of_pkg_task = function
 let hash_id ?(repositories=[]) ?(pins=[]) task inputs compiler host =
   let task_str = match task with
     | Compiler c -> c
-    | Package (n, v_opt, depopt_opt) ->
-      let v_str = match v_opt with None -> "" | Some v -> v in
-      let depopt_str = match depopt_opt with
-        | None -> ""
-        | Some depopts ->
-          List.rev_map (fun (n ,v_opt) ->
-              match v_opt with
-              | None -> n | Some v -> n ^ "." ^ v) depopts
-          |> String.concat ";" in
-      n ^ v_str ^ depopt_str
+    | Package (n, depopt) ->
+      let depopt_str = List.map Package.to_string depopt |> String.concat ";" in
+      Package.to_string n ^ depopt_str
   in
   let repo_str = match (repositories: repository list) with
     | [] -> ""
@@ -88,7 +75,7 @@ let hash_id ?(repositories=[]) ?(pins=[]) task inputs compiler host =
   in
   h
 
-let make_pkg_task ~name ?version ?depopts () = Package (name, version, depopts)
+let create ?(depopts=[]) pkg = Package (pkg, depopts)
 
 let to_compiler = function
   | Compiler c -> Some c

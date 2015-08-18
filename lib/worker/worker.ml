@@ -649,7 +649,7 @@ let pkg_job_execute base worker jid job deps =
          Unix.mkdir build 0o775;
          Opam.add_pins pins
       ) >>= fun () ->
-      let name, version, depopts = Task.info_of_pkg_task (Job.task job) in
+      let pkgs = Task.packages (Job.task job) in
       let prefix = Opam.get_var "prefix" in
       debug "execute: opam load state";
       Opam.show_repo_pin () >>= fun () ->
@@ -664,18 +664,16 @@ let pkg_job_execute base worker jid job deps =
           | `Delegate _ -> Lwt.fail_with "delegate in deps"
         ) deps
       >>= fun () ->
-      let is_resolvable, graph =
-        Opam.resolvable ~name ?version ?depopts ()
-      in
-      if is_resolvable then (
-        debug "execute: resolvable=true";
-        let job_lst = Opam.jobs_of_graph ~repositories ~pins graph in
-        worker_spawn base worker job_lst >>= fun () ->
+      let graph = Opam.resolve_packages pkgs in
+      match Opam.is_simple graph with
+      | None ->
+        debug "execute: simple=false";
+        let job_lst = Opam.jobs ~repositories ~pins graph in
+        worker_spawn base worker job_lst >|= fun () ->
         let delegate_id =
           List.fold_left (fun acc (id, job, _) ->
-              let name', _ = Task.info_of_task (Job.task job) in
-              if name' = name then id :: acc
-              else acc
+              let p = List.hd (Task.packages (Job.task job)) in
+              if List.mem p pkgs then id :: acc else acc
             ) [] job_lst
           |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst)
         in
@@ -685,15 +683,17 @@ let pkg_job_execute base worker jid job deps =
           Object.create ~id:jid ~result ~output:[] ~installed:[] ~archive
         in
         switch_clean_up root c;
-        Lwt.return (result, obj)
-      ) else (
-        debug "execute: resolvable=false";
-        let v = match version with Some v -> v | None -> assert false in
-        pkg_build prefix jid name v
-        >>= fun (result, output, installed, archive) ->
+        result, obj
+      | Some pkg ->
+        debug "execute: simple=%s" (Package.to_string pkg);
+        let v =
+          match Package.version pkg with Some v -> v | None -> assert false
+        in
+        pkg_build prefix jid (Package.name pkg) v
+        >|= fun (result, output, installed, archive) ->
         let obj = Object.create ~id:jid ~result ~output ~installed ~archive in
         switch_clean_up root c;
-        Lwt.return (result, obj))
+        result, obj
     ) (fun exn ->
       let result = match exn with
         | Failure f -> `Fail f

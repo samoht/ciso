@@ -16,21 +16,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: rework the API *)
+(** Package name with optional version. *)
 
 type t with sexp
+(** The type for package names with an optional version. *)
 
-type repository = string * string with sexp
-type pin = string * string with sexp
+val name: t -> string
+(** [name t] is [t]'s name. *)
 
-val packages: t -> Package.t list
-val create: ?depopts:Package.t list -> Package.t -> t
+val version: t -> string option
+(** [version t] is [t]'s version or [None] it [t] does not have any
+    version. *)
 
-(* FIXME: weird type *)
-val info_of_task: t -> string
-val to_compiler: t -> string option
+val create: ?version:string -> string -> t
+(** [create ?version name] is the opam package [name.version].  *)
 
+val of_string: string -> t
+(** [of_string "n.v"] is the package with name [n] and version [v]. If
+    [s] does not contain any string, it is the package with name [s]
+    and no version. *)
 
-val hash_id:
-  ?repositories:repository list -> ?pins:pin list ->
-  t -> string list -> string -> string -> string
+val to_string: t -> string
+(** [to_string t] is [name t ^ "." v] if [t] has the version [v],
+    otherwise it is [name t]. *)

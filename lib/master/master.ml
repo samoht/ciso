@@ -136,10 +136,10 @@ let github_hook_handler _s params _headers _body =
      empty_response ~status:`Accepted *)
   failwith "TODO"
 
-let name_version_of_pkg str =
+let mk_pkg str =
   match Stringext.cut str ~on:"." with
-  | None        -> str, None
-  | Some (n, v) -> n  , Some v
+  | None        -> Package.create str
+  | Some (n, v) -> Package.create ~version:v n
 
 let user_pkg_demand_handler s params _headers _body =
   let c = try List.assoc "compiler" params with _ -> "" in
@@ -171,13 +171,9 @@ let user_pkg_demand_handler s params _headers _body =
       List.combine pkgs targets
     )
   in
-  let pkg = List.assoc "pkg" params in
-  let name, version = name_version_of_pkg pkg in
-  let depopts =
-    if depopts = [] then None
-    else Some (List.rev_map name_version_of_pkg depopts)
-  in
-  let ptask = Task.make_pkg_task ~name ?version ?depopts () in
+  let pkg = mk_pkg (List.assoc "pkg" params) in
+  let depopts = List.rev_map mk_pkg depopts in
+  let ptask = Task.create ~depopts pkg in
   let worker_hosts = Monitor.worker_environments () in
   let envs =
     List.fold_left (fun acc h ->
@@ -240,23 +236,15 @@ let user_object_query_handler s params _headers _body =
       let result = Object.result obj in
       Lwt_list.rev_map_s (fun i ->
           Store.retrieve_job s i >|= fun (j, _) ->
-          i, Job.task j |> Task.info_of_task
+          i ^ ":" ^ (Job.task j |> Task.info_of_task)
         ) inputs
-      >|= fun inputs_info ->
-      let task_info_str (p, v_opt) =
-        match v_opt with
-        | None -> p
-        | Some v -> Printf.sprintf "%s %s" p v
-      in
+      >|= fun input_info ->
+      let input_info = Printf.sprintf "\n%s" (String.concat "\n" input_info) in
       let cut str = String.sub str 0 5 in
       let ass_lst = [
         "Id"    , cut jid;
-        "Task"  , task_info_str task_info;
-        "Inputs",
-        List.rev_map (fun (id, info) ->
-            Printf.sprintf "  %s %s" (cut id) (task_info_str info)
-          ) inputs_info
-        |> (fun lst -> Printf.sprintf "\n%s" (String.concat "\n" lst));
+        "Task"  , task_info;
+        "Inputs", input_info;
         "Env"   , Printf.sprintf "%s %s" c h;
         "Result", Object.string_of_result result
       ] in

@@ -44,14 +44,12 @@ let sub_abbr str = String.sub str 0 5
 let task_info ?(abbr = true) id =
   try
     let job = Hashtbl.find j_tbl id in
-    let name, version = Job.task job |> Task.info_of_task in
-    (if abbr then String.sub id 0 5
-     else id ) ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
+    let info = Job.task job |> Task.info_of_task in
+    (if abbr then String.sub id 0 5 else id ) ^ ":" ^ info
   with
   | Not_found ->
     let ids =
-      Hashtbl.fold (fun id _ acc -> id :: acc) j_tbl []
-      |> String.concat "\n"
+      Hashtbl.fold (fun id _ acc -> id :: acc) j_tbl [] |> String.concat "\n"
     in
     Printf.sprintf "Object %s not in the ids: [\n%s]" id ids
   | e -> raise e

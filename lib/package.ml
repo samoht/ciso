@@ -16,21 +16,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: rework the API *)
+open Sexplib.Std
 
-type t with sexp
+type t = {
+  name: string;
+  version: string option;
+} with sexp
 
-type repository = string * string with sexp
-type pin = string * string with sexp
+let name t = t.name
+let version t = t.version
+let create ?version name = { name; version }
 
-val packages: t -> Package.t list
-val create: ?depopts:Package.t list -> Package.t -> t
+let of_string s = match Stringext.cut s ~on:"." with
+  | None        -> create s
+  | Some (n, v) -> create ~version:v n
 
-(* FIXME: weird type *)
-val info_of_task: t -> string
-val to_compiler: t -> string option
-
-
-val hash_id:
-  ?repositories:repository list -> ?pins:pin list ->
-  t -> string list -> string -> string -> string
+let to_string t = match t.version with
+  | None   -> t.name
+  | Some v -> t.name ^ "." ^ v

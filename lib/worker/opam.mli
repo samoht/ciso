@@ -16,30 +16,44 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Interface with opam-lib *)
+type plan
+(** The type for OPAM's build plan. *)
+
+val is_simple: plan -> Package.t option
+(** [is_simple p] is [Some pkg] if the plan [p] consists of only one
+    action: building and installing [p]. *)
+
+val resolve: string list -> plan
+(** [resolve atoms] returns a plan to build the list of (serialized) atoms
+    [atoms]. An atom is either:
+
+    {ul
+    {- A package name.}
+    {- A package name and a fixed version, e.g. ["name.version"]}
+    {- A package name and a version constraint inequality,
+       e.g. ["name<=version"]. This is similar to what OPAM uses on
+       the command-line.}
+    }  *)
+
+val resolve_packages: Package.t list -> plan
+(** Same as {!resolve} but without version constraint inequalities. *)
+
+
+type job = Common_types.id * Job.t * Common_types.id list
+(* FIXME *)
+
+val jobs:
+  ?repositories:Task.repository list -> ?pins:Task.pin list ->
+  plan -> job list
+(** [jobs p] is the list of jobs needed to fulfil the plan [p]. *)
+(* FIXME: should take a user-defined task as argument ... *)
+
+(* FIXME: review the doc *)
 
 (* [parse_user_demand demand]:
    parse the user demand string [demand] into a package name string and
    package version string option *)
 val parse_user_demand: string -> string * string option
-
-(* given a package name with version constraint probably,
-   produce an action graph based on the host's opam configuration but with
-   no installed packages, nor pinned packages *)
-val resolve : string list -> OpamSolver.ActionGraph.t
-
-(* [tasks_of_graph ?pull graph]
-   given the action graph from resolv and return the id of corresponding
-   task, the ids are deterministic *)
-val jobs_of_graph:
-  ?repositories:Task.repository list ->
-  ?pins:Task.pin list ->
-  OpamSolver.ActionGraph.t ->
-  (Common_types.id * Job.t * (Common_types.id list)) list
-
-val resolvable:
-  name:string -> ?version:string -> ?depopts:(string * string option) list ->
-  unit -> bool * OpamSolver.ActionGraph.t
 
 (* [get_var v]
    as the command line `opam config var v`, to retrieve the variable `prefix`,

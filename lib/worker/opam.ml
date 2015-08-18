@@ -19,6 +19,10 @@
 open OpamTypes
 open Lwt.Infix
 
+type plan = OpamSolver.ActionGraph.t
+
+type job = Common_types.id * Job.t * Common_types.id list
+
 let debug fmt = Gol.debug ~section:"opam" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
 
@@ -83,11 +87,13 @@ let resolve str_lst =
   OpamSolver.ActionGraph.Dot.output_graph oc graph; close_out oc;
   graph
 
+let resolve_packages pkgs = resolve (List.map Package.to_string pkgs)
+
 let compiler () =
   let s = load_state "compier" in
   s.OpamState.Types.compiler |> OpamCompiler.to_string
 
-let jobs_of_graph ?(repositories=[]) ?(pins=[]) graph =
+let jobs ?(repositories=[]) ?(pins=[]) graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -120,7 +126,7 @@ let jobs_of_graph ?(repositories=[]) ?(pins=[]) graph =
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
     let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
-    let task = Task.make_pkg_task ~name ~version () in
+    let task = Task.create (Package.create name ~version) in
     let inputs, deps = Graph.fold_pred (fun pred (i, d) ->
         let pred_pkg = package_of_action pred in
         let pred_id = Pkg.Map.find pred_pkg !id_map in
@@ -137,19 +143,19 @@ let jobs_of_graph ?(repositories=[]) ?(pins=[]) graph =
   done;
   !j_lst
 
-let resolvable ~name ?version ?depopts () =
-  let str = match version with None -> name | Some v -> name ^ "." ^ v in
-  let depopt_str = match depopts with
-    | None -> []
-    | Some lst ->
-       List.rev_map (fun (n, v_opt) ->
-         match v_opt with
-           |None -> n | Some v -> n ^ "." ^ v
-        ) lst
-  in
-  let graph = resolve (str :: depopt_str) in
-  if 1 = OpamSolver.ActionGraph.nb_vertex graph then false, graph
-  else true, graph
+let package_of_opam p =
+  let name = OpamPackage.(Name.to_string @@ name p) in
+  let version = OpamPackage.(Version.to_string @@ version p) in
+  Package.create ~version name
+
+let is_simple g =
+  if OpamSolver.ActionGraph.nb_vertex g > 1 then None
+  else
+    let p = ref None in
+    OpamSolver.ActionGraph.iter_vertex (fun v -> p := Some v) g;
+    match !p with
+    | Some (`Install p) -> Some (package_of_opam p)
+    | _ -> failwith "invalid base action"
 
 let read_conf conf =
   let rec read_conf_aux acc ic =
