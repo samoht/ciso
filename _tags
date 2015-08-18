@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b2082303e74b3a76e256f441dcd1b8be)
+# DO NOT EDIT (digest: d2bcf549319029409cb50c6c6f036dd4)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -33,7 +33,6 @@ true: annot, bin_annot
 # Library ciso-master
 "lib/master/ciso-master.cmxs": use_ciso-master
 <lib/master/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/master/*.ml{,i,y}>: pkg_github.unix
 <lib/master/*.ml{,i,y}>: pkg_irmin.unix
 <lib/master/*.ml{,i,y}>: pkg_lwt
 <lib/master/*.ml{,i,y}>: pkg_nocrypto
@@ -42,6 +41,18 @@ true: annot, bin_annot
 <lib/master/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/master/*.ml{,i,y}>: pkg_uri
 <lib/master/*.ml{,i,y}>: use_ciso
+# Library ciso-github
+"lib/github/ciso-github.cmxs": use_ciso-github
+<lib/github/*.ml{,i,y}>: pkg_cohttp.lwt
+<lib/github/*.ml{,i,y}>: pkg_github.unix
+<lib/github/*.ml{,i,y}>: pkg_irmin.unix
+<lib/github/*.ml{,i,y}>: pkg_lwt
+<lib/github/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/github/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/github/*.ml{,i,y}>: pkg_sexplib
+<lib/github/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/github/*.ml{,i,y}>: use_ciso
+<lib/github/*.ml{,i,y}>: use_ciso-worker
 # Executable ciso-store
 <bin/store_main.{native,byte}>: pkg_cmdliner
 <bin/store_main.{native,byte}>: pkg_irmin.unix
@@ -67,7 +78,6 @@ true: annot, bin_annot
 # Executable ciso-master
 <bin/master_main.{native,byte}>: pkg_cmdliner
 <bin/master_main.{native,byte}>: pkg_cohttp.lwt
-<bin/master_main.{native,byte}>: pkg_github.unix
 <bin/master_main.{native,byte}>: pkg_irmin.unix
 <bin/master_main.{native,byte}>: pkg_lwt
 <bin/master_main.{native,byte}>: pkg_nocrypto
@@ -79,7 +89,6 @@ true: annot, bin_annot
 <bin/master_main.{native,byte}>: use_ciso-master
 <bin/*.ml{,i,y}>: pkg_cmdliner
 <bin/*.ml{,i,y}>: pkg_cohttp.lwt
-<bin/*.ml{,i,y}>: pkg_github.unix
 <bin/*.ml{,i,y}>: pkg_irmin.unix
 <bin/*.ml{,i,y}>: pkg_lwt
 <bin/*.ml{,i,y}>: pkg_nocrypto

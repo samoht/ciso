@@ -26,7 +26,14 @@ Library "ciso-master"
   FindlibName: master
   InternalModules: Scheduler
   Modules: Master
-  BuildDepends: ciso, github.unix, lwt, nocrypto, cohttp.lwt, uri, opium
+  BuildDepends: ciso, lwt, nocrypto, cohttp.lwt, uri, opium
+
+Library "ciso-github"
+  Path: lib/github
+  FindlibParent: ciso
+  FindlibName: github
+  Modules: Github
+  BuildDepends: ciso, ciso.worker, github.unix, lwt
 
 Executable "ciso-store"
   Path: bin

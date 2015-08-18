@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b6c0e33fc1d877630eb6093ab41334f1)
+# DO NOT EDIT (digest: abd07b340607a86c3e5e7485289a0128)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
 requires = "sexplib.syntax sexplib irmin.unix lwt"
@@ -22,12 +22,23 @@ package "worker" (
 package "master" (
  version = "0.0.0"
  description = "distributed integration engine for opam packages"
- requires = "ciso github.unix lwt nocrypto cohttp.lwt uri opium"
+ requires = "ciso lwt nocrypto cohttp.lwt uri opium"
  archive(byte) = "ciso-master.cma"
  archive(byte, plugin) = "ciso-master.cma"
  archive(native) = "ciso-master.cmxa"
  archive(native, plugin) = "ciso-master.cmxs"
  exists_if = "ciso-master.cma"
+)
+
+package "github" (
+ version = "0.0.0"
+ description = "distributed integration engine for opam packages"
+ requires = "ciso ciso.worker github.unix lwt"
+ archive(byte) = "ciso-github.cma"
+ archive(byte, plugin) = "ciso-github.cma"
+ archive(native) = "ciso-github.cmxa"
+ archive(native, plugin) = "ciso-github.cmxs"
+ exists_if = "ciso-github.cma"
 )
 # OASIS_STOP
 

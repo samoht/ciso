@@ -31,7 +31,7 @@ val resolve : string list -> OpamSolver.ActionGraph.t
 (* [tasks_of_graph ?pull graph]
    given the action graph from resolv and return the id of corresponding
    task, the ids are deterministic *)
-val jobs_of_graph: ?pull:Task.pull ->
+val jobs_of_graph:
   ?repositories:Task.repository list ->
   ?pins:Task.pin list ->
   OpamSolver.ActionGraph.t ->

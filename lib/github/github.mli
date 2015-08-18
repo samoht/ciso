@@ -16,25 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: rework the API *)
+type pr
+type t
 
-type t with sexp
-
-type repository = string * string * int option with sexp
-type pin = string * string with sexp
-type depopt = string * string option
-
-(* FIXME: weird type *)
-val info_of_task: t -> string * string option
-val to_compiler: t -> string option
-
-(* FIXME: weird *)
-val info_of_pkg_task:
-  t -> string * string option * (string * string option) list option
-
-val make_pkg_task:
-  name:string -> ?version:string -> ?depopts:depopt list -> unit -> t
-
-val hash_id:
-  ?repositories:repository list -> ?pins:pin list ->
-  t -> string list -> string -> string -> string
+val make_gh_task: name:string -> ?version:string -> pr -> t
+val make_pull: int -> string -> string -> string -> pr

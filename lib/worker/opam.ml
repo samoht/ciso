@@ -87,7 +87,7 @@ let compiler () =
   let s = load_state "compier" in
   s.OpamState.Types.compiler |> OpamCompiler.to_string
 
-let jobs_of_graph ?pull ?(repositories=[]) ?(pins=[]) graph =
+let jobs_of_graph ?(repositories=[]) ?(pins=[]) graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -120,13 +120,7 @@ let jobs_of_graph ?pull ?(repositories=[]) ?(pins=[]) graph =
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
     let name, version = Pkg.(name_to_string pkg, version_to_string pkg) in
-    let task =
-      if Graph.out_degree graph v = 0 && pull <> None then
-        let pull = match pull with None -> assert false | Some p -> p in
-        Task.make_gh_task ~name ~version pull
-      else
-        Task.make_pkg_task ~name ~version ()
-    in
+    let task = Task.make_pkg_task ~name ~version () in
     let inputs, deps = Graph.fold_pred (fun pred (i, d) ->
         let pred_pkg = package_of_action pred in
         let pred_id = Pkg.Map.find pred_pkg !id_map in

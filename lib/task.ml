@@ -18,14 +18,6 @@
 
 open Sexplib.Std
 
-(* FIXME: move it elsewhere (GitHub specific) *)
-type pull = {
-    pull_num : int;
-    repo_url : string;
-    base_sha : string;
-    head_sha : string;
-} with sexp
-
 (* name, verison option *)
 type depopt = string * string option with sexp
 
@@ -36,8 +28,6 @@ type repository = string * string * int option with sexp
 type pin = string * string with sexp
 
 type t =
-  | Github of string * string option * pull
-  (* package name * version * pull *)
   | Package of string * string option * depopt list option
   (* package name * version * depopts *)
   | Compiler of string
@@ -46,7 +36,6 @@ with sexp
 
 let info_of_task task =
   match task with
-  | Github (p, v, _)
   | Package (p, v, None) -> p, v
   | Package (p, v, Some depopts) ->
      let depopt_info =
@@ -62,15 +51,7 @@ let info_of_task task =
 
 let info_of_pkg_task = function
   | Package (n, v, depopts) -> n, v, depopts
-  | Compiler _ | Github _ -> assert false
-
-(*
-let make_pull num url base head = {
-    pull_num = num;
-    repo_url = url;
-    base_sha = base;
-    head_sha = head;}
-*)
+  | Compiler _ -> assert false
 
 (* return a deterministic id, based on pakcage name, version, and dependencies
    could add os and architecture later *)
@@ -87,10 +68,6 @@ let hash_id ?(repositories=[]) ?(pins=[]) task inputs compiler host =
               | None -> n | Some v -> n ^ "." ^ v) depopts
           |> String.concat ";" in
       n ^ v_str ^ depopt_str
-    | Github (n, v_opt, pull) ->
-      let v_str = match v_opt with None -> "" | Some v -> v in
-      let pull_str = string_of_int pull.pull_num in
-      n ^ v_str ^ pull_str
   in
   let repo_str = match repositories with
     | [] -> ""
@@ -114,8 +91,6 @@ let hash_id ?(repositories=[]) ?(pins=[]) task inputs compiler host =
   h
 
 let make_pkg_task ~name ?version ?depopts () = Package (name, version, depopts)
-
-let make_gh_task ~name ?version pull = Github (name, version, pull)
 
 let to_compiler = function
   | Compiler c -> Some c
