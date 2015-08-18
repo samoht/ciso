@@ -186,7 +186,7 @@ let worker_publish base t result oid _obj =
 
 (* POST base/worker/registration -> `Created *)
 let worker_register store base build_store =
-  let host = Host.detect () |> Host.to_string in
+  let host = Host.detect () in
   let body = body_of_message (Message.Register host) in
   let uri_path = "worker/registration" in
   let uri = Uri.resolve "" base (Uri.of_string uri_path) in
@@ -431,7 +431,7 @@ let fs_snapshots ?white_list dir =
     |> (fun lst ->
         match white_list with
         | Some wl -> List.filter (fun n -> List.mem n wl) lst
-        | None -> lst)
+        | None   -> lst)
     |> List.rev_map (fun n -> Filename.concat dir n)
   in
   loop [] sub_dirs
@@ -534,12 +534,12 @@ let pkg_build prefix jid name version =
   Opam.uninstall ~name ~version >|= fun () ->
   result, output, installed, archive
 
-let compiler_fs_origin root compiler ?snapshots () =
+let compiler_fs_origin root switch ?snapshots () =
   (match snapshots with
    | Some s -> Lwt.return s
-   | None -> fs_snapshots ~white_list:[compiler] root)
+   | None -> fs_snapshots ~white_list:[switch] root)
   >|= fun ss ->
-  debug "snapshots: %s origin fs state" compiler;
+  debug "snapshots: %s origin fs state" switch;
   origin_fs := List.rev_map fst ss
 
 let switch_clean_up  root compiler =
@@ -591,9 +591,9 @@ let build_compiler_object cid root compiler =
   create_archive prefix cid [] installed [] new_pkgs >|= fun archive ->
   Object.create ~id:cid ~result:`Success ~output:[] ~installed ~archive
 
-let install_compiler worker (c, host) =
+let install_compiler worker c host =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
-  let cid = hash (host ^ root ^ c) in
+  let cid = hash (Host.to_string host ^ root ^ c) in
   let apply_compiler_obj obj =
     debug "apply: %s start" c;
     (* prefix directory has to be existe for apply_archive to work *)
@@ -603,7 +603,7 @@ let install_compiler worker (c, host) =
      else Lwt.return ()) >>= fun () ->
     apply_archive prefix obj >>= fun _ ->
     (* TODO: clean tmp archive file *)
-    Opam.switch c >|= fun () ->
+    Opam.switch_to c >|= fun () ->
     debug "apply: %s end" c
   in
   let compiler = true in
@@ -628,20 +628,20 @@ let install_compiler worker (c, host) =
 
 let pkg_job_execute base worker jid job deps =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
-  let (c, h) = Job.env job in
-  let repositories = Job.repositories job in
+  let repos = Job.repos job in
   let pins = Job.pins job in
   Lwt.catch (fun () ->
-      (match repositories with
-       | [] -> Opam.clean_repositories (); Lwt.return_unit
-       | _  -> Opam.add_repositories repositories)
+      (match repos with
+       | [] -> Opam.clean_repos (); Lwt.return_unit
+       | _  -> Opam.add_repos repos)
       >>= fun () ->
       Opam.update () >>= fun () ->
       let c_curr = Opam.compiler () in
+      let c = Job.compiler job in
       (if c = c_curr then Lwt.return_unit
        else
          Opam.export_switch c >>= fun () ->
-         install_compiler worker (c, h) >|= fun () ->
+         install_compiler worker c (Job.host job) >|= fun () ->
          debug "execute: compiler %s installed" c
       ) >>= fun () ->
       (match pins with
@@ -654,7 +654,6 @@ let pkg_job_execute base worker jid job deps =
          Unix.mkdir build 0o775;
          Opam.add_pins pins
       ) >>= fun () ->
-      let pkgs = Task.packages (Job.task job) in
       let prefix = Opam.get_var "prefix" in
       debug "execute: opam load state";
       Opam.show_repo_pin () >>= fun () ->
@@ -669,11 +668,13 @@ let pkg_job_execute base worker jid job deps =
           | `Delegate _ -> Lwt.fail_with "delegate in deps"
         ) deps
       >>= fun () ->
+      (* FIXME: we should not have access to task here *)
+      let pkgs = Task.packages (Job.task job) in
       let graph = Opam.resolve_packages pkgs in
       match Opam.is_simple graph with
       | None ->
         debug "execute: simple=false";
-        let job_lst = Opam.jobs ~repositories ~pins graph in
+        let job_lst = Opam.jobs ~repos ~pins graph in
         worker_spawn base worker job_lst >|= fun () ->
         let delegate_id =
           List.fold_left (fun acc (id, job, _) ->
@@ -706,7 +707,7 @@ let pkg_job_execute base worker jid job deps =
       let archive = "", "" in
       let obj =
         Object.create ~id:jid ~result ~output:[] ~installed:[] ~archive in
-      switch_clean_up root c;
+      switch_clean_up root (Job.compiler job);
       Lwt.return (result, obj))
 
 let compiler_job_execute jid job =
@@ -717,7 +718,7 @@ let compiler_job_execute jid job =
   in
   debug "execute: build compiler: %s" comp;
   try
-    Opam.switch comp >>= fun () ->
+    Opam.switch_to comp >>= fun () ->
     let switch = comp in
     let prefix = Opam.get_var "prefix" in
     let path = Filename.concat (Filename.dirname prefix) switch in

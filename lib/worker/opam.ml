@@ -93,7 +93,7 @@ let compiler () =
   let s = load_state "compier" in
   s.OpamState.Types.compiler |> OpamCompiler.to_string
 
-let jobs ?(repositories=[]) ?(pins=[]) graph =
+let jobs ?(repos=[]) ?(pins=[]) graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
   let package_of_action = function
@@ -114,7 +114,7 @@ let jobs ?(repositories=[]) ?(pins=[]) graph =
     Stack.push v add_stack;
   done;
   let compiler = compiler () in
-  let host = Host.detect () |> Host.to_string in
+  let host = Host.detect () in
   let module IdSet = struct
     include Set.Make(String)
     let to_list s = fold (fun e acc -> e :: acc) s []
@@ -135,8 +135,8 @@ let jobs ?(repositories=[]) ?(pins=[]) graph =
         IdSet.union d (IdSet.add pred_id pred_deps)
       ) graph v ([], IdSet.empty)
     in
-    let id = Task.hash_id ~repositories ~pins task inputs compiler host in
-    let job = Job.create ~id ~inputs ~compiler ~host ~repositories ~pins task in
+    let id = Task.hash_id ~repos ~pins task inputs compiler host in
+    let job = Job.create ~id ~inputs ~compiler ~host ~repos ~pins task in
     id_map := Pkg.Map.add pkg id !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
     j_lst := (id, job, IdSet.to_list deps) :: !j_lst
@@ -356,7 +356,7 @@ let remove_switch c =
   OpamSwitchCommand.remove switch;
   Lwt.return_unit
 
-let switch c =
+let switch_to c =
   init ();
   let root = OpamStateConfig.(!r.root_dir) in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
@@ -373,16 +373,16 @@ let compiler () =
   let c = state.OpamState.Types.compiler in
   OpamCompiler.to_string c
 
-let clean_repositories () =
-  let t = load_state "clean-repository" in
+let clean_repos () =
+  let t = load_state "clean-repos" in
   let repos = OpamState.sorted_repositories t in
   List.iter (fun r ->
     let name = OpamRepositoryName.to_string r.repo_name in
     if name = "default" then ()
     else OpamRepositoryCommand.remove r.repo_name) repos
 
-let add_repositories repo =
-  let add_one_repo (name, address) =
+let add_repos repo =
+  let add_one_repo (Task.Repository (name, address)) =
     debug "repository: add %s %s" name address;
     let name = OpamRepositoryName.of_string name in
     let address = OpamTypesBase.address_of_string address in
@@ -392,7 +392,7 @@ let add_repositories repo =
   (* FIXME: review use of fork *)
   match Lwt_unix.fork () with
   | 0 ->
-    clean_repositories ();
+    clean_repos ();
     List.iter add_one_repo repo;
     exit 0
   | pid ->
@@ -403,7 +403,7 @@ let add_repositories repo =
     | WEXITED i | WSIGNALED i | WSTOPPED i -> err "exited %d when add repos" i
 
 let add_pins pin =
-  let add_one_pin (pkg, target) =
+  let add_one_pin (Task.Pin (pkg, target)) =
     let name = OpamPackage.Name.of_string pkg in
     if target = "dev-repo" then
       OpamClient.SafeAPI.PIN.pin ~edit:false ~action:false name None

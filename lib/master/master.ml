@@ -76,7 +76,7 @@ let heartbeat_handler params headers body =
       debug "heartbeat: %s idle" (Id.to_string id);
       (match Scheduler.find_job token with
        | None -> Ack_heartbeat
-       | Some (jid, c, desp) -> Monitor.new_job jid c token;
+       | Some (jid, c, desp) -> Monitor.new_job jid ~compiler:c token;
          New_job (jid, desp))
     | Heartbeat (Some _jid) ->
       Message.Ack_heartbeat
@@ -153,7 +153,7 @@ let user_pkg_demand_handler s params _headers _body =
   let pin_target = try List.assoc "target" params with _ -> "" in
   let compilers = split c ~by:';' in
   let depopts = split dep ~by:';' in
-  let repositories: Task.repository list =
+  let repos =
     if repo_name = "" || repo_addr = "" then
       []
     else (
@@ -161,9 +161,10 @@ let user_pkg_demand_handler s params _headers _body =
       let addrs = split repo_addr ~by:';' in
       assert (List.length names = List.length addrs);
       List.combine names addrs
+      |> List.map (fun (n, a) -> Task.Repository (n, a))
     )
   in
-  let pins: Task.pin list =
+  let pins =
     if pin_pkg = "" || pin_target = "" then
       []
     else (
@@ -171,12 +172,13 @@ let user_pkg_demand_handler s params _headers _body =
       let targets = split pin_target ~by:';' in
       assert (List.length pkgs = List.length targets);
       List.combine pkgs targets
+      |> List.map (fun (p,t) -> Task.Pin (p, t))
     )
   in
   let pkg = mk_pkg (List.assoc "pkg" params) in
   let depopts = List.rev_map mk_pkg depopts in
   let ptask = Task.create ~depopts pkg in
-  let worker_hosts = Monitor.worker_environments () in
+  let worker_hosts = Monitor.worker_hosts () in
   let envs =
     List.fold_left (fun acc h ->
         let compilers =
@@ -187,9 +189,9 @@ let user_pkg_demand_handler s params _headers _body =
   in
   let job_lst =
     List.rev_map (fun (h, c) ->
-        let id = Task.hash_id ~repositories ~pins ptask [] c h in
+        let id = Task.hash_id ~repos ~pins ptask [] c h in
         let job =
-          Job.create ~id ~inputs:[] ~compiler:c ~host:h ~repositories ~pins ptask
+          Job.create ~id ~inputs:[] ~compiler:c ~host:h ~repos ~pins ptask
         in
         id, job, []
       ) envs
@@ -215,8 +217,9 @@ let user_worker_query_handler _param _headers _body =
         let status_str = match Monitor.info_of_status status with
           | s, None -> s
           | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
-        let h, _ = Monitor.worker_env token in
-        Printf.sprintf "worker %s, %s, %s" (Id.to_string wid) h status_str
+        let h = Monitor.worker_host token in
+        Printf.sprintf "worker %s, %s, %s"
+          (Id.to_string wid) (Host.to_string h) status_str
       ) statuses
   in
   let str =
@@ -233,7 +236,6 @@ let user_object_query_handler s params _headers _body =
       Store.retrieve_job s jid >>= fun (job, _) ->
       Store.retrieve_object s jid >>= fun obj ->
       let inputs = Job.inputs job in
-      let c, h = Job.env job in
       let task_info = Job.task job |> Task.info_of_task in
       let result = Object.result obj in
       Lwt_list.rev_map_s (fun i ->
@@ -244,11 +246,12 @@ let user_object_query_handler s params _headers _body =
       let input_info = Printf.sprintf "\n%s" (String.concat "\n" input_info) in
       let cut str = String.sub str 0 5 in
       let ass_lst = [
-        "Id"    , cut jid;
-        "Task"  , task_info;
-        "Inputs", input_info;
-        "Env"   , Printf.sprintf "%s %s" c h;
-        "Result", Object.string_of_result result
+        "Id"        , cut jid;
+        "Task"     , task_info;
+        "Inputs"   , input_info;
+        "Compiler" , Job.compiler job;
+        "Host"     , Host.to_string (Job.host job);
+        "Result"   , Object.string_of_result result
       ] in
       let str =
         List.map (fun (n, v) -> Printf.sprintf "[%s]: %s" n v) ass_lst

@@ -20,7 +20,7 @@ open Sexplib.Std
 open Common_types
 
 type worker_msg =
-  | Register of host
+  | Register of Host.t
   | Heartbeat of id option
   | Publish of [`Success | `Fail of string | `Delegate of id] * id
   | Spawn_jobs of (id * description * (id list)) list

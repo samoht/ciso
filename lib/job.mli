@@ -23,18 +23,19 @@ type t
 val create:
   id:Common_types.id ->
   inputs:Common_types.id list ->
-  compiler:Common_types.compiler ->
-  host:Common_types.host ->
-  repositories:Task.repository list ->
+  compiler:string ->
+  host:Host.t ->
+  repos:Task.repository list ->
   pins:Task.pin list ->
   Task.t -> t
 
 val to_string: t -> string
 val of_string: string -> t
 
-val env: t -> Common_types.compiler * Common_types.host
+val compiler: t -> string
+val host: t -> Host.t
 val inputs: t -> Common_types.id list
-val repositories: t -> Task.repository list
+val repos: t -> Task.repository list
 val pins: t -> Task.pin list
 val task: t -> Task.t
 

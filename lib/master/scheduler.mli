@@ -43,7 +43,7 @@ type state_tbl
 
 (*  finds a suitable task based on given worker token, if there is one,
     return the task id and description *)
-val find_job: Store.token -> (id * compiler * description) option
+val find_job: Store.token -> (id * string * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
 val publish_object:

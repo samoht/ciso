@@ -20,25 +20,26 @@ open Sexplib.Std
 open Common_types
 
 type t = {
-  id : id;           (* task is referenced by this id *)
-  inputs : id list;  (* inputs are object ids *)
-  compiler : compiler;
-  host : host;
-  repositories: Task.repository list;
-  pins: Task.pin list;
-  task : Task.t;
+  id      : id;                              (* task is referenced by this id *)
+  inputs  : id list;                                 (* inputs are object ids *)
+  compiler: string;                         (* switch on which to run the job *)
+  host    : Host.t;                           (* host on which to run the job *)
+  repos   : Task.repository list;         (* list of opam repositories to use *)
+  pins    : Task.pin list;                             (* list of pins to use *)
+  task    : Task.t;           (* FIXME: the job can appear in multiple taskss *)
 } with sexp
 
 let inputs t = t.inputs
-let task t = t.task
-let env t = (t.compiler, t.host)
-let repositories t = t.repositories
+let compiler t = t.compiler
+let host t = t.host
+let repos t = t.repos
 let pins t = t.pins
 let to_string job = Sexplib.Sexp.to_string (sexp_of_t job)
 let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
+let task t = t.task
 
-let create ~id ~inputs ~compiler ~host ~repositories ~pins task =
-  { id; inputs; compiler; host; task; repositories; pins; }
+let create ~id ~inputs ~compiler ~host ~repos ~pins task =
+  { id; inputs; compiler; host; repos; pins; task }
 
 type entry = {
   job : t;

@@ -55,17 +55,18 @@ let task_info ?(abbr = true) id =
   | e -> raise e
 
 let rec get_runnables ?host ?compiler () =
-  let env_match (c, h) = function
-    | None, None -> true
-    | Some h', None -> h' = h
-    | None, Some c' -> c' = c
+  let env_match (h, c) = match host, compiler with
+    | None   , None    -> true
+    | Some h', None    -> h' = h
+    | None   , Some c' -> c' = c
     | Some h', Some c' -> h' = h && c' = c
   in
   Hashtbl.fold (fun id j acc ->
       if `Runnable = Hashtbl.find s_tbl id
-         && env_match (Job.env j) (host, compiler)
+         && env_match (Job.host j, Job.compiler j)
       then id :: acc
-      else acc) j_tbl []
+      else acc
+    ) j_tbl []
   |> fun lst ->
   if compiler <> None && lst = [] then get_runnables ?host ()
   else lst
@@ -83,7 +84,8 @@ let invalidate_token wtoken =
   debug "invalidate %d/%d jobs" r sum
 
 let find_job wtoken =
-  let host, compiler = Monitor.worker_env wtoken in
+  let host = Monitor.worker_host wtoken in
+  let compiler = Monitor.worker_compiler wtoken in
   let runnables = get_runnables ~host ?compiler () in
   if runnables = [] then None
   else (
@@ -98,7 +100,7 @@ let find_job wtoken =
     let job = Hashtbl.find j_tbl id in
     let deps = Hashtbl.find d_tbl id in
     let desp = Job.create_entry job deps |> Job.string_of_entry in
-    let c, _ = Job.env job in
+    let c = Job.compiler job in
     Some (id, c, desp)
   )
 

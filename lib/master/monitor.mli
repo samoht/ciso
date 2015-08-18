@@ -16,18 +16,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* FIXME: API and doc *)
+
 open Common_types
 type worker_status
 
 type worker_id = [`Worker] Id.t
 
-val new_worker: host -> worker_id * Store.token
+val new_worker: Host.t -> worker_id * Store.token
 
 val verify_worker: worker_id -> Store.token -> unit
 
 val job_rank: Store.token -> id list -> int
 
-val new_job: id -> compiler -> Store.token -> unit
+val new_job: id -> compiler:string -> Store.token -> unit
 
 val job_completed: id -> Store.token -> unit
 
@@ -37,10 +39,12 @@ val worker_statuses: unit -> (worker_id * Store.token * worker_status) list
 
 val info_of_status: worker_status -> string * string option
 
-val worker_environments: unit -> host list
+val worker_hosts: unit -> Host.t list
 
-val worker_env: Store.token -> host * compiler option
+val worker_host: Store.token -> Host.t
 
-val compilers: unit -> compiler list
+val worker_compiler: Store.token -> string option
+
+val compilers: unit -> string list
 
 val worker_monitor: Store.t -> (worker_id * Store.token) list Lwt.t

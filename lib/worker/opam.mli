@@ -38,13 +38,10 @@ val resolve: string list -> plan
 val resolve_packages: Package.t list -> plan
 (** Same as {!resolve} but without version constraint inequalities. *)
 
-
 type job = Common_types.id * Job.t * Common_types.id list
 (* FIXME *)
 
-val jobs:
-  ?repositories:Task.repository list -> ?pins:Task.pin list ->
-  plan -> job list
+val jobs: ?repos:Task.repository list -> ?pins:Task.pin list -> plan -> job list
 (** [jobs p] is the list of jobs needed to fulfil the plan [p]. *)
 (* FIXME: should take a user-defined task as argument ... *)
 
@@ -75,13 +72,18 @@ val install: name:string -> version:string ->
 val uninstall: name:string -> version:string -> unit Lwt.t
 
 val update_metadata: install:bool -> path:string -> unit Lwt.t
-val compiler: unit -> Common_types.compiler
-val install_switch: Common_types.compiler -> unit Lwt.t
-val remove_switch: Common_types.compiler -> unit Lwt.t
-val switch: Common_types.compiler -> unit Lwt.t
-val export_switch: Common_types.compiler -> unit Lwt.t
-val clean_repositories: unit -> unit
-val add_repositories: Task.repository list -> unit Lwt.t
-val add_pins: Task.pin list -> unit Lwt.t
+
 val update: unit -> unit Lwt.t
+
+val compiler: unit -> string
+
+val switch_to: string -> unit Lwt.t
+val install_switch: string -> unit Lwt.t
+val remove_switch: string -> unit Lwt.t
+val export_switch: string -> unit Lwt.t
+
+val clean_repos: unit -> unit
+val add_repos: Task.repository list -> unit Lwt.t
+
+val add_pins: Task.pin list -> unit Lwt.t
 val show_repo_pin: unit -> unit Lwt.t

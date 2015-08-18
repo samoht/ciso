@@ -35,13 +35,13 @@ module LogMap = Map.Make(struct
 end)
 
 (* id -> (token, compiler, host) *)
-type worker_tbl = (worker_id, Store.token * host * compiler option) Hashtbl.t
+type worker_tbl = (worker_id, Store.token * Host.t * string option) Hashtbl.t
 
 (* id -> check in times *)
 type checkin_tbl = (worker_id, int) Hashtbl.t
 
 (* id -> worker status *)
-type worker_status = Idle | Working of (id * compiler)
+type worker_status = Idle | Working of (id * string)
 type status_tbl = (Store.token, worker_status) Hashtbl.t
 
 let check_round = 120.0
@@ -81,9 +81,10 @@ let update_worker_env token compiler =
   Hashtbl.iter (fun id (t, h, _) ->
     if token = t then
       let new_env = t, h, Some compiler in
-      Hashtbl.replace w_tbl id new_env) w_tbl
+      Hashtbl.replace w_tbl id new_env
+    ) w_tbl
 
-let new_job id compiler token =
+let new_job id ~compiler token =
   let status = Hashtbl.find s_tbl token in
   assert (status = Idle);
   Hashtbl.replace s_tbl token (Working (id, compiler));
@@ -104,7 +105,8 @@ let publish_object id token =
 let worker_statuses () =
   Hashtbl.fold (fun id (token, _, _) acc ->
       let status = Hashtbl.find s_tbl token in
-      (id, token, status) :: acc) w_tbl []
+      (id, token, status) :: acc
+    ) w_tbl []
 
 let info_of_status = function
   | Idle -> "Idle", None
@@ -117,16 +119,21 @@ let job_rank token deps =
   in
   IdSet.cardinal (IdSet.inter pkgs_set deps_set)
 
-let worker_environments () =
+let worker_hosts () =
   Hashtbl.fold (fun _ (_, h, _) acc ->
       if List.mem h acc then acc
-      else h :: acc) w_tbl []
+      else h :: acc
+    ) w_tbl []
 
 let worker_env token =
   Hashtbl.fold (fun _ (t, h, c_opt) acc ->
       if t = token then (h, c_opt) :: acc
-      else acc) w_tbl []
+      else acc
+    ) w_tbl []
   |> (fun lst -> assert (1 = List.length lst); List.hd lst)
+
+let worker_compiler token = snd (worker_env token)
+let worker_host token = fst (worker_env token)
 
 let compilers () =
   if !compilers = [] then compilers := default_compilers;

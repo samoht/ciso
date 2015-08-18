@@ -18,7 +18,7 @@
 
 (** Detection of host configuration. *)
 
-type t
+type t with sexp
 (** The type for host configuration. *)
 
 val detect: unit -> t

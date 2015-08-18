@@ -20,8 +20,8 @@
 
 type t with sexp
 
-type repository = string * string with sexp
-type pin = string * string with sexp
+type repository = Repository of string * string with sexp
+type pin = Pin of string * string with sexp
 
 val packages: t -> Package.t list
 val create: ?depopts:Package.t list -> Package.t -> t
@@ -30,7 +30,7 @@ val create: ?depopts:Package.t list -> Package.t -> t
 val info_of_task: t -> string
 val to_compiler: t -> string option
 
-
+(* FIXME: weird type *)
 val hash_id:
-  ?repositories:repository list -> ?pins:pin list ->
-  t -> string list -> string -> string -> string
+  ?repos:repository list -> ?pins:pin list ->
+  t -> string list -> string -> Host.t -> string

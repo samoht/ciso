@@ -19,9 +19,6 @@
 open Sexplib.Std
 
 type id = string with sexp
-
-type compiler = string with sexp
-type host = string with sexp
 type root = string with sexp
 
 (* for the string from Sexplib.Sexp.to_string *)

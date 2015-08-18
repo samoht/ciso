@@ -25,7 +25,7 @@ Library "ciso-master"
   Path: lib/master
   FindlibParent: ciso
   FindlibName: master
-  InternalModules: Scheduler
+  InternalModules: Scheduler, Monitor
   Modules: Master
   BuildDepends: ciso, lwt, nocrypto, cohttp.lwt, uri, opium
 

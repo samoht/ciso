@@ -138,11 +138,13 @@ let distrflags = function
 
 (* end of copy-pate *)
 
+open Sexplib.Std
+
 type t = {
   arch: string list;
   os: string list;
   distribution: string list;
-}
+} with sexp
 
 let detect () =
   let os = os () in
