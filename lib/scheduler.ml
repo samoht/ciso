@@ -301,6 +301,7 @@ let progress_info s id =
   |> fun str_lst ->
   Printf.sprintf "%s\n" (String.concat "\n" str_lst)
 
+(*
 let resolve_and_add s ?pull pkg =
   let action_graph = Ci_opam.resolve [pkg] in
   let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
@@ -320,5 +321,4 @@ let github_hook s num =
   >>= fun token -> Github.Monad.run (pull_info token num)
   >>= fun pull -> Github.Monad.run (packages_of_pull token num)
   >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add s ~pull) pkgs
-
-let user_demand s ~pkg = resolve_and_add s pkg
+*)

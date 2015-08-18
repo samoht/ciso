@@ -130,10 +130,11 @@ let spawn_handler s params headers body =
   Scheduler.update_tables s job_lst >>= fun () ->
   empty_response ~status:`Created
 
-let github_hook_handler s params _headers _body =
-  let pr_num = List.assoc "pr_num" params |> int_of_string in
-  Scheduler.github_hook s pr_num >>= fun () ->
-  empty_response ~status:`Accepted
+let github_hook_handler _s params _headers _body =
+  let _pr_num = List.assoc "pr_num" params |> int_of_string in
+  (* Scheduler.github_hook s pr_num >>= fun () ->
+     empty_response ~status:`Accepted *)
+  failwith "TODO"
 
 let name_version_of_pkg str =
   match Stringext.cut str ~on:"." with

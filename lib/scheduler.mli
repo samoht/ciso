@@ -68,8 +68,4 @@ val progress_info: Store.t -> id -> string Lwt.t
 
 (* given the pull request number from ocaml/opam-repository, resolve the task
    and add tasks into task table *)
-val github_hook : Store.t -> int -> unit Lwt.t
-
-(* given a package name with version constraint probably, resolve the task
-   and add tasks into task table *)
-val user_demand: Store.t -> pkg:string -> unit Lwt.t
+(* val github_hook : Store.t -> int -> unit Lwt.t *)

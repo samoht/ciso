@@ -355,7 +355,7 @@ let apply_object prefix obj =
   (* name.tar.gz *)
   let src = arch_path |> Filename.chop_extension |> Filename.chop_extension in
   let path = Filename.concat src "installed" in
-  Ci_opam.update_metadata ~install:true ~path >>= fun () ->
+  Opam.update_metadata ~install:true ~path >>= fun () ->
   clean_tmp "apply" (Filename.basename arch_path)
 
 (* FIXME: shoubd not be used *)
@@ -507,13 +507,13 @@ let pkg_build prefix jid name version =
   (* TODO: disable ocamlfind patch *)
   patch_ocamlfind prefix >>= fun write_path ->
   (if write_path = "" then Lwt.return_unit
-   else Ci_opam.findlib_conf ~prefix ~write_path) >>= fun () ->
+   else Opam.findlib_conf ~prefix ~write_path) >>= fun () ->
   let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"] in
   debug "pkg_build: snapshot %s BEFORE" prefix;
   fs_snapshots ~white_list prefix >>= fun before ->
   read_installed prefix >>= fun old_pkgs ->
   debug "pkg_build: FOR REAL %s.%s" name version;
-  Ci_opam.install ~name ~version >>= fun result ->
+  Opam.install ~name ~version >>= fun result ->
   (match result with
    | `Delegate _ -> assert false
    | `Success -> debug "pkg_build: %s SUCCESS" name
@@ -526,7 +526,7 @@ let pkg_build prefix jid name version =
   create_archive prefix jid output installed old_pkgs new_pkgs
   >>= fun archive ->
   clean_tmp "execute" (fst archive) >>= fun () ->
-  Ci_opam.uninstall ~name ~version >|= fun () ->
+  Opam.uninstall ~name ~version >|= fun () ->
   result, output, installed, archive
 
 let compiler_fs_origin root compiler ?snapshots () =
@@ -576,7 +576,7 @@ let switch_clean_up  root compiler =
 let build_compiler_object cid root compiler =
   debug "snapshot: %s BEFORE" root;
   fs_snapshots ~white_list:[compiler] root >>= fun before ->
-  Ci_opam.install_switch compiler >>= fun () ->
+  Opam.install_switch compiler >>= fun () ->
   debug "snapshot: %s AFTER" root;
   fs_snapshots ~white_list:[compiler] root >>= fun after ->
   compiler_fs_origin root compiler ~snapshots:after () >>= fun () ->
@@ -598,7 +598,7 @@ let install_compiler worker (c, host) =
      else Lwt.return ()) >>= fun () ->
     apply_archive prefix obj >>= fun _ ->
     (* TODO: clean tmp archive file *)
-    Ci_opam.switch c >|= fun () ->
+    Opam.switch c >|= fun () ->
     debug "apply: %s end" c
   in
   let compiler = true in
@@ -628,15 +628,15 @@ let pkg_job_execute base worker jid job deps =
   let pin = Task.pin_of_job job in
   Lwt.catch (fun () ->
       (match repo with
-       | None -> Ci_opam.clean_repositories (); Lwt.return_unit
+       | None -> Opam.clean_repositories (); Lwt.return_unit
        | Some repo ->
-         Ci_opam.add_repositories repo)
+         Opam.add_repositories repo)
       >>= fun () ->
-      Ci_opam.update () >>= fun () ->
-      let c_curr = Ci_opam.compiler () in
+      Opam.update () >>= fun () ->
+      let c_curr = Opam.compiler () in
       (if c = c_curr then Lwt.return_unit
        else
-         Ci_opam.export_switch c >>= fun () ->
+         Opam.export_switch c >>= fun () ->
          install_compiler worker (c, h) >|= fun () ->
          debug "execute: compiler %s installed" c) >>= fun () ->
       (match pin with
@@ -647,11 +647,11 @@ let pkg_job_execute base worker jid job deps =
            Filename.concat dir "build"
          in
          Unix.mkdir build 0o775;
-         Ci_opam.add_pins pin) >>= fun () ->
+         Opam.add_pins pin) >>= fun () ->
       let name, version, depopts = Task.info_of_pkg_task (Task.task_of_job job) in
-      let prefix = Ci_opam.get_var "prefix" in
+      let prefix = Opam.get_var "prefix" in
       debug "execute: opam load state";
-      Ci_opam.show_repo_pin () >>= fun () ->
+      Opam.show_repo_pin () >>= fun () ->
       debug "execute: %d dependencies" (List.length deps);
       Lwt_list.iter_s (fun dep ->
           worker_request_object base worker dep >>= fun obj ->
@@ -664,11 +664,11 @@ let pkg_job_execute base worker jid job deps =
         ) deps
       >>= fun () ->
       let is_resolvable, graph =
-        Ci_opam.resolvable ~name ?version ?depopts ()
+        Opam.resolvable ~name ?version ?depopts ()
       in
       if is_resolvable then (
         debug "execute: resolvable=true";
-        let job_lst = Ci_opam.jobs_of_graph ?repository:repo ?pin graph in
+        let job_lst = Opam.jobs_of_graph ?repository:repo ?pin graph in
         worker_spawn base worker job_lst >>= fun () ->
         let delegate_id =
           List.fold_left (fun acc (id, job, _) ->
@@ -706,9 +706,9 @@ let compiler_job_execute jid job =
   in
   debug "execute: build compiler: %s" comp;
   try
-    Ci_opam.switch comp >>= fun () ->
+    Opam.switch comp >>= fun () ->
     let switch = comp in
-    let prefix = Ci_opam.get_var "prefix" in
+    let prefix = Opam.get_var "prefix" in
     let path = Filename.concat (Filename.dirname prefix) switch in
     debug "execute: snapshot %s AFTER" path;
     read_installed path >>= fun new_pkgs ->
@@ -719,7 +719,7 @@ let compiler_job_execute jid job =
     debug "execute: create object";
     let obj = Object.make_obj jid result ~output:[] ~installed archive in
     clean_tmp "compiler" (fst archive) >>= fun () ->
-    Ci_opam.remove_switch switch >>= fun () ->
+    Opam.remove_switch switch >>= fun () ->
     Lwt.return (result, obj)
   with _ ->
     (* FIXME: catch-all is bad *)
