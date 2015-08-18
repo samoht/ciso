@@ -16,19 +16,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* FIXME: doc *)
+
 open Common_types
 
 type t
 
+(* FIXME: why do we need tokens? *)
+type token with sexp
+val string_of_token: token -> string
+val token_of_string: string -> token
+val create_token: string -> token
+
 val create: ?uri:string -> ?fresh:bool -> unit -> t Lwt.t
 
-val register_token: t -> worker_token -> unit Lwt.t
+val register_token: t -> token -> unit Lwt.t
 
-val invalidate_token: t -> worker_token -> unit Lwt.t
+val invalidate_token: t -> token -> unit Lwt.t
 
 val query_object: t -> id -> bool Lwt.t
 
-val publish_object: t -> worker_token -> id -> Object.t -> unit Lwt.t
+val publish_object: t -> token -> id -> Object.t -> unit Lwt.t
 
 val retrieve_object: t -> id -> Object.t Lwt.t
 
@@ -42,6 +50,6 @@ val retrieve_job: t -> id -> (Job.t * (id list)) Lwt.t
 
 val query_compiler: t -> id -> bool Lwt.t
 
-val publish_compiler: t -> worker_token -> id -> Object.t -> unit Lwt.t
+val publish_compiler: t -> token -> id -> Object.t -> unit Lwt.t
 
 val retrieve_compiler: t -> id -> Object.t Lwt.t

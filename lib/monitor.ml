@@ -27,19 +27,20 @@ end)
 
 (* map from worker token to tasks completed by that worker as IdSet.t *)
 module LogMap = Map.Make(struct
-  type t = worker_token
-  let compare = String.compare
+  type t = Store.token
+  let compare x y =
+    String.compare (Store.string_of_token x) (Store.string_of_token y)
 end)
 
 (* id -> (token, compiler, host) *)
-type worker_tbl = (worker_id, worker_token * host * compiler option) Hashtbl.t
+type worker_tbl = (worker_id, Store.token * host * compiler option) Hashtbl.t
 
 (* id -> check in times *)
 type checkin_tbl = (worker_id, int) Hashtbl.t
 
 (* id -> worker status *)
 type worker_status = Idle | Working of (id * compiler)
-type status_tbl = (worker_token, worker_status) Hashtbl.t
+type status_tbl = (Store.token, worker_status) Hashtbl.t
 
 let check_round = 120.0
 let worker_cnt = ref 0
@@ -51,19 +52,6 @@ let s_tbl : status_tbl = Hashtbl.create 16
 let w_map = ref LogMap.empty
 let compilers = ref []
 
-(* FIXME: duplicate code *)
-let hash_token str =
-  let `Hex h =
-    str
-    |> (fun x -> Cstruct.of_string x)
-    |> Nocrypto.Hash.SHA1.digest
-    |> (fun x -> Hex.of_cstruct x) in
-  h
-
-let new_token info =
-  let time = string_of_float (Sys.time ()) in
-  hash_token (info ^ time)
-
 let worker_checkin id =
   let times = Hashtbl.find c_tbl id in
   Hashtbl.replace c_tbl id (succ times)
@@ -71,7 +59,7 @@ let worker_checkin id =
 let new_worker h =
   let id = incr worker_cnt; !worker_cnt in
   let info = (string_of_int id) ^ h in
-  let token = new_token info in
+  let token = Store.create_token info in
   w_map := LogMap.add token IdSet.empty !w_map;
   Hashtbl.replace s_tbl token Idle;
   Hashtbl.replace w_tbl id (token, h, None);
@@ -79,12 +67,14 @@ let new_worker h =
   worker_checkin id;
   id, token
 
+let err_invalid_worker id = Printf.ksprintf failwith "invalid worker: %d" id
+
 let verify_worker id token =
   let token_record, _, _=
     try Hashtbl.find w_tbl id
-    with Not_found -> "", "", None in
-  if token = token_record then worker_checkin id
-  else failwith "fake worker"
+    with Not_found -> err_invalid_worker id
+  in
+  if token = token_record then worker_checkin id else err_invalid_worker id
 
 let update_worker_env token compiler =
   Hashtbl.iter (fun id (t, h, _) ->

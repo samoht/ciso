@@ -18,6 +18,7 @@
 
 open Lwt.Infix
 open Irmin_unix
+open Sexplib.Conv
 
 let debug fmt = Gol.debug ~section:"store" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Store:" ^^ fmt)
@@ -28,6 +29,21 @@ let sub_abbr = sub 5
 module Store = Irmin.Basic(Irmin_http.Make)(Irmin.Contents.String)
 
 type t = string -> Store.t
+
+type token = Token of string with sexp
+let string_of_token (Token t) = t
+let token_of_string t = Token t
+
+(* FIXME: duplicate code *)
+let hash_token str =
+  let `Hex h =
+    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
+  in
+  h
+
+let create_token info =
+  let time = string_of_float (Sys.time ()) in
+  token_of_string (hash_token (info ^ time))
 
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
@@ -60,11 +76,11 @@ let create ?(uri = "http://127.0.0.1:8888") ?(fresh = false) () =
   (if fresh then clean_up t else Lwt.return_unit) >|= fun () ->
   t
 
-let register_token t token =
+let register_token t (Token token) =
   let path = path_of_token token in
   Store.update (t ("register token " ^ token)) path token
 
-let invalidate_token t token =
+let invalidate_token t (Token token) =
   let path = path_of_token token in
   Store.remove (t ("invalidate token" ^ token)) path
 
@@ -74,7 +90,7 @@ let query_object t id =
 
 let err_invalid_token tok = err "invalid token: %s" tok
 
-let publish_object t token id obj =
+let publish_object t (Token token) id obj =
   debug "publish: object %s" (sub_abbr id);
   query_object t id >>= fun exist ->
   (if exist then Lwt.return () else
@@ -151,7 +167,7 @@ let query_compiler t id =
 
 let err_invalid_token tok = err "invalid token: %s" tok
 
-let publish_compiler t token id obj =
+let publish_compiler t (Token token) id obj =
   debug "publish: compiler %s" (sub_abbr id);
   query_compiler t id >>= fun exist ->
   (if exist then Lwt.return_unit

@@ -26,7 +26,7 @@ type deps_tbl = (id, id list) Hashtbl.t
 
 type hook_tbl = (id, id) Hashtbl.t
 
-type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
+type state = [`Pending | `Runnable | `Completed | `Dispatched of Store.token]
 type state_tbl = (id, state) Hashtbl.t
 
 type fail_tbl = (id, int) Hashtbl.t

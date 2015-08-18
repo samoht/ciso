@@ -42,9 +42,9 @@ type worker_status =
   | Idle
 
 type t = {
-  id : int;                                   (* worker id assigned by master *)
-  token : Common_types.worker_token;          (* used to publish in the store *)
-  local : store;                                               (* local store *)
+  id   : int;                                 (* worker id assigned by master *)
+  token: Store.token;                         (* used to publish in the store *)
+  local: store;                                                (* local store *)
   store: Store.t;                                             (* global store *)
   mutable status : worker_status;                (* working on a task of idle *)
 }
@@ -173,7 +173,7 @@ let with_client_request tag request =
 let worker_publish base t result oid _obj =
   (* FIXME: obj is not used! *)
   debug "publish: object %s" (sub_abbr oid);
-  let headers = Cohttp.Header.of_list ["worker", t.token] in
+  let headers = Cohttp.Header.of_list ["worker", Store.string_of_token t.token] in
   let m = Message.Publish (result, oid) in
   let body = body_of_message m in
   let uri_path = Printf.sprintf "workers/%d/objects" t.id in
@@ -198,7 +198,8 @@ let worker_register store base build_store =
     match m with
     | Ack_heartbeat | New_job _ -> Lwt.fail exn
     | Ack_register (id, token) ->
-      debug "register: success: %d token: %s" id (sub_abbr token);
+      debug "register: success: %d token: %s" id
+        (sub_abbr (Store.string_of_token token));
       working_directory () >>= fun dir ->
       build_store dir >>= fun local ->
       let worker = { id; token; store; local; status = Idle} in
@@ -214,7 +215,9 @@ let worker_register store base build_store =
 
 (* POST base/worker<id>/state -> `Ok *)
 let worker_heartbeat base t =
-  let headers = Cohttp.Header.of_list ["worker", t.token] in
+  let headers =
+    Cohttp.Header.of_list ["worker", Store.string_of_token t.token]
+  in
   let m =
     match t.status with
     | Working jid ->
@@ -240,7 +243,9 @@ let worker_heartbeat base t =
     Lwt.fail exn
 
 let worker_spawn base t job_lst =
-  let headers = Cohttp.Header.of_list ["worker", t.token] in
+  let headers =
+    Cohttp.Header.of_list ["worker", Store.string_of_token t.token]
+  in
   let m_job_lst =
     List.rev_map (fun (id, job, deps) ->
         let desp = Job.to_string job in

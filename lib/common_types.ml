@@ -21,7 +21,6 @@ open Sexplib.Std
 type id = string with sexp
 
 type worker_id = int with sexp
-type worker_token = string with sexp
 type job_rank = int
 
 type compiler = string with sexp

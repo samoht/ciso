@@ -56,11 +56,15 @@ let register_handler s _params _headers body =
   debug "register: %d new worker registered" id;
   Lwt.return (resp, body)
 
+let err_no_token () = failwith "no token!"
+let parse_token headers =
+  match Cohttp.Header.get headers "worker" with
+  | Some t -> Store.token_of_string t
+  | None   -> err_no_token ()
+
 let heartbeat_handler params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token =
-    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
-  in
+  let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >|= fun m ->
   let resp_m =
@@ -83,9 +87,7 @@ let heartbeat_handler params headers body =
 
 let publish_handler s params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token =
-    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
-  in
+  let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
   let result, jid =
@@ -109,9 +111,7 @@ let publish_handler s params headers body =
 
 let spawn_handler s params headers body =
   let id = List.assoc "id" params |> int_of_string in
-  let token =
-    match Cohttp.Header.get headers "worker" with Some t -> t | None -> ""
-  in
+  let token = parse_token headers in
   Monitor.verify_worker id token;
   message_of_body body >>= fun m ->
   let m_job_lst =

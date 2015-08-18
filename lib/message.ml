@@ -27,7 +27,7 @@ type worker_msg =
   with sexp
 
 type master_msg =
-  | Ack_register of worker_id * worker_token
+  | Ack_register of worker_id * Store.token
   | Ack_heartbeat
   | New_job of id * description
 with sexp

@@ -32,7 +32,7 @@ type job_tbl
 type hook_tbl
 
 (* task state *)
-type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
+type state = [`Pending | `Runnable | `Completed | `Dispatched of Store.token]
 
 (* object id -> task state
    if task A is supposed to produce object a,
@@ -43,11 +43,11 @@ type state_tbl
 
 (*  finds a suitable task based on given worker token, if there is one,
     return the task id and description *)
-val find_job: worker_token -> (id * compiler * description) option
+val find_job: Store.token -> (id * compiler * description) option
 
 (* given an object id and a worker token, add them in the logmap *)
 val publish_object:
-  Store.t -> worker_token -> [`Success | `Fail of string | `Delegate of id] ->
+  Store.t -> Store.token -> [`Success | `Fail of string | `Delegate of id] ->
   id -> unit Lwt.t
 
 (* given a task id and return the pacakge name and version information *)
@@ -57,7 +57,7 @@ val task_info: ?abbr:bool -> id -> string
 val bootstrap: Store.t -> unit Lwt.t
 
 (* eliminate a worker's token when worker is down*)
-val invalidate_token: worker_token -> unit
+val invalidate_token: Store.token -> unit
 
 (* add new jobs into jobs/tables*)
 val update_tables: Store.t -> (id * Job.t * id list) list -> unit Lwt.t
