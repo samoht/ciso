@@ -121,7 +121,7 @@ let local_publish t ?(compiler = false) id obj =
    else (
      debug "publish: %s doesn't exist!" (sub_abbr id);
      let path = (if compiler then path_of_com else path_of_obj) id in
-     let value = Object.string_of_t obj in
+     let value = Object.to_string obj in
      let ln = String.length value in
      debug "publish: length(%s) = %d" (sub_abbr id) ln;
      Local.update (t ("publish object " ^ id)) path value))
@@ -133,7 +133,7 @@ let local_retrieve t ?(compiler = false) id =
   let path = (if compiler then path_of_com else path_of_obj) id in
   Local.read_exn (t ("retrieve object" ^ id)) path >|= fun o ->
   debug  "retrieve: %s %s complete!" (comp_s compiler) (sub_abbr id);
-  Object.t_of_string o
+  Object.of_string o
 
 let local_retrieve_all t =
   let retrieve_dir = ["object"] in
@@ -144,7 +144,7 @@ let local_retrieve_all t =
           | None -> Lwt.return acc'
           | Some c ->
             let id = id_of_path path in
-            let obj = Object.t_of_string c in
+            let obj = Object.of_string c in
             Lwt.return ((id, obj) :: acc')
         ) acc paths
     ) [] retrieve_dir
@@ -342,7 +342,7 @@ let clean_tmp action name =
   with_lwt_comm ~success comm
 
 let apply_archive prefix obj =
-  let installed, archive = Object.apply_info obj in
+  let installed, archive = Object.outputs obj in
   install_archive archive >>= fun arch_path ->
   extract_archive arch_path >>= fun () ->
   (* name.tar.gz *)
@@ -584,7 +584,7 @@ let build_compiler_object cid root compiler =
   collect_installed prefix ~before ~after >>= fun installed ->
   read_installed prefix >>= fun new_pkgs ->
   create_archive prefix cid [] installed [] new_pkgs >|= fun archive ->
-  Object.make_obj cid `Success ~output:[] ~installed archive
+  Object.create ~id:cid ~result:`Success ~output:[] ~installed ~archive
 
 let install_compiler worker (c, host) =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
@@ -655,10 +655,10 @@ let pkg_job_execute base worker jid job deps =
       debug "execute: %d dependencies" (List.length deps);
       Lwt_list.iter_s (fun dep ->
           worker_request_object base worker dep >>= fun obj ->
-          match Object.result_of_t obj with
+          match Object.result obj with
           | `Success -> apply_object prefix obj
           | `Fail _ ->
-            let dep_id = Object.id_of_t obj in
+            let dep_id = Object.id obj in
             Lwt.fail_with ("dependency broken: " ^ dep_id)
           | `Delegate _ -> Lwt.fail_with "delegate in deps"
         ) deps
@@ -679,7 +679,10 @@ let pkg_job_execute base worker jid job deps =
           |> (fun id_lst -> assert (1 = List.length id_lst); List.hd id_lst)
         in
         let result = `Delegate delegate_id in
-        let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
+        let archive = "", "" in
+        let obj =
+          Object.create ~id:jid ~result ~output:[] ~installed:[] ~archive
+        in
         switch_clean_up root c;
         Lwt.return (result, obj)
       ) else (
@@ -687,14 +690,16 @@ let pkg_job_execute base worker jid job deps =
         let v = match version with Some v -> v | None -> assert false in
         pkg_build prefix jid name v
         >>= fun (result, output, installed, archive) ->
-        let obj = Object.make_obj jid result ~output ~installed archive in
+        let obj = Object.create ~id:jid ~result ~output ~installed ~archive in
         switch_clean_up root c;
         Lwt.return (result, obj))
     ) (fun exn ->
       let result = match exn with
         | Failure f -> `Fail f
         | _ -> `Fail "unknow execution failure" in
-      let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
+      let archive = "", "" in
+      let obj =
+        Object.create ~id:jid ~result ~output:[] ~installed:[] ~archive in
       switch_clean_up root c;
       Lwt.return (result, obj))
 
@@ -717,14 +722,15 @@ let compiler_job_execute jid job =
     create_archive path jid [] installed [] new_pkgs >>= fun archive ->
     let result = `Success in
     debug "execute: create object";
-    let obj = Object.make_obj jid result ~output:[] ~installed archive in
+    let obj = Object.create ~id:jid ~result ~output:[] ~installed ~archive in
     clean_tmp "compiler" (fst archive) >>= fun () ->
     Opam.remove_switch switch >>= fun () ->
     Lwt.return (result, obj)
   with _ ->
     (* FIXME: catch-all is bad *)
     let result = `Fail (comp ^ " build fail") in
-    let obj = Object.make_obj jid result ~output:[] ~installed:[] ("", "") in
+    let archive = "", "" in
+    let obj = Object.create ~id:jid ~result ~output:[] ~installed:[] ~archive in
     Lwt.return (result, obj)
 
 let rec execution_loop base worker cond =

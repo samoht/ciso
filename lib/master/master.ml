@@ -248,7 +248,7 @@ let user_object_query_handler s params _headers _body =
       let inputs = Task.inputs_of_job job in
       let c, h = Task.env_of_job job in
       let task_info = Task.(task_of_job job |> info_of_task) in
-      let result = Object.result_of_t obj in
+      let result = Object.result obj in
       Lwt_list.rev_map_s (fun i ->
           Store.retrieve_job s i >|= fun (j, _) ->
           i, Task.(task_of_job j |> info_of_task)

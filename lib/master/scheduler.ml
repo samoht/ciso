@@ -232,7 +232,7 @@ let get_progress s id =
   if state <> `Completed then progress_of_id s id
   else
     Store.retrieve_object s id >>= fun obj ->
-    match Object.result_of_t obj with
+    match Object.result obj with
     | `Delegate del ->
       progress_of_id s del >|= fun delegates ->
       let delegate_state = List.assoc del delegates in

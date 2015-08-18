@@ -72,27 +72,28 @@ let query_object t id =
   let path = path_of_obj id in
   Store.mem (t ("query object " ^ id)) path
 
+let err_invalid_token tok = err "invalid token: %s" tok
+
 let publish_object t token id obj =
   debug "publish: object %s" (sub_abbr id);
   query_object t id >>= fun exist ->
   (if exist then Lwt.return () else
      let token_path = path_of_token token in
-     Store.read (t ("query token " ^ token)) token_path >>= fun t_opt ->
-     match t_opt with
-     | None -> Lwt.fail (raise (Invalid_argument token))
-     | Some _ ->
+     Store.mem (t ("query token " ^ token)) token_path >>= function
+     | false -> err_invalid_token token
+     | true  ->
        let path = path_of_obj id in
-       let content = Sexplib.Sexp.to_string (Object.sexp_of_t obj) in
-       Store.update (t ("publish object " ^ id)) path content)
-  >|= fun () ->
+       let content = Object.to_string obj in
+       Store.update (t ("publish object " ^ id)) path content
+  ) >|= fun () ->
   debug "publish: object %s published!" (sub_abbr id)
 
 let retrieve_object t id =
   debug "retrieve: object %s" (sub_abbr id);
   let path = path_of_obj id in
-  Store.read_exn (t ("retrieve object " ^ id)) path >>= fun v ->
+  Store.read_exn (t ("retrieve object " ^ id)) path >|= fun v ->
   debug "retrieve: object %s found!" (sub_abbr id);
-  Lwt.return (Object.t_of_sexp (Sexplib.Sexp.of_string v))
+  Object.of_string v
 
 let log_job t id (job, deps) =
   let path = path_of_job id in
@@ -162,7 +163,7 @@ let publish_compiler t token id obj =
      | false -> err_invalid_token token
      | true  ->
        let path = path_of_com id in
-       let content = Sexplib.Sexp.to_string (Object.sexp_of_t obj) in
+       let content = Object.to_string obj in
        Store.update (t ("publish compiler " ^ id)) path content)
   >|= fun () ->
   debug "publish: compiler %s published! " (sub_abbr id)
@@ -172,4 +173,4 @@ let retrieve_compiler t id =
   let path = path_of_com id in
   Store.read_exn (t ("retrieve compiler " ^ id)) path >|= fun v ->
   debug "retrieve: compiler %s found!" (sub_abbr id);
-  Object.t_of_sexp (Sexplib.Sexp.of_string v)
+  Object.of_string v
