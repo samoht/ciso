@@ -35,23 +35,24 @@ let path_of_com id = ["compiler"; id]
 let clean_up t =
   let print_path k =
     let path = String.concat "/" k in
-    Lwt_io.printf "remove %s\n%!" path in
+    Lwt_io.printf "remove %s\n%!" path
+  in
   let clean_dir = ["token"; "object"; "job"; "archive"] in
   Lwt_list.iter_s (fun dir ->
     Irmin.list (t ("list files of " ^ dir)) [dir] >>= fun paths ->
     Lwt_list.iter_s (fun path ->
       print_path path >>= fun () ->
-      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path) paths)
-      clean_dir
+      Irmin.remove (t ("remove " ^ (String.concat "/" path))) path
+      ) paths
+    ) clean_dir
 
 let initial_store ?(uri = "http://127.0.0.1:8888") ?(fresh = false) () =
   let basic = Irmin.basic (module Irmin_unix.Irmin_http.Make)
                           (module Irmin.Contents.String) in
   let config = Irmin_unix.Irmin_http.config (Uri.of_string uri) in
   Irmin.create basic config Irmin_unix.task >>= fun t ->
-  if fresh then clean_up t else Lwt.return () >>= fun () ->
-  store_handle := Some t;
-  Lwt.return ()
+  if fresh then clean_up t else Lwt.return () >|= fun () ->
+  store_handle := Some t
 
 let rec get_store () =
   match !store_handle with
