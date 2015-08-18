@@ -9,6 +9,7 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
+  InternalModules: Gol
   Modules: Store, Object, Task, Message, Host, Common_types
   BuildDepends: sexplib.syntax, sexplib, irmin.unix
 
