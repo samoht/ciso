@@ -1,0 +1,68 @@
+span {
+	float: left;
+}
+
+span.title {
+	width: 150px;
+}
+
+span.id {
+	width: 100px;
+}
+
+span.info {
+	width: 300px;
+}
+
+span.state {
+	width:200px;
+}
+
+div#job div {
+	margin-top: 10px;
+}
+
+span.user_request {
+	float: none;
+	margin-left: 25px;
+}
+
+img {
+	width: 15px;
+}
+
+li {
+	width: 600px;
+	margin: 5px;
+	border: 1px solid grey;
+	padding: 5px
+}
+
+li.highlight_job {
+	border: 2px solid red;
+}
+
+li[state = Completed] {
+	background-color: lightgreen;
+}
+
+li[state = Pending] {
+	background-color: lightcoral;
+}
+
+li[state = Dispatched] {
+	background-color: lightgrey;
+}
+
+li[state = Runnable] {
+	background-color: lightblue;
+}
+
+span#temp_span {
+	border: 1px solid;
+	background-color: lightyellow;
+}
+
+span#temp_span div {
+	padding: 2px 5px;
+}

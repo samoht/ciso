@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>CISO Web Interface</title>
+		<link rel="stylesheet" type="text/css" href="./res/css/style.css">
+	</head>
+	<body>
+		<p><b>Hello CISO!</b></p>
+		<div id = "request"></div>
+			<form id = "request_form">
+				<span class = "title">Package Name:</span>
+				<input type = "text" name = "p_name" required><br>
+				<span class = "title">Package Version:</span>
+				<input type = "text" name = "p_version"><br>
+				<span class = "title">Build Compiler:</span>
+				<input type = "text" name = "compiler"><br>
+			</form>
+			<button id = "request_submit">Submit</button>
+			<span id = "request_send"></span>
+		<div id = "job"></div>
+		<script src = "res/js/script.js"></script>
+	</body>
+</html>
