@@ -56,7 +56,10 @@ let info_of_task task =
             | None -> n
             |Some v -> n ^ "." ^ v)
        |> String.concat ";" in
-     p ^ "+" ^ depopt_info, v
+     (match v with
+      | None -> p ^ "+" ^ depopt_info, None
+      | Some version ->
+         p ^ "." ^ version ^ "+" ^ depopt_info, None)
   | Compiler c -> c, None
 
 

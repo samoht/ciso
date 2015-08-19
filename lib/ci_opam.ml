@@ -198,7 +198,8 @@ let jobs_of_graph ?pull ?repository ?pin graph =
         IdSet.union d (IdSet.add pred_id pred_deps))
       graph v ([], IdSet.empty) in
 
-    let id = Task.hash_id ?repository ?pin task inputs compiler host in
+    (* repo and pin, hash id? *)
+    let id = Task.hash_id task inputs compiler host in
     let job = Task.make_job id inputs compiler host task ?repository ?pin () in
 
     id_map := Pkg.Map.add pkg id !id_map;
