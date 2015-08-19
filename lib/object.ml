@@ -28,3 +28,8 @@ let string_of_result = function
   | `Success -> "SUCCESS"
   | `Fail f -> "FAIL f"
   | `Delegate id ->"DELEGATE " ^ id
+
+let info_of_result = function
+  | `Success -> "SUCCESS", None
+  | `Fail f -> "FAIL", Some f
+  | `Delegate id -> "DELEGATE", Some id

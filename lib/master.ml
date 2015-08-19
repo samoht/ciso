@@ -182,84 +182,86 @@ let user_pkg_demand_handler params headers body =
   >>= fun job_lst ->
   Scheduler.update_tables job_lst >>= fun () ->
 
-  let resp = Response.make ~status:`Accepted () in
+  let headers = Cohttp.Header.of_list
+    ["Access-Control-Allow-Origin","*"] in
+  let resp = Response.make ~status:`Accepted ~headers () in
   let ids = `A (List.rev_map (fun (id, _, _) -> `String id) job_lst) in
   let body = Body.of_string (Ezjsonm.to_string ids) in
   return (resp, body)
-
-(*
-let user_compiler_demand_handler params headers body =
-  let c = List.assoc "version" params in
-  let task = Task.make_compiler_task c in
-
-  let envs = Monitor.worker_environments () in
-  if envs = [] then empty_response `OK
-  else
-    let c, h = List.hd env_lst in
-    let id = Task.hash_id task [] c h in
-    let job = Task.make_job id [] c h task in
-    Scheduler.update_tables [id, job, []] >>= fun () ->
-
-    let resp = Response.make ~status:`Accepted () in
-    let body = Body.of_string (Printf.sprintf "%s\n" id) in
-    return (resp, body)*)
 
 
 let user_job_query_handler params headers body =
   let jid = List.assoc "jid" params in
   Scheduler.progress_info jid >>= fun str ->
   let body = Body.of_string str in
-  let resp = Response.make ~status:`OK () in
+  let headers = Cohttp.Header.of_list
+    ["Access-Control-Allow-Origin","*"] in
+  let resp = Response.make ~status:`OK ~headers () in
   return (resp, body)
 
 
 let user_worker_query_handler param headers body =
   let statuses = Monitor.worker_statuses () in
-  let info = List.rev_map (fun (wid, token, status) ->
-      let status_str = match Monitor.info_of_status status with
-        | s, None -> s
-        | s, Some id -> Printf.sprintf "%s %s" s (Scheduler.task_info id) in
-      let h, _ = Monitor.worker_env token in
-      Printf.sprintf "worker %d, %s, %s" wid h status_str) statuses in
-  let str = Printf.sprintf "%s\n"
-      (if info <> [] then (String.concat "\n" info) else "No alive workers") in
-
-  let resp = Response.make ~status:`OK () in
-  let body = Body.of_string str in
-  return (resp, body)
+  List.rev_map (fun (wid, token, status) ->
+      let h, c_opt = Monitor.worker_env token in
+      let wid = "worker_id", Ezjsonm.int wid in
+      let token = "worker_token", Ezjsonm.string token in
+      let status = "worker_status",
+          Monitor.info_of_status status
+          |> snd
+          |> Ezjsonm.option Ezjsonm.string in
+      let host = "worker_host", Ezjsonm.string h in
+      let compiler = "worker_compiler", Ezjsonm.option Ezjsonm.string c_opt in
+      [wid; token; status; host; compiler]) statuses
+  |> List.rev
+  |> Ezjsonm.list Ezjsonm.dict
+  |> Ezjsonm.to_string
+  |> fun str ->
+     let resp = Response.make ~status:`OK () in
+     let body = Body.of_string str in
+     return (resp, body)
 
 
 let user_object_query_handler params headers body =
   let jid = List.assoc "jid" params in
   catch (fun () ->
     Store.retrieve_job jid >>= fun (job, _) ->
-    Store.retrieve_object jid >>= fun obj ->
-    let inputs = Task.inputs_of_job job in
-    let c, h = Task.env_of_job job in
     let task_info = Task.(task_of_job job |> info_of_task) in
-    let result = Object.result_of_t obj in
-
+    let inputs = Task.inputs_of_job job in
     Lwt_list.rev_map_s (fun i ->
       Store.retrieve_job i >>= fun (j, _) ->
       return (i, Task.(task_of_job j |> info_of_task))) inputs
     >>= fun inputs_info ->
+
+    let c, h = Task.env_of_job job in
+    catch (fun () ->
+        Store.retrieve_object jid >>= fun obj ->
+        let result = Object.result_of_t obj in
+        let r, r_info = Object.info_of_result result in
+        let r = "result", Ezjsonm.string r in
+        let info = "info", Ezjsonm.option Ezjsonm.string r_info in
+        return (Ezjsonm.value (Ezjsonm.dict [r; info])))
+        (fun exn -> return (Ezjsonm.string "No result"))
+    >>= fun result ->
+
     let task_info_str (p, v_opt) =
       match v_opt with
       | None -> p
       | Some v -> Printf.sprintf "%s %s" p v in
-    let cut str = String.sub str 0 5 in
     let ass_lst = [
-       "Id", cut jid;
-       "Task", task_info_str task_info;
-       "Inputs", List.rev_map (fun (id, info) ->
-         Printf.sprintf "  %s %s" (cut id) (task_info_str info)) inputs_info
-         |> (fun lst -> Printf.sprintf "\n%s" (String.concat "\n" lst));
-       "Env", Printf.sprintf "%s %s" c h;
-       "Result", Object.string_of_result result] in
-    let str = List.map (fun (n, v) -> Printf.sprintf "[%s]: %s" n v) ass_lst
-              |> String.concat "\n"
-              |> (fun info -> info ^ "\n") in
-    let resp = Response.make ~status:`OK () in
+       "id", Ezjsonm.string jid;
+       "task_info", Ezjsonm.string (task_info_str task_info);
+       "inputs", List.rev_map (fun (id, info) ->
+           ["input_id", Ezjsonm.string id;
+            "input_info", Ezjsonm.string (task_info_str info)]) inputs_info
+           |> Ezjsonm.list (fun lst -> Ezjsonm.value (Ezjsonm.dict lst));
+       "host", Ezjsonm.string h;
+       "compiler", Ezjsonm.string c;
+       "result", result] in
+    let str = Ezjsonm.to_string (Ezjsonm.dict ass_lst) in
+    let headers = Cohttp.Header.of_list
+    ["Access-Control-Allow-Origin","*"] in
+    let resp = Response.make ~status:`OK ~headers () in
     let body = Body.of_string str in
     return (resp, body))
     (fun exn -> empty_response ~status:`Not_found)

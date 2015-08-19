@@ -283,19 +283,22 @@ let get_progress id =
 let string_of_state = function
   | `Completed -> "Completed"
   | `Pending -> "Pending"
-  | `Runnable -> "Runnalbe"
+  | `Runnable -> "Runnable"
   | `Dispatched _ -> "Dispatched"
 
 
 let progress_info id =
   get_progress id >>= fun progress ->
   List.rev_map (fun (_id, s) ->
-                let format = if _id = id then Printf.sprintf " -> %s %s"
-                   else Printf.sprintf "    %s %s" in
-      format (task_info ~abbr:false _id) (string_of_state s)) progress
+      let o_id = "id", Ezjsonm.string _id in
+      let o_info = "info", Ezjsonm.string (task_info _id) in
+      let o_state = "state", Ezjsonm.string (string_of_state s) in
+      let o_user = "user", Ezjsonm.bool (id = _id) in
+      [o_id; o_info; o_state; o_user]) progress
   |> List.rev
-  |> fun str_lst ->
-     return (Printf.sprintf "%s\n" (String.concat "\n" str_lst))
+  |> Ezjsonm.list (fun lst -> Ezjsonm.value (Ezjsonm.dict lst))
+  |> Ezjsonm.to_string
+  |> return
 
 
 let resolve_and_add ?pull pkg =
