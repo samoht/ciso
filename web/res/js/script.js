@@ -14,7 +14,6 @@ function main () {
 			if (div == null)
 				createUserRequestDiv(ids[i]); 
 		}
-
 	};
 
 
@@ -144,23 +143,32 @@ function main () {
 		var request_form = document.getElementById("request_form");
 		var pname = request_form.p_name.value;
 		var pversion = request_form.p_version.value;
+		var depopt = request_form.depopt.value;
 		var compiler = request_form.compiler.value;
+
+		var pin = request_form.pin.value;
+		var target = request_form.target.value;
+		var repo = request_form.repo.value;
+		var addr = request_form.address.value;
+		var priority = request_form.priority.value;
 
 		var request = new XMLHttpRequest ();
 
-		if (pversion) var pkg = pname + "." + pversion;
-		else var pkg = pname;
-		if (compiler) {
-			var params = "?" + "compiler=" + compiler;
-			var url = base + "package/" + pkg + params; }
-		else
-			var url = base + "package/" + pkg;
+		var url = base + "package/";
+		if (pversion) url += (pname + "." + pversion);
+		else url += pname;
 
+		url += "?place=holder"
+		if (depopt) url += ("&depopt=" + depopt);
+		if (compiler) url += ("&compiler=" + compiler);
+		if (pin != "" && target != "")
+			url += ("&pin=" + pin + "&target=" + target);
+		if (repo != "" && addr != "" && priority != "")
+			url += ("&name=" + repo + "&address=" + addr + "&priority=" + priority); 
+
+		//alert(url);
 		request.open("POST", url, false);
 		request.send();
-		request_form.p_name.value = "";
-		request_form.p_version.value = "";
-		request_form.compiler.value = "";
 
 		return JSON.parse(request.responseText);
 	};
