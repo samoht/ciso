@@ -21,7 +21,7 @@ and store = (string -> ([`BC], Irmin.Contents.String.Path.t,
 exception WrongResponse of string * string
 
 let idle_sleep = 3.0
-let working_sleep = 40.0
+let working_sleep = 15.0
 let master_timeout = 15.0
 
 let sub len str = String.sub str 0 len

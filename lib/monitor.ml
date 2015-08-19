@@ -24,9 +24,9 @@ type worker_status = Idle | Working of (id * compiler)
 type status_tbl = (worker_token, worker_status) Hashtbl.t
 
 
-let check_round = 120.0
+let check_round = 40.0
 let worker_cnt = ref 0
-let default_compilers = ["4.00.1"]
+let default_compilers = ["4.02.0"]
 
 let w_tbl : worker_tbl = Hashtbl.create 16
 let c_tbl : checkin_tbl = Hashtbl.create 16
