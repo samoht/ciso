@@ -1,0 +1,71 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Store.Task.html">
+<link rel="Up" href="Store.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting worker state" rel="Section" href="#1_Persistingworkerstate">
+<title>Store.Worker</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Store.html" title="Store">Up</a>
+&nbsp;<a class="post" href="Store.Task.html" title="Store.Task">Next</a>
+</div>
+<h1>Module <a href="type_Store.Worker.html">Store.Worker</a></h1>
+
+<pre><span class="keyword">module</span> Worker: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Worker.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_Persistingworkerstate">Persisting worker state</h1><br>
+
+<pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
+
+<pre><span id="VALtick"><span class="keyword">val</span> tick</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> float -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">tick t w f</code> updates the worker <code class="code">w</code>'s status with the timestamp
+      <code class="code">f</code>. <code class="code">f</code> is supposed to tbe the local worker time, i.e. the
+      current time since 00:00:00 GMT, Jan. 1, 1970, in seconds in the
+      worker referential.<br>
+</div>
+
+<pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> Lwt.t</code></pre><div class="info ">
+<code class="code">job t w</code> is the worker <code class="code">w</code>'s current job. <code class="code"><span class="constructor">None</span></code> means that the
+      worker is idle.<br>
+</div>
+
+<pre><span id="VALstart_job"><span class="keyword">val</span> start_job</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">start_job t w j</code> asks the worker <code class="code">w</code> to start working on the
+      build job <code class="code">j</code>.<br>
+</div>
+
+<pre><span id="VALstart_task"><span class="keyword">val</span> start_task</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Task.html#TYPEid">Task.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">start_task t w ta</code> asks the worker <code class="code">w</code> to start working on the
+      task <code class="code">ta</code>.<br>
+</div>
+
+<pre><span id="VALidle"><span class="keyword">val</span> idle</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">idle t w</code> registers that <code class="code">w</code> is idle.<br>
+</div>
+
+<pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_status t w f</code> calls <code class="code">f</code> everytime <code class="code">w</code>'s status is
+      updated.<br>
+</div>
+
+<pre><span id="VALwatch_ticks"><span class="keyword">val</span> watch_ticks</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> float <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_ticks t w f</code> calls <code class="code">f</code> everytime the worker <code class="code">w</code> calls
+      <a href="Store.Worker.html#VALtick"><code class="code"><span class="constructor">Store</span>.<span class="constructor">Worker</span>.tick</code></a>. Return a cancel function.<br>
+</div>
+</body></html>

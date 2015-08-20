@@ -1,0 +1,41 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Task.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Id</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Task.html" title="Task">Next</a>
+</div>
+<h1>Module <a href="type_Id.html">Id</a></h1>
+
+<pre><span class="keyword">module</span> Id: <code class="code"><span class="keyword">sig</span></code> <a href="Id.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+
+
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> 'a <a href="Id.html#TYPEt">t</a> -> int</code></pre>
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre>
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
+<pre><span id="VALpretty"><span class="keyword">val</span> pretty</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre>
+<pre><span id="VALof_uuid"><span class="keyword">val</span> of_uuid</span> : <code class="type">'a -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
+<pre><span id="VALdigest"><span class="keyword">val</span> digest</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'a) -> Sexplib.Sexp.t -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('a -> Sexplib.Sexp.t) -> 'a <a href="Id.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>

@@ -1,0 +1,71 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Store.Task.html">
+<link rel="next" href="Store.Object.html">
+<link rel="Up" href="Store.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting Job State" rel="Section" href="#1_PersistingJobState">
+<title>Store.Job</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Store.Task.html" title="Store.Task">Previous</a>
+&nbsp;<a class="up" href="Store.html" title="Store">Up</a>
+&nbsp;<a class="post" href="Store.Object.html" title="Store.Object">Next</a>
+</div>
+<h1>Module <a href="type_Store.Job.html">Store.Job</a></h1>
+
+<pre><span class="keyword">module</span> Job: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_PersistingJobState">Persisting Job State</h1><br>
+
+<pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
+
+<pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Job.html#TYPEstatus">Job.status</a> Lwt.t</code></pre><div class="info ">
+<code class="code">status t job</code> is <code class="code">job</code>'s status in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALrunning"><span class="keyword">val</span> running</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">runnning t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Running</span></code>.<br>
+</div>
+
+<pre><span id="VALsuccess"><span class="keyword">val</span> success</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">success t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>.<br>
+</div>
+
+<pre><span id="VALfailure"><span class="keyword">val</span> failure</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> string -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">failure t id msg</code> set <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Failure</span> msg</code>.<br>
+</div>
+
+<pre><span id="VALadd_output"><span class="keyword">val</span> add_output</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Object.html#TYPEid">Object.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">add_output t j o</code> adds <code class="code">o</code> to the list of objects created by
+      the job <code class="code">j</code>.<br>
+</div>
+
+<pre><span id="VALoutputs"><span class="keyword">val</span> outputs</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Object.html#TYPEid">Object.id</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">outputs t job</code> are <code class="code">job</code>'s output objects.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">list t</code> is the list of all the jobs stored in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Job.html#TYPEstatus">Job.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_status t j f</code> calls <code class="code">f</code> everytime <code class="code">j</code>'s status is
+      updated.<br>
+</div>
+</body></html>

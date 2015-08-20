@@ -1,0 +1,510 @@
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Index of values</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;</div>
+<h1>Index of values</h1>
+<table>
+<tr><td align="left"><br>A</td></tr>
+<tr><td><a href="Store.S.html#VALadd">add</a> [<a href="Store.S.html">Store.S</a>]</td>
+<td><div class="info">
+<code class="code">add t v</code> adds <code class="code">v</code> to the store <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Job.html#VALadd_output">add_output</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">add_output t j o</code> adds <code class="code">o</code> to the list of objects created by
+      the job <code class="code">j</code>.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALarchive">archive</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">archive f c</code> is the archive containing the files <code class="code">f</code> and with raw
+    contents <code class="code">c</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Id.html#VALcompare">compare</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td><a href="Job.html#VALcompiler">compiler</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALcontents">contents</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">contents t</code> is <code class="code">t</code>s contents.
+</div>
+</td></tr>
+<tr><td><a href="Worker.html#VALcreate">create</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">create h</code> is the worker with host configuration <code class="code">h</code>.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALcreate">create</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">create ?version name</code> is the opam package <code class="code">name.version</code>.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALcreate">create</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">create h c pkgs</code> is the job of building the list of packages
+    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
+    configuration.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALcreate">create</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
+    possible compiler version and on all possible host
+    configurations.
+</div>
+</td></tr>
+<tr><td align="left"><br>D</td></tr>
+<tr><td><a href="Compiler.html#VALdefaults">defaults</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td></td></tr>
+<tr><td><a href="Host.html#VALdefaults">defaults</a> [<a href="Host.html">Host</a>]</td>
+<td></td></tr>
+<tr><td><a href="Host.html#VALdetect">detect</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+Detects the host configuration.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALdigest">digest</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>F</td></tr>
+<tr><td><a href="Store.Job.html#VALfailure">failure</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">failure t id msg</code> set <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Failure</span> msg</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.S.html#VALfind">find</a> [<a href="Store.S.html">Store.S</a>]</td>
+<td><div class="info">
+<code class="code">find t id</code> is the value stored in <code class="code">t</code> with the stable
+      identifier <code class="code">id</code> .
+</div>
+</td></tr>
+<tr><td align="left"><br>H</td></tr>
+<tr><td><a href="Worker.html#VALhost">host</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">host t</code> is <code class="code">t</code>'s host configuration.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALhost">host</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">host t</code> is <code class="code">t</code>'s host.
+</div>
+</td></tr>
+<tr><td align="left"><br>I</td></tr>
+<tr><td><a href="Worker.html#VALid">id</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">id t</code> is <code class="code">t</code>'s identifier.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALid">id</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">id t</code> is <code class="code">t</code>'s id.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALid">id</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">id t</code> id <code class="code">t</code>'s deterministic identifier.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALid">id</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">id t</code> is <code class="code">t</code>'s deterministic identifier.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALid_of_sexp">id_of_sexp</a> [<a href="Object.html">Object</a>]</td>
+<td></td></tr>
+<tr><td><a href="Job.html#VALid_of_sexp">id_of_sexp</a> [<a href="Job.html">Job</a>]</td>
+<td></td></tr>
+<tr><td><a href="Task.html#VALid_of_sexp">id_of_sexp</a> [<a href="Task.html">Task</a>]</td>
+<td></td></tr>
+<tr><td><a href="Store.Worker.html#VALidle">idle</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">idle t w</code> registers that <code class="code">w</code> is idle.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALinfo">info</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">info ~opam ~url</code> is the package information value containing the
+    given opam and url file contents.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALinfo_of_sexp">info_of_sexp</a> [<a href="Package.html">Package</a>]</td>
+<td></td></tr>
+<tr><td><a href="Job.html#VALinputs">inputs</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">input t</code> are <code class="code">t</code>'s job inputs.
+</div>
+</td></tr>
+<tr><td align="left"><br>J</td></tr>
+<tr><td><a href="Store.Task.html#VALjobs">jobs</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">jobs t task</code> are <code class="code">task</code>'s jobs in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>K</td></tr>
+<tr><td><a href="Object.html#VALkind">kind</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">kind t</code> is <code class="code">t</code>'s kind.
+</div>
+</td></tr>
+<tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Store.Job.html#VALlist">list</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">list t</code> is the list of all the jobs stored in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.html#VALlocal">local</a> [<a href="Store.html">Store</a>]</td>
+<td><div class="info">
+Create a local store handler, using Irmin's Git on-disk
+    backend.
+</div>
+</td></tr>
+<tr><td align="left"><br>M</td></tr>
+<tr><td><a href="Store.S.html#VALmem">mem</a> [<a href="Store.S.html">Store.S</a>]</td>
+<td><div class="info">
+<code class="code">mem t id</code> is true if a value with the stable identifer <code class="code">id</code> is
+      stored in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Package.html#VALname">name</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">name t</code> is <code class="code">t</code>'s name.
+</div>
+</td></tr>
+<tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Worker.html#VALof_string">of_string</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">of_string s</code> is the worker <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Compiler.html#VALof_string">of_string</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td><div class="info">
+<code class="code">of_string s</code> is the compiler version <code class="code">t</code> such that <code class="code">to_string t</code>
+    is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALof_string">of_string</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">of_string <span class="string">"n.v"</span></code> is the package with name <code class="code">n</code> and version <code class="code">v</code>.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALof_string">of_string</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">of_string s</code> is the object <code class="code">t</code> whose string representation is
+    <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALof_string">of_string</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALof_string">of_string</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALof_string">of_string</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td><a href="Id.html#VALof_uuid">of_uuid</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td><a href="Package.html#VALopam">opam</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.
+</div>
+</td></tr>
+<tr><td><a href="Store.Job.html#VALoutputs">outputs</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">outputs t job</code> are <code class="code">job</code>'s output objects.
+</div>
+</td></tr>
+<tr><td align="left"><br>P</td></tr>
+<tr><td><a href="Job.html#VALpackages">packages</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALpackages">packages</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">packages t</code>'s is the list of packages that <code class="code">t</code> wants to
+    install.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALpin_of_sexp">pin_of_sexp</a> [<a href="Task.html">Task</a>]</td>
+<td></td></tr>
+<tr><td><a href="Host.html#VALpp">pp</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+Pretty-print the host configuration.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALpp_status">pp_status</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALpp_status">pp_status</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALpretty">pretty</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Store.html#VALremote">remote</a> [<a href="Store.html">Store</a>]</td>
+<td><div class="info">
+Create a remote store handler, using Irmin's HTTP client.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALrepository_of_sexp">repository_of_sexp</a> [<a href="Task.html">Task</a>]</td>
+<td></td></tr>
+<tr><td><a href="Store.Job.html#VALrunning">running</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">runnning t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Running</span></code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>S</td></tr>
+<tr><td><a href="Object.html#VALsexp_of_id">sexp_of_id</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+The type for object identifiers.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALsexp_of_id">sexp_of_id</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+The type for job identifiers.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALsexp_of_id">sexp_of_id</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+The type for task identifiers.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALsexp_of_info">sexp_of_info</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+The type for package information values.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALsexp_of_pin">sexp_of_pin</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+The type for pinned packages.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALsexp_of_repository">sexp_of_repository</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+The type for remote opam repositories.
+</div>
+</td></tr>
+<tr><td><a href="Compiler.html#VALsexp_of_t">sexp_of_t</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td><div class="info">
+The type for compiler versions.
+</div>
+</td></tr>
+<tr><td><a href="Host.html#VALsexp_of_t">sexp_of_t</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+The type for host configuration.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALsexp_of_t">sexp_of_t</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+The type for package names with an optional version.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALsexp_of_t">sexp_of_t</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+The type for task values.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALsexp_of_t">sexp_of_t</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td><a href="Store.Worker.html#VALstart_job">start_job</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">start_job t w j</code> asks the worker <code class="code">w</code> to start working on the
+      build job <code class="code">j</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Worker.html#VALstart_task">start_task</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">start_task t w ta</code> asks the worker <code class="code">w</code> to start working on the
+      task <code class="code">ta</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Job.html#VALstatus">status</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">status t job</code> is <code class="code">job</code>'s status in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Task.html#VALstatus">status</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">status t task</code> is <code class="code">task</code>'s status in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Worker.html#VALstatus">status</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">job t w</code> is the worker <code class="code">w</code>'s current job.
+</div>
+</td></tr>
+<tr><td><a href="Worker.html#VALstatus_of_string">status_of_string</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
+    t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALstatus_of_string">status_of_string</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
+    t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALstatus_of_string">status_of_string</a> [<a href="Task.html">Task</a>]</td>
+<td></td></tr>
+<tr><td><a href="Object.html#VALstderr">stderr</a> [<a href="Object.html">Object</a>]</td>
+<td></td></tr>
+<tr><td><a href="Object.html#VALstdout">stdout</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
+    standard output of a job.
+</div>
+</td></tr>
+<tr><td><a href="Worker.html#VALstring_of_status">string_of_status</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">string_of_status t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALstring_of_status">string_of_status</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALstring_of_status">string_of_status</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.
+</div>
+</td></tr>
+<tr><td><a href="Store.Job.html#VALsuccess">success</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">success t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Compiler.html#VALt_of_sexp">t_of_sexp</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td></td></tr>
+<tr><td><a href="Host.html#VALt_of_sexp">t_of_sexp</a> [<a href="Host.html">Host</a>]</td>
+<td></td></tr>
+<tr><td><a href="Package.html#VALt_of_sexp">t_of_sexp</a> [<a href="Package.html">Package</a>]</td>
+<td></td></tr>
+<tr><td><a href="Task.html#VALt_of_sexp">t_of_sexp</a> [<a href="Task.html">Task</a>]</td>
+<td></td></tr>
+<tr><td><a href="Id.html#VALt_of_sexp">t_of_sexp</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td><a href="Job.html#VALtask_status">task_status</a> [<a href="Job.html">Job</a>]</td>
+<td></td></tr>
+<tr><td><a href="Store.Worker.html#VALtick">tick</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">tick t w f</code> updates the worker <code class="code">w</code>'s status with the timestamp
+      <code class="code">f</code>.
+</div>
+</td></tr>
+<tr><td><a href="Worker.html#VALto_string">to_string</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Compiler.html#VALto_string">to_string</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is <code class="code">t</code>'s string representation.
+</div>
+</td></tr>
+<tr><td><a href="Host.html#VALto_string">to_string</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALto_string">to_string</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is <code class="code">name t ^ <span class="string">"."</span> v</code> if <code class="code">t</code> has the version <code class="code">v</code>,
+    otherwise it is <code class="code">name t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALto_string">to_string</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representing <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALto_string">to_string</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALto_string">to_string</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALto_string">to_string</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>U</td></tr>
+<tr><td><a href="Package.html#VALurl">url</a> [<a href="Package.html">Package</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Package.html#VALversion">version</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">version t</code> is <code class="code">t</code>'s version or <code class="code"><span class="constructor">None</span></code> it <code class="code">t</code> does not have any
+    version.
+</div>
+</td></tr>
+<tr><td align="left"><br>W</td></tr>
+<tr><td><a href="Store.Job.html#VALwatch_status">watch_status</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">watch_status t j f</code> calls <code class="code">f</code> everytime <code class="code">j</code>'s status is
+      updated.
+</div>
+</td></tr>
+<tr><td><a href="Store.Task.html#VALwatch_status">watch_status</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">watch_status t ta f</code> calls <code class="code">f</code> everytime <code class="code">ta</code>'s status is
+      updated.
+</div>
+</td></tr>
+<tr><td><a href="Store.Worker.html#VALwatch_status">watch_status</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">watch_status t w f</code> calls <code class="code">f</code> everytime <code class="code">w</code>'s status is
+      updated.
+</div>
+</td></tr>
+<tr><td><a href="Store.Worker.html#VALwatch_ticks">watch_ticks</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">watch_ticks t w f</code> calls <code class="code">f</code> everytime the worker <code class="code">w</code> calls
+      <a href="Store.Worker.html#VALtick"><code class="code"><span class="constructor">Store</span>.<span class="constructor">Worker</span>.tick</code></a>.
+</div>
+</td></tr>
+<tr><td><a href="Store.html#VALwith_transaction">with_transaction</a> [<a href="Store.html">Store</a>]</td>
+<td><div class="info">
+<code class="code">with_transaction t f</code> executes <code class="code">f t</code> in a transaction and commit
+    the final result if the transaction is successful.
+</div>
+</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Task.html">
+<link rel="next" href="Object.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Job</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Task.html" title="Task">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Object.html" title="Object">Next</a>
+</div>
+<h1>Module <a href="type_Job.html">Job</a></h1>
+
+<pre><span class="keyword">module</span> Job: <code class="code"><span class="keyword">sig</span></code> <a href="Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Build jobs.
+<p>
+
+    Jobs are for a given <a href="Compiler.html">compiler</a> version and
+    <a href="Host.html">host</a> configurations. Jobs have pre-requisites: these are
+    <a href="Object.html">objects</a> which needs to be built and be put into the
+    <a href="Worker.html">worker</a> context before the job could start.
+<p>
+
+    Completed jobs produce output <a href="Object.html">object(s)</a> which will be
+    consummed by other jobs.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEid"><span class="keyword">type</span> <code class="type"></code>id</span> = <code class="type">[ `Job ] <a href="Id.html#TYPEt">Id.t</a></code> </pre>
+<div class="info ">
+The type for job identifiers. Job identifiers are deterministic,
+    i.e. similar jobs will have the same identifiers. As for
+    <a href="Task.html#VALid">tasks</a>, the identifier is built by calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
+    on the concatenation of <a href="Job.html#VALcreate"><code class="code"><span class="constructor">Job</span>.create</code></a> arguments (after
+    normalisation).<br>
+</div>
+
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for job values.<br>
+</div>
+
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?inputs:<a href="Job.html#TYPEid">id</a> list -><br>       <a href="Host.html#TYPEt">Host.t</a> -> <a href="Compiler.html#TYPEt">Compiler.t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list -> <a href="Job.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">create h c pkgs</code> is the job of building the list of packages
+    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
+    configuration.
+<p>
+
+    The job will be able to access the outputs objects created by the
+    (optional) <code class="code">inputs</code> jobs.<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Job.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+</div>
+
+<pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Job.html#TYPEid">id</a></code></pre><div class="info ">
+<code class="code">id t</code> id <code class="code">t</code>'s deterministic identifier. It is obtained by hasing
+    a stable representation of <code class="code">t</code>'s components.<br>
+</div>
+
+<pre><span id="VALcompiler"><span class="keyword">val</span> compiler</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Compiler.html#TYPEt">Compiler.t</a></code></pre><div class="info ">
+<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.<br>
+</div>
+
+<pre><span id="VALhost"><span class="keyword">val</span> host</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Host.html#TYPEt">Host.t</a></code></pre><div class="info ">
+<code class="code">host t</code> is <code class="code">t</code>'s host.<br>
+</div>
+
+<pre><span id="VALinputs"><span class="keyword">val</span> inputs</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Job.html#TYPEid">id</a> list</code></pre><div class="info ">
+<code class="code">input t</code> are <code class="code">t</code>'s job inputs.<br>
+</div>
+
+<pre><span id="VALpackages"><span class="keyword">val</span> packages</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list</code></pre><div class="info ">
+<code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.<br>
+</div>
+<br>
+<br>
+
+<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure of string | `Pending | `Running | `Success ]</code> </pre>
+<div class="info ">
+The type for job status.<br>
+</div>
+
+
+<pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt<br>
+</div>
+
+<pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALstatus_of_string"><span class="keyword">val</span> status_of_string</span> : <code class="type">string -> <a href="Job.html#TYPEstatus">status</a></code></pre><div class="info ">
+<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
+    t</code> is <code class="code">s</code>.<br>
+</div>
+
+<pre><span id="VALtask_status"><span class="keyword">val</span> task_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> list -> <a href="Task.html#TYPEstatus">Task.status</a></code></pre>
+<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Job.html#TYPEid">id</a></code></pre>
+<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Job.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for job identifiers. Job identifiers are deterministic,
+    i.e. similar jobs will have the same identifiers. As for
+    <a href="Task.html#VALid">tasks</a>, the identifier is built by calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
+    on the concatenation of <a href="Job.html#VALcreate"><code class="code"><span class="constructor">Job</span>.create</code></a> arguments (after
+    normalisation).<br>
+</div>
+<br>
+The type for job values.<br>
+<br>
+<code class="code">create h c pkgs</code> is the job of building the list of packages
+    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
+    configuration.
+<p>
+
+    The job will be able to access the outputs objects created by the
+    (optional) <code class="code">inputs</code> jobs.<br>
+<br>
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<br>
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+<br>
+<code class="code">id t</code> id <code class="code">t</code>'s deterministic identifier. It is obtained by hasing
+    a stable representation of <code class="code">t</code>'s components.<br>
+<br>
+<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.<br>
+<br>
+<code class="code">host t</code> is <code class="code">t</code>'s host.<br>
+<br>
+<code class="code">input t</code> are <code class="code">t</code>'s job inputs.<br>
+<br>
+<code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.<br>
+<br>
+<br>
+<br>
+The type for job status.<br>
+<br>
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt<br>
+<br>
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
+<br>
+<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
+    t</code> is <code class="code">s</code>.<br>
+<br>
+<code class="code">task_status s</code> is the status summary of s. If all status are
+    <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code> then it is a <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>. If all status are <code class="code"><span class="keywordsign">`</span><span class="constructor">Failed</span></code>
+    then it is also <code class="code"><span class="keywordsign">`</span><span class="constructor">Failed</span></code>. Otherwise it is <code class="code"><span class="keywordsign">`</span><span class="constructor">Pending</span></code>.<br>
+</body></html>

@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Id.html">
+<link rel="next" href="Job.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><link title="Task Status" rel="Section" href="#1_TaskStatus">
+<link title="Task Status" rel="Section" href="#1_TaskStatus">
+<title>Task</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Id.html" title="Id">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Job.html" title="Job">Next</a>
+</div>
+<h1>Module <a href="type_Task.html">Task</a></h1>
+
+<pre><span class="keyword">module</span> Task: <code class="code"><span class="keyword">sig</span></code> <a href="Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+User-defined tasks.
+<p>
+
+    A task is a high-level description of user intents. It allows to
+    express things like:
+<p>
+
+    <i>"I want to compiler the package X to all supported host
+    configurations and all OCaml compiler versions."</i>
+<p>
+
+    Tasks are later translated into more specific <a href="Job.html">jobs</a> by
+    <a href="Worker.html">workers</a>, using the OPAM solver. These jobs are then
+    processed by other <a href="Worker.html">workers</a> to generate build
+    <a href="Object.html">objects</a>. The user can then access the jobs outputs and
+    results, and the genarated objects.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEid"><span class="keyword">type</span> <code class="type"></code>id</span> = <code class="type">[ `Task ] <a href="Id.html#TYPEt">Id.t</a></code> </pre>
+<div class="info ">
+The type for task identifiers. These identifiers are
+    deterministic, i.e. similar tasks will have the same
+    identifiers. This is done by hashing the concatenation of
+    <a href="Task.html#VALcreate"><code class="code"><span class="constructor">Task</span>.create</code></a> arguments (after normalisation) and calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
+    on the result.<br>
+</div>
+
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for task values.<br>
+</div>
+
+
+<pre><code><span id="TYPErepository"><span class="keyword">type</span> <code class="type"></code>repository</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTrepository.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">string * string</code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The type for remote opam repositories.<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+
+
+
+<pre><code><span id="TYPEpin"><span class="keyword">type</span> <code class="type"></code>pin</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTpin.Pin"><span class="constructor">Pin</span></span> <span class="keyword">of</span> <code class="type">string * string</code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The type for pinned packages. The first argument is a package
+    name, the second one its pin target. It is either a version
+    string, or a Git repository. The target is similar to what would
+    be passed to <i>opam pin add &lt;name&gt; &lt;target&gt;</i><br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+
+
+
+<pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> <a href="Task.html#TYPEid">id</a></code></pre><div class="info ">
+<code class="code">id t</code> is <code class="code">t</code>'s deterministic identifier. Is it obtaining by
+    hashing a stable representation of <code class="code">t</code>'s components.<br>
+</div>
+
+<pre><span id="VALpackages"><span class="keyword">val</span> packages</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> <a href="Package.html#TYPEt">Package.t</a> list</code></pre><div class="info ">
+<code class="code">packages t</code>'s is the list of packages that <code class="code">t</code> wants to
+    install.<br>
+</div>
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?repos:<a href="Task.html#TYPErepository">repository</a> list -><br>       ?pins:<a href="Task.html#TYPEpin">pin</a> list -><br>       ?compilers:<a href="Compiler.html#TYPEt">Compiler.t</a> list -> ?hosts:<a href="Host.html#TYPEt">Host.t</a> list -> <a href="Package.html#TYPEt">Package.t</a> list -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
+    possible compiler version and on all possible host
+    configurations. This task can somehow be attenuated by specifying
+    some optional arguments:
+<p>
+
+    <ul>
+<li><code class="code">repos</code> is the list of (remote) repositories the the workers
+       should use.</li>
+<li><code class="code">pins</code> is the list of pinned packages that the worker should
+       use.</li>
+<li><code class="code">compilers</code> restricts the list of compilers to test to only the
+       ones appearing in the list. An empty list means all the
+       supported compilers.</li>
+<li><code class="code">hosts</code> restricts the list of host kinds to test to only the
+       ones appearing in the list. An empty list means all the
+       supported hosts.</li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+</div>
+<br>
+<h1 id="1_TaskStatus">Task Status</h1><br>
+
+<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `Pending | `Success ]</code> </pre>
+<div class="info ">
+The type for task status.<br>
+</div>
+
+
+<pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Task.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt.<br>
+</div>
+
+<pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Task.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
+</div>
+
+<pre><span id="VALstatus_of_string"><span class="keyword">val</span> status_of_string</span> : <code class="type">string -> <a href="Task.html#TYPEstatus">status</a></code></pre>
+<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEid">id</a></code></pre>
+<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Task.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for task identifiers. These identifiers are
+    deterministic, i.e. similar tasks will have the same
+    identifiers. This is done by hashing the concatenation of
+    <a href="Task.html#VALcreate"><code class="code"><span class="constructor">Task</span>.create</code></a> arguments (after normalisation) and calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
+    on the result.<br>
+</div>
+
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for task values.<br>
+</div>
+
+<pre><span id="VALrepository_of_sexp"><span class="keyword">val</span> repository_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPErepository">repository</a></code></pre>
+<pre><span id="VALsexp_of_repository"><span class="keyword">val</span> sexp_of_repository</span> : <code class="type"><a href="Task.html#TYPErepository">repository</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for remote opam repositories.<br>
+</div>
+
+<pre><span id="VALpin_of_sexp"><span class="keyword">val</span> pin_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEpin">pin</a></code></pre>
+<pre><span id="VALsexp_of_pin"><span class="keyword">val</span> sexp_of_pin</span> : <code class="type"><a href="Task.html#TYPEpin">pin</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for pinned packages. The first argument is a package
+    name, the second one its pin target. It is either a version
+    string, or a Git repository. The target is similar to what would
+    be passed to <i>opam pin add &lt;name&gt; &lt;target&gt;</i><br>
+</div>
+<br>
+<code class="code">id t</code> is <code class="code">t</code>'s deterministic identifier. Is it obtaining by
+    hashing a stable representation of <code class="code">t</code>'s components.<br>
+<br>
+<code class="code">packages t</code>'s is the list of packages that <code class="code">t</code> wants to
+    install.<br>
+<br>
+<code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
+    possible compiler version and on all possible host
+    configurations. This task can somehow be attenuated by specifying
+    some optional arguments:
+<p>
+
+    <ul>
+<li><code class="code">repos</code> is the list of (remote) repositories the the workers
+       should use.</li>
+<li><code class="code">pins</code> is the list of pinned packages that the worker should
+       use.</li>
+<li><code class="code">compilers</code> restricts the list of compilers to test to only the
+       ones appearing in the list. An empty list means all the
+       supported compilers.</li>
+<li><code class="code">hosts</code> restricts the list of host kinds to test to only the
+       ones appearing in the list. An empty list means all the
+       supported hosts.</li>
+</ul>
+<br>
+<br>
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<br>
+<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+<br>
+<h1 id="1_TaskStatus">Task Status</h1><br>
+<br>
+The type for task status.<br>
+<br>
+<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt.<br>
+<br>
+<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
+<br>
+<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
+    t</code> is <code class="code">s</code>.<br>
+</body></html>

@@ -1,0 +1,41 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Job</title>
+</head>
+<body>
+<code class="code"><span class="keyword">sig</span><br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Job</span>&nbsp;]&nbsp;<span class="constructor">Id</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;?inputs:<span class="constructor">Job</span>.id&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Compiler</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Package</span>.t&nbsp;*&nbsp;<span class="constructor">Package</span>.info)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.id<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;compiler&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Compiler</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;host&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Host</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;inputs&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.id&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;packages&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Package</span>.t&nbsp;*&nbsp;<span class="constructor">Package</span>.info)&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;status&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Cancelled</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Failure</span>&nbsp;<span class="keyword">of</span>&nbsp;string&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Pending</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Running</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Success</span>&nbsp;]<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp_status&nbsp;:&nbsp;<span class="constructor">Job</span>.status&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;string_of_status&nbsp;:&nbsp;<span class="constructor">Job</span>.status&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;status_of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.status<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;task_status&nbsp;:&nbsp;<span class="constructor">Job</span>.status&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.status<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.id<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_id&nbsp;:&nbsp;<span class="constructor">Job</span>.id&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
+<span class="keyword">end</span></code></body></html>

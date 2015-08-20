@@ -1,0 +1,118 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Object.html">
+<link rel="next" href="Host.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><link title="Package Information" rel="Section" href="#1_PackageInformation">
+<link title="Package Information" rel="Section" href="#1_PackageInformation">
+<title>Package</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Object.html" title="Object">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Host.html" title="Host">Next</a>
+</div>
+<h1>Module <a href="type_Package.html">Package</a></h1>
+
+<pre><span class="keyword">module</span> Package: <code class="code"><span class="keyword">sig</span></code> <a href="Package.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Package name with optional version.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for package names with an optional version.<br>
+</div>
+
+
+<pre><span id="VALname"><span class="keyword">val</span> name</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">name t</code> is <code class="code">t</code>'s name.<br>
+</div>
+
+<pre><span id="VALversion"><span class="keyword">val</span> version</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> string option</code></pre><div class="info ">
+<code class="code">version t</code> is <code class="code">t</code>'s version or <code class="code"><span class="constructor">None</span></code> it <code class="code">t</code> does not have any
+    version.<br>
+</div>
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?version:string -> string -> <a href="Package.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">create ?version name</code> is the opam package <code class="code">name.version</code>.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Package.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string <span class="string">"n.v"</span></code> is the package with name <code class="code">n</code> and version <code class="code">v</code>. If
+    <code class="code">s</code> does not contain any string, it is the package with name <code class="code">s</code>
+    and no version.<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is <code class="code">name t ^ <span class="string">"."</span> v</code> if <code class="code">t</code> has the version <code class="code">v</code>,
+    otherwise it is <code class="code">name t</code>.<br>
+</div>
+<br>
+<h1 id="1_PackageInformation">Package Information</h1><br>
+
+<pre><span id="TYPEinfo"><span class="keyword">type</span> <code class="type"></code>info</span> </pre>
+<div class="info ">
+The type for package information values.<br>
+</div>
+
+
+<pre><span id="VALinfo"><span class="keyword">val</span> info</span> : <code class="type">opam:Cstruct.t -> url:Cstruct.t -> <a href="Package.html#TYPEinfo">info</a></code></pre><div class="info ">
+<code class="code">info ~opam ~url</code> is the package information value containing the
+    given opam and url file contents.<br>
+</div>
+
+<pre><span id="VALopam"><span class="keyword">val</span> opam</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Cstruct.t</code></pre><div class="info ">
+<code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.<br>
+</div>
+
+<pre><span id="VALurl"><span class="keyword">val</span> url</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Cstruct.t</code></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Package.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for package names with an optional version.<br>
+</div>
+<br>
+<code class="code">name t</code> is <code class="code">t</code>'s name.<br>
+<br>
+<code class="code">version t</code> is <code class="code">t</code>'s version or <code class="code"><span class="constructor">None</span></code> it <code class="code">t</code> does not have any
+    version.<br>
+<br>
+<code class="code">create ?version name</code> is the opam package <code class="code">name.version</code>.<br>
+<br>
+<code class="code">of_string <span class="string">"n.v"</span></code> is the package with name <code class="code">n</code> and version <code class="code">v</code>. If
+    <code class="code">s</code> does not contain any string, it is the package with name <code class="code">s</code>
+    and no version.<br>
+<br>
+<code class="code">to_string t</code> is <code class="code">name t ^ <span class="string">"."</span> v</code> if <code class="code">t</code> has the version <code class="code">v</code>,
+    otherwise it is <code class="code">name t</code>.<br>
+<br>
+<h1 id="1_PackageInformation">Package Information</h1><br>
+
+<pre><span id="VALinfo_of_sexp"><span class="keyword">val</span> info_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Package.html#TYPEinfo">info</a></code></pre>
+<pre><span id="VALsexp_of_info"><span class="keyword">val</span> sexp_of_info</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for package information values.<br>
+</div>
+<br>
+<code class="code">info ~opam ~url</code> is the package information value containing the
+    given opam and url file contents.<br>
+<br>
+<code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.<br>
+<br>
+<code class="code">url i</code> is the contents of <code class="code">i</code>'s url file.<br>
+</body></html>

@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Job.html">
+<link rel="next" href="Package.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Object</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Job.html" title="Job">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Package.html" title="Package">Next</a>
+</div>
+<h1>Module <a href="type_Object.html">Object</a></h1>
+
+<pre><span class="keyword">module</span> Object: <code class="code"><span class="keyword">sig</span></code> <a href="Object.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Build objects.
+<p>
+
+    The objects are built by <a href="Job.html">jobs</a> executed by <a href="Worker.html">workers</a>.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEid"><span class="keyword">type</span> <code class="type"></code>id</span> = <code class="type">[ `Object ] <a href="Id.html#TYPEt">Id.t</a></code> </pre>
+<div class="info ">
+The type for object identifiers. Object identifiers are
+    deterministic, i.e. two similar objects will have the same
+    identifiers. The notion of similiraty depends on the object
+    type.<br>
+</div>
+
+
+<pre><code><span id="TYPEarchive"><span class="keyword">type</span> <code class="type"></code>archive</span> = {</code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTarchive.files">files</span>&nbsp;: <code class="type">(string * Digest.t) list</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTarchive.raw">raw</span>&nbsp;: <code class="type">Cstruct.t</code>;</code></td>
+
+</tr></table>
+}
+
+<div class="info ">
+The type for archive values.<br>
+</div>
+
+
+<pre><code><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcontents.Archive"><span class="constructor">Archive</span></span> <span class="keyword">of</span> <code class="type"><a href="Object.html#TYPEarchive">archive</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcontents.Stdout"><span class="constructor">Stdout</span></span> <span class="keyword">of</span> <code class="type">string list</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcontents.Stderr"><span class="constructor">Stderr</span></span> <span class="keyword">of</span> <code class="type">string list</code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
+The type for object contents. Can either be an archive, or stdout
+    and stderr dumps.<br>
+</div>
+</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+
+
+
+<pre><span id="TYPEkind"><span class="keyword">type</span> <code class="type"></code>kind</span> = <code class="type">[ `Archive | `Stderr | `Stdout ]</code> </pre>
+<div class="info ">
+The type for object kinds.<br>
+</div>
+
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for object values.<br>
+</div>
+
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is the string representing <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string s</code> is the object <code class="code">t</code> whose string representation is
+    <code class="code">s</code>.<br>
+</div>
+
+<pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEid">id</a></code></pre><div class="info ">
+<code class="code">id t</code> is <code class="code">t</code>'s id.<br>
+</div>
+
+<pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEcontents">contents</a></code></pre><div class="info ">
+<code class="code">contents t</code> is <code class="code">t</code>s contents.<br>
+</div>
+
+<pre><span id="VALkind"><span class="keyword">val</span> kind</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEkind">kind</a></code></pre><div class="info ">
+<code class="code">kind t</code> is <code class="code">t</code>'s kind.<br>
+</div>
+
+<pre><span id="VALarchive"><span class="keyword">val</span> archive</span> : <code class="type">(string * Digest.t) list -> Cstruct.t -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">archive f c</code> is the archive containing the files <code class="code">f</code> and with raw
+    contents <code class="code">c</code>.<br>
+</div>
+
+<pre><span id="VALstdout"><span class="keyword">val</span> stdout</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
+    standard output of a job.<br>
+</div>
+
+<pre><span id="VALstderr"><span class="keyword">val</span> stderr</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre>
+<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Object.html#TYPEid">id</a></code></pre>
+<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Object.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for object identifiers. Object identifiers are
+    deterministic, i.e. two similar objects will have the same
+    identifiers. The notion of similiraty depends on the object
+    type.<br>
+</div>
+<br>
+The type for archive values.<br>
+<br>
+The type for object contents. Can either be an archive, or stdout
+    and stderr dumps.<br>
+<br>
+The type for object kinds.<br>
+<br>
+The type for object values.<br>
+<br>
+<code class="code">to_string t</code> is the string representing <code class="code">t</code>.<br>
+<br>
+<code class="code">of_string s</code> is the object <code class="code">t</code> whose string representation is
+    <code class="code">s</code>.<br>
+<br>
+<code class="code">id t</code> is <code class="code">t</code>'s id.<br>
+<br>
+<code class="code">contents t</code> is <code class="code">t</code>s contents.<br>
+<br>
+<code class="code">kind t</code> is <code class="code">t</code>'s kind.<br>
+<br>
+<code class="code">archive f c</code> is the archive containing the files <code class="code">f</code> and with raw
+    contents <code class="code">c</code>.<br>
+<br>
+<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
+    standard output of a job.<br>
+<br>
+<code class="code">stderr lines</code> is similar to <a href="Object.html#VALstdout"><code class="code"><span class="constructor">Object</span>.stdout</code></a> but for the standard
+    errors.<br>
+</body></html>

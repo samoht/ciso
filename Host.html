@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Package.html">
+<link rel="next" href="Compiler.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html"><title>Host</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Package.html" title="Package">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Compiler.html" title="Compiler">Next</a>
+</div>
+<h1>Module <a href="type_Host.html">Host</a></h1>
+
+<pre><span class="keyword">module</span> Host: <code class="code"><span class="keyword">sig</span></code> <a href="Host.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Detection of host configuration.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for host configuration.<br>
+</div>
+
+
+<pre><span id="VALdetect"><span class="keyword">val</span> detect</span> : <code class="type">unit -> <a href="Host.html#TYPEt">t</a></code></pre><div class="info ">
+Detects the host configuration.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Host.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+Pretty-print the host configuration. FIXME: use Fmt.<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Host.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALdefaults"><span class="keyword">val</span> defaults</span> : <code class="type"><a href="Host.html#TYPEt">t</a> list</code></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Host.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Host.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for host configuration.<br>
+</div>
+<br>
+Detects the host configuration.<br>
+<br>
+Pretty-print the host configuration. FIXME: use Fmt.<br>
+<br>
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<br>
+<code class="code">defaults</code> is the list of host configurations supported by
+    default.<br>
+</body></html>
