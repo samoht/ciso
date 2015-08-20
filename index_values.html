@@ -42,7 +42,10 @@
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Id.html#VALcompare">compare</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">compare x y</code> compares the representation of two identifiers.
+</div>
+</td></tr>
 <tr><td><a href="Job.html#VALcompiler">compiler</a> [<a href="Job.html">Job</a>]</td>
 <td><div class="info">
 <code class="code">compiler t</code> is <code class="code">t</code>'s compiler.
@@ -88,7 +91,10 @@ Detects the host configuration.
 </div>
 </td></tr>
 <tr><td><a href="Id.html#VALdigest">digest</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.
+</div>
+</td></tr>
 <tr><td align="left"><br>F</td></tr>
 <tr><td><a href="Store.Job.html#VALfailure">failure</a> [<a href="Store.Job.html">Store.Job</a>]</td>
 <td><div class="info">
@@ -228,9 +234,18 @@ Create a local store handler, using Irmin's Git on-disk
 </div>
 </td></tr>
 <tr><td><a href="Id.html#VALof_string">of_string</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">of_string k s</code> is the identifier <code class="code">t</code> of type <code class="code">k</code> such that
+    <code class="code">to_string t</code> is <code class="code">s</code>.
+</div>
+</td></tr>
 <tr><td><a href="Id.html#VALof_uuid">of_uuid</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">uuid k</code> is a a 128 bits universally unique identifiers (UUID)
+    version 4 (random based) according to
+    <a href="http://tools.ietf.org/html/rfc4122">RFC 4122</a>.
+</div>
+</td></tr>
 <tr><td><a href="Package.html#VALopam">opam</a> [<a href="Package.html">Package</a>]</td>
 <td><div class="info">
 <code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.
@@ -254,24 +269,27 @@ Create a local store handler, using Irmin's Git on-disk
 </div>
 </td></tr>
 <tr><td><a href="Task.html#VALpin_of_sexp">pin_of_sexp</a> [<a href="Task.html">Task</a>]</td>
-<td></td></tr>
-<tr><td><a href="Host.html#VALpp">pp</a> [<a href="Host.html">Host</a>]</td>
 <td><div class="info">
-Pretty-print the host configuration.
+The type for pinned packages.
 </div>
 </td></tr>
+<tr><td><a href="Host.html#VALpp">pp</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+<code class="code">pp</code> formats a <a href="Host.html#TYPEt">host configuration</a>.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALpp">pp</a> [<a href="Id.html">Id</a>]</td>
+<td></td></tr>
 <tr><td><a href="Job.html#VALpp_status">pp_status</a> [<a href="Job.html">Job</a>]</td>
 <td><div class="info">
-<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>.
+<code class="code">pp_status</code> formats jobs <a href="Job.html#TYPEstatus"><code class="code"><span class="constructor">Job</span>.status</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Task.html#VALpp_status">pp_status</a> [<a href="Task.html">Task</a>]</td>
 <td><div class="info">
-<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>.
+<code class="code">pp_status</code> formats tasks <a href="Task.html#TYPEstatus"><code class="code"><span class="constructor">Task</span>.status</code></a>.
 </div>
 </td></tr>
-<tr><td><a href="Id.html#VALpretty">pretty</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Store.html#VALremote">remote</a> [<a href="Store.html">Store</a>]</td>
 <td><div class="info">
@@ -279,7 +297,10 @@ Create a remote store handler, using Irmin's HTTP client.
 </div>
 </td></tr>
 <tr><td><a href="Task.html#VALrepository_of_sexp">repository_of_sexp</a> [<a href="Task.html">Task</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The type for remote opam repositories.
+</div>
+</td></tr>
 <tr><td><a href="Store.Job.html#VALrunning">running</a> [<a href="Store.Job.html">Store.Job</a>]</td>
 <td><div class="info">
 <code class="code">runnning t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Running</span></code>.
@@ -307,15 +328,9 @@ The type for package information values.
 </div>
 </td></tr>
 <tr><td><a href="Task.html#VALsexp_of_pin">sexp_of_pin</a> [<a href="Task.html">Task</a>]</td>
-<td><div class="info">
-The type for pinned packages.
-</div>
-</td></tr>
+<td></td></tr>
 <tr><td><a href="Task.html#VALsexp_of_repository">sexp_of_repository</a> [<a href="Task.html">Task</a>]</td>
-<td><div class="info">
-The type for remote opam repositories.
-</div>
-</td></tr>
+<td></td></tr>
 <tr><td><a href="Compiler.html#VALsexp_of_t">sexp_of_t</a> [<a href="Compiler.html">Compiler</a>]</td>
 <td><div class="info">
 The type for compiler versions.
@@ -337,7 +352,10 @@ The type for task values.
 </div>
 </td></tr>
 <tr><td><a href="Id.html#VALsexp_of_t">sexp_of_t</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The type for deterministic or random dentifiers.
+</div>
+</td></tr>
 <tr><td><a href="Store.Worker.html#VALstart_job">start_job</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
 <td><div class="info">
 <code class="code">start_job t w j</code> asks the worker <code class="code">w</code> to start working on the
@@ -463,7 +481,10 @@ The type for task values.
 </div>
 </td></tr>
 <tr><td><a href="Id.html#VALto_string">to_string</a> [<a href="Id.html">Id</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.
+</div>
+</td></tr>
 <tr><td align="left"><br>U</td></tr>
 <tr><td><a href="Package.html#VALurl">url</a> [<a href="Package.html">Package</a>]</td>
 <td></td></tr>

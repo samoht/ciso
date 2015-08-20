@@ -33,13 +33,14 @@ Build jobs.
 <p>
 
     Jobs are for a given <a href="Compiler.html">compiler</a> version and
-    <a href="Host.html">host</a> configurations. Jobs have pre-requisites: these are
-    <a href="Object.html">objects</a> which needs to be built and be put into the
-    <a href="Worker.html">worker</a> context before the job could start.
+    <a href="Host.html">host</a> configurations. Jobs have pre-requisites:
+    these are <a href="Object.html">objects</a> which needs to be built and be
+    put into the <a href="Worker.html">worker</a> context before the job could
+    start.
 <p>
 
-    Completed jobs produce output <a href="Object.html">object(s)</a> which will be
-    consummed by other jobs.<br>
+    Completed jobs produce output <a href="Object.html">object(s)</a> which
+    will be consummed by other jobs.<br>
 </div>
 <hr width="100%">
 
@@ -106,8 +107,8 @@ The type for job status.<br>
 </div>
 
 
-<pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
-<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt<br>
+<pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp_status</code> formats jobs <a href="Job.html#TYPEstatus"><code class="code"><span class="constructor">Job</span>.status</code></a>.<br>
 </div>
 
 <pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
@@ -158,7 +159,7 @@ The type for job values.<br>
 <br>
 The type for job status.<br>
 <br>
-<code class="code">pp_status s</code> is a pretty representation of <code class="code">s</code>. FIXME: use fmt<br>
+<code class="code">pp_status</code> formats jobs <a href="Job.html#TYPEstatus"><code class="code"><span class="constructor">Job</span>.status</code></a>.<br>
 <br>
 <code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
 <br>

@@ -26,16 +26,64 @@
 </div>
 <h1>Module <a href="type_Id.html">Id</a></h1>
 
-<pre><span class="keyword">module</span> Id: <code class="code"><span class="keyword">sig</span></code> <a href="Id.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<pre><span class="keyword">module</span> Id: <code class="code"><span class="keyword">sig</span></code> <a href="Id.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Unique identifiers.
+<p>
+
+    This module handle both deterministic identifiers for
+    <a href="Object.html">objects</a>, <a href="Job.html">jobs</a> and
+    <a href="Task.html">tasks</a> and randaom unique identifiers for
+    <a href="Worker.html">workers</a>.<br>
+</div>
+<hr width="100%">
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+<div class="info ">
+The type for deterministic or random dentifiers.<br>
+</div>
 
 
-<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> 'a <a href="Id.html#TYPEt">t</a> -> int</code></pre>
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre>
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
-<pre><span id="VALpretty"><span class="keyword">val</span> pretty</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre>
-<pre><span id="VALof_uuid"><span class="keyword">val</span> of_uuid</span> : <code class="type">'a -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
-<pre><span id="VALdigest"><span class="keyword">val</span> digest</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
+<pre><span id="VALof_uuid"><span class="keyword">val</span> of_uuid</span> : <code class="type">'a -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">uuid k</code> is a a 128 bits universally unique identifiers (UUID)
+    version 4 (random based) according to
+    <a href="http://tools.ietf.org/html/rfc4122">RFC 4122</a>.<br>
+</div>
+
+<pre><span id="VALdigest"><span class="keyword">val</span> digest</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.<br>
+</div>
+
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> 'a <a href="Id.html#TYPEt">t</a> -> int</code></pre><div class="info ">
+<code class="code">compare x y</code> compares the representation of two identifiers.<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string k s</code> is the identifier <code class="code">t</code> of type <code class="code">k</code> such that
+    <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> Fmt.t</code></pre>
 <pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'a) -> Sexplib.Sexp.t -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('a -> Sexplib.Sexp.t) -> 'a <a href="Id.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre></body></html>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('a -> Sexplib.Sexp.t) -> 'a <a href="Id.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
+The type for deterministic or random dentifiers.<br>
+</div>
+<br>
+<code class="code">uuid k</code> is a a 128 bits universally unique identifiers (UUID)
+    version 4 (random based) according to
+    <a href="http://tools.ietf.org/html/rfc4122">RFC 4122</a>.<br>
+<br>
+<code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.<br>
+<br>
+<code class="code">compare x y</code> compares the representation of two identifiers.<br>
+<br>
+<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<br>
+<code class="code">of_string k s</code> is the identifier <code class="code">t</code> of type <code class="code">k</code> such that
+    <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+<br>
+<code class="code">pp t</code> formats <code class="code">t</code>.<br>
+</body></html>
