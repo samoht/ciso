@@ -39,3 +39,18 @@ configure:
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 # OASIS_STOP
+
+init-doc:
+	mkdir -p gh-pages
+	cd gh-pages && ( \
+	  git init && \
+	  git remote add origin git@github.com:samoht/ciso.git && \
+	  git fetch && \
+	  git checkout -b gh-pages && \
+	  (git pull origin gh-pages || exit 0))
+
+update-doc: doc
+	rm -f gh-pages/*.html
+	cd gh-pages && cp ../ciso.docdir/*.html .
+	cd gh-pages && git add * && (git commit -a -m "Update docs" || exit 0)
+	cd gh-pages && git push origin gh-pages
