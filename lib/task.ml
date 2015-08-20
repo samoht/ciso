@@ -73,8 +73,11 @@ type status = [
 let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
 let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
 
-let pp_status = function
-  | `Success  -> "success"
-  | `Failure  -> "failure"
-  | `Pending  -> "pending"
-  | `Cancelled -> "canceled"
+let pp_status fmt x =
+  let str = match x with
+    | `Success  -> "success"
+    | `Failure  -> "failure"
+    | `Pending  -> "pending"
+    | `Cancelled -> "canceled"
+  in
+  Fmt.string fmt str

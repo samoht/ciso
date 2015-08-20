@@ -24,8 +24,8 @@ type t with sexp
 val detect: unit -> t
 (** Detects the host configuration. *)
 
-val pp: t -> string
-(** Pretty-print the host configuration. FIXME: use Fmt. *)
+val pp: t Fmt.t
+(** [pp] formats a {{!t}host configuration}. *)
 
 val to_string: t -> string
 (** [to_string t] is the string representation of [t]. *)

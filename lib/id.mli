@@ -16,14 +16,33 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: doc *)
+(** Unique identifiers.
+
+    This module handle both deterministic identifiers for
+    {{!Object}objects}, {{!Jobs}jobs} and {{!Task}tasks} and randaom
+    unique identifiers for {{!Worker}workers}.
+*)
 
 type 'a t with sexp
-
-val compare: 'a t -> 'a t -> int
-val to_string: 'a t -> string
-val of_string: 'a -> string -> 'a t
-val pretty: 'a t -> string
+(** The type for deterministic or random dentifiers. *)
 
 val of_uuid: 'a -> 'a t
+(** [uuid k] is a a 128 bits universally unique identifiers (UUID)
+    version 4 (random based) according to
+    {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
+
 val digest: 'a -> string -> 'a t
+(** [digest k s] is [s]'s SHA1 digest. *)
+
+val compare: 'a t -> 'a t -> int
+(** [compare x y] compares the representation of two identifiers. *)
+
+val to_string: 'a t -> string
+(** [to_string t] is the string representation of [t]. *)
+
+val of_string: 'a -> string -> 'a t
+(** [of_string k s] is the identifier [t] of type [k] such that
+    [to_string t] is [s]. *)
+
+val pp: 'a t Fmt.t
+(** [pp t] formats [t]. *)

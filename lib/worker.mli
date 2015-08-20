@@ -37,7 +37,7 @@ val create: Host.t -> t
 val id: t -> id
 (** [id t] is [t]'s identifier. It is a 128 bits universally unique
     identifiers (UUID) version 4 (random based) according to
-    {{:http://tools.ietf.org/html/rfc4122}RFC 4122}.*)
+    {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
 
 val host: t -> Host.t
 (** [host t] is [t]'s host configuration. *)

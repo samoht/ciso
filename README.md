@@ -4,11 +4,13 @@ A (distributed) Continuous Integration engine for OPAM
 
 ### Install
 
-Need the dev version of `opam-lib`:
+Ciso is not yet properly released so you need to pin some dev packages to
+compile and install the project:
 
 ```shell
-$ opam pin add opam-lib --dev
-$ opam pin add ciso .
+opam pin add opam-lib --dev
+opam pin add fmt https://github.com/dbuenzli/fmt -n
+opam pin add ciso https://github.com/samoht/ciso.git
 ```
 
 ### Architecture

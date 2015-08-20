@@ -23,6 +23,7 @@ depends: [
   "lwt"
   "uri"
   "re"
+  "fmt"
   "opam-lib"
   "ocamlgraph"
   "github"

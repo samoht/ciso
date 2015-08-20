@@ -64,12 +64,12 @@ type status = [
   | `Cancelled
 ] with sexp
 
-let pp_status = function
-  | `Success   -> "success"
-  | `Failure s -> "failure: " ^ s
-  | `Pending   -> "pending"
-  | `Running   -> "running"
-  | `Cancelled -> "cancelled"
+let pp_status fmt = function
+  | `Success   -> Fmt.string fmt "success"
+  | `Failure s -> Fmt.pf fmt "failure: %s" s
+  | `Pending   -> Fmt.string fmt "pending"
+  | `Running   -> Fmt.string fmt "running"
+  | `Cancelled -> Fmt.string fmt  "cancelled"
 
 let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
 let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)

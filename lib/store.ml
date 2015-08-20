@@ -138,7 +138,8 @@ module type S = sig
   val find: t -> id -> value option Lwt.t
 end
 
-let mk t msg id = t (msg ^ " " ^ Id.to_string id)
+let pretty id = Fmt.to_to_string Id.pp id
+let mk t msg id = t (msg ^ " " ^ pretty id)
 let map_o f = function None -> None | Some x -> Some (f x)
 let (/) dir file = List.append dir [file]
 
@@ -155,13 +156,13 @@ module XJob = struct
 
   let add t job =
     let id = Job.id job in
-    debug "add: job %s" (Id.pretty id);
+    debug "add: job %s" (pretty id);
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
       Store.update (mk t "add job" id) (value_p id) (Job.to_string job)
       >|= fun () ->
-      debug "add: job %s published!" (Id.pretty id)
+      debug "add: job %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "find job" id) (value_p id) >|= map_o Job.of_string
@@ -215,13 +216,13 @@ module XTask = struct
 
   let add t task =
     let id = Task.id task in
-    debug "add: task %s" (Id.pretty id);
+    debug "add: task %s" (pretty id);
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
       Store.update (mk t "add task" id) (value_p id) (Task.to_string task)
       >|= fun () ->
-      debug "add: task %s published!" (Id.pretty id)
+      debug "add: task %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "find task" id) (value_p id) >|= map_o Task.of_string
@@ -263,13 +264,13 @@ module XObject = struct
 
   let add t obj =
     let id = Object.id obj in
-    debug "add: object %s" (Id.pretty id);
+    debug "add: object %s" (pretty id);
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
       let obj = Object.to_string obj in
       Store.update (mk t "publish object" id) (value_p id) obj >|= fun () ->
-      debug "add: object %s published!" (Id.pretty id)
+      debug "add: object %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "retrieve object" id) (value_p id) >|=
@@ -288,13 +289,13 @@ module XWorker = struct
 
   let add t w =
     let id = Worker.id w in
-    debug "add: worker %s" (Id.pretty id);
+    debug "add: worker %s" (pretty id);
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
       let w = Worker.to_string w in
       Store.update (mk t "publish worker" id) (value_p id) w >|= fun () ->
-      debug "add: worker %s published!" (Id.pretty id)
+      debug "add: worker %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "retrieve worker" id) (value_p id) >|=

@@ -80,8 +80,8 @@ type status = [
 ]
 (** The type for job status. *)
 
-val pp_status: status -> string
-(** [pp_status s] is a pretty representation of [s]. FIXME: use fmt *)
+val pp_status: status Fmt.t
+(** [pp_status] formats jobs {!status}. *)
 
 val string_of_status: status -> string
 (** [string_of_result r] is the string representation of [r]. *)

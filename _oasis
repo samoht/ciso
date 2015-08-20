@@ -11,7 +11,7 @@ Library ciso
   Path: lib
   InternalModules: Gol
   Modules: Id, Task, Job, Object, Package, Host, Compiler, Worker, Store
-  BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt, uuidm
+  BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt, uuidm, fmt
 
 Document ciso
   Title:                CISO docs
