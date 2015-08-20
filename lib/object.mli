@@ -18,7 +18,8 @@
 
 (** Build objects.
 
-    The objects are built by {{!Job}jobs} executed by {{!Worker}workers}.
+    The objects are built by {{!module:Job}jobs} executed by
+    {{!module:Worker}workers}.
 
 *)
 

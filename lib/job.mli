@@ -18,13 +18,14 @@
 
 (** Build jobs.
 
-    Jobs are for a given {{!Compiler}compiler} version and
-    {{!Host}host} configurations. Jobs have pre-requisites: these are
-    {{!Object}objects} which needs to be built and be put into the
-    {{!Worker}worker} context before the job could start.
+    Jobs are for a given {{!module:Compiler}compiler} version and
+    {{!module:Host}host} configurations. Jobs have pre-requisites:
+    these are {{!module:Object}objects} which needs to be built and be
+    put into the {{!module:Worker}worker} context before the job could
+    start.
 
-    Completed jobs produce output {{!Object}object(s)} which will be
-    consummed by other jobs.
+    Completed jobs produce output {{!module:Object}object(s)} which
+    will be consummed by other jobs.
 *)
 
 type id = [`Job] Id.t with sexp

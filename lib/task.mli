@@ -24,11 +24,11 @@
     {i "I want to compiler the package X to all supported host
     configurations and all OCaml compiler versions."}
 
-    Tasks are later translated into more specific {{!Job}jobs} by
-    {{!Worker}workers}, using the OPAM solver. These jobs are then
-    processed by other {{!Worker}workers} to generate build
-    {{!Object}objects}. The user can then access the jobs outputs and
-    results, and the genarated objects.
+    Tasks are later translated into more specific {{!module:Job}jobs}
+    by {{!module:Worker}workers}, using the OPAM solver. These jobs
+    are then processed by other {{!module:Worker}workers} to generate
+    build {{!module:Object}objects}. The user can then access the jobs
+    outputs and results, and the genarated objects.
 *)
 
 type id = [`Task] Id.t with sexp
@@ -41,14 +41,14 @@ type id = [`Task] Id.t with sexp
 type t with sexp
 (** The type for task values. *)
 
-type repository = Repository of string * string with sexp
 (** The type for remote opam repositories. *)
+type repository = Repository of string * string with sexp
 
-type pin = Pin of string * string with sexp
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
     be passed to {i opam pin add <name> <target>} *)
+type pin = Pin of string * string with sexp
 
 val id: t -> id
 (** [id t] is [t]'s deterministic identifier. Is it obtaining by

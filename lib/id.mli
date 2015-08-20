@@ -19,8 +19,9 @@
 (** Unique identifiers.
 
     This module handle both deterministic identifiers for
-    {{!Object}objects}, {{!Jobs}jobs} and {{!Task}tasks} and randaom
-    unique identifiers for {{!Worker}workers}.
+    {{!module:Object}objects}, {{!module:Job}jobs} and
+    {{!module:Task}tasks} and randaom unique identifiers for
+    {{!module:Worker}workers}.
 *)
 
 type 'a t with sexp
