@@ -36,8 +36,8 @@ val create:
   ?inputs:id list ->
   ?repos:Task.repository list ->
   ?pins:Task.pin list ->
-  string -> Host.t -> Package.t list -> t
-(** [create c h pkgs] is the job of building the list of packages
+  Host.t -> Compiler.t -> Package.t list -> t
+(** [create h c pkgs] is the job of building the list of packages
     [pkgs] using the OCaml compiler [c] on a worker having [h] as host
     kind.
 
@@ -59,14 +59,14 @@ val id: t -> id
 (** [id t] id [t]'s deterministic identifier. It is obtained by hasing
     a stable representation of [t]'s components. *)
 
-val compiler: t -> string
+val compiler: t -> Compiler.t
 (** [compiler t] is [t]'s compiler. *)
 
 val host: t -> Host.t
 (** [host t] is [t]'s host. *)
 
-val inputs: t -> Object.id list
-(** [input t] are [t]'s inputs. *)
+val inputs: t -> id list
+(** [input t] are [t]'s job inputs. *)
 
 val repos: t -> Task.repository list
 (** [repos t] are [t]'s repositories. *)
@@ -84,8 +84,8 @@ type status = [
 ]
 (** The type for job status. *)
 
-val pp_status: Format.formatter -> status -> unit
-(** [pretty_status s] is a pretty representation of [s]. FIXME: use fmt *)
+val pp_status: status -> string
+(** [pp_status s] is a pretty representation of [s]. FIXME: use fmt *)
 
 val string_of_status: status -> string
 (** [string_of_result r] is the string representation of [r]. *)

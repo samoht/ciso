@@ -9,7 +9,7 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
-  Modules: Gol, Store, Package, Object, Task, Message, Host, Job, Id
+  Modules: Gol, Store, Package, Object, Task, Host, Job, Id, Compiler, Worker
   BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt, uuidm
 
 Library "ciso-worker"
@@ -17,7 +17,7 @@ Library "ciso-worker"
   FindlibParent: ciso
   FindlibName: worker
   InternalModules: Opam
-  Modules: Worker
+  Modules: Ciso_worker
   BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt, cohttp.lwt
 
 Library "ciso-master"

@@ -21,9 +21,14 @@
 type t
 (** The type for store handlers. *)
 
-val create: ?uri:string -> unit -> t Lwt.t
-(** Create a store handler, using Irmin's HTTP client. [uri] is the
-    adress of the Irmin daemon. *)
+val remote: ?uri:string -> unit -> t Lwt.t
+(** Create a remote store handler, using Irmin's HTTP client. [uri] is
+    the location of the Irmin daemon. *)
+
+val local: ?root:string -> unit -> t Lwt.t
+(** Create a local store handler, using Irmin's Git on-disk
+    backend. [root] is the filesystem location to the Git repository
+    holding the store contents. *)
 
 module type S = sig
 
@@ -45,6 +50,31 @@ module type S = sig
   val find: t -> id -> value option Lwt.t
   (** [find t id] is the value stored in [t] with the stable
       identifier [id] . *)
+
+end
+
+module Worker: sig
+
+  (** {1 Persisting worker state} *)
+
+  include S with type id := Worker.id and type value := Worker.t
+
+  val tick: t -> Worker.id -> float -> unit Lwt.t
+  (** [tick t w f] updates the worker [w]'s status with the timestamp
+      [f]. [f] is supposed to tbe the local worker time, i.e. the
+      current time since 00:00:00 GMT, Jan. 1, 1970, in seconds in the
+      worker referential. *)
+
+  val job: t -> Worker.id -> Job.id option Lwt.t
+  (** [job t w] is the worker [w]'s current job. [None] means that the
+      worker is idle. *)
+
+  val start: t -> Worker.id -> Job.id -> unit Lwt.t
+  (** [start t w j] registers that [w] is working on the job [j]. *)
+
+  val stop: t -> Worker.id -> unit Lwt.t
+  (** [stop t w] registers that [w] has completed the job it was
+      working on. *)
 
 end
 
@@ -86,6 +116,9 @@ module Job: sig
 
   val outputs: t -> Job.id -> Object.id list Lwt.t
   (** [outputs t job] are [job]'s output objects. *)
+
+  val list: t -> Job.id list Lwt.t
+  (** [list t] is the list of all the jobs stored in [t]. *)
 
 end
 

@@ -16,16 +16,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+open Sexplib.Conv
 
-type t with sexp
-(** The type for host configuration. *)
+type t = string with sexp
+let to_string x = x
+let of_string x = x
 
-val detect: unit -> t
-(** Detects the host configuration. *)
-
-val to_string: t -> string
-(** Pretty-print the host configuration. *)
-
-val defaults: t list
-(** [defaults] is the list of host kinds supported by default. *)
+let defaults = [
+  "3.12.1";
+  "4.00.1";
+  "4.01.0";
+  "4.02.3";
+]

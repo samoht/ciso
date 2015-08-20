@@ -146,14 +146,24 @@ type t = {
   distribution: string list;
 } with sexp
 
+let create arch os distr = {
+  arch         = archflags arch;
+  os           = osflags os;
+  distribution = distrflags distr;
+}
+
 let detect () =
   let os = os () in
-  {
-    arch = archflags (arch ());
-    os = osflags os;
-    distribution = distrflags (distribution os);
-  }
+  create (arch ()) os (distribution os)
 
 let to_string t =
   let l = String.concat "." in
   Printf.sprintf "%s:%s:%s" (l t.arch) (l t.os) (l t.distribution)
+
+let defaults =
+  List.map (fun (a, o, s) -> create a o s)
+    [
+      (`X86, `Linux , Some `Ubuntu);
+      (`X86, `Linux , Some `Debian);
+      (`X86, `Darwin, Some `Homebrew);
+    ]

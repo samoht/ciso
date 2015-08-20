@@ -1,12 +1,13 @@
 # OASIS_START
-# DO NOT EDIT (digest: d0f0b86b3d5b9a2d34aa5b7a54c826aa)
+# DO NOT EDIT (digest: 11fe76e51e2fa83ca7b61bc9692e350e)
 Gol
 Store
 Package
 Object
 Task
-Message
 Host
 Job
 Id
+Compiler
+Worker
 # OASIS_STOP

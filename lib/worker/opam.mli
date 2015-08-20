@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Interaction with OPAM *)
+
 type plan
 (** The type for OPAM's build plan. *)
 
@@ -38,8 +40,26 @@ val resolve: string list -> plan
 val resolve_packages: Package.t list -> plan
 (** Same as {!resolve} but without version constraint inequalities. *)
 
-type job = Job.id * Job.t * Object.id list
+val installed: unit -> Package.t list
+(** [installed ()] is the list of installed packages on the current switch. *)
+
+val write_installed: Package.t list -> unit
+(** [write_installed pkgs] update the OPAM state to state that the
+    package [pkgs] are installed. *)
+
+(** {1 OPAM commands} *)
+
+val install: Package.t -> [ `Fail of string | `Success] Lwt.t
+(** [install pkg] is similar to {i opam install pkg} but using
+    opam-lib. *)
+
+val remove: Package.t -> unit Lwt.t
+(** [remove pkg] is similar to {i opam remove pkg} but using
+    opam-lib. *)
+
 (* FIXME *)
+
+type job = Job.id * Job.t * Object.id list
 
 val jobs: ?repos:Task.repository list -> ?pins:Task.pin list -> plan -> job list
 (** [jobs p] is the list of jobs needed to fulfil the plan [p]. *)
@@ -56,22 +76,6 @@ val parse_user_demand: string -> string * string option
    as the command line `opam config var v`, to retrieve the variable `prefix`,
    most code copied from opamConfigCommand.ml*)
 val get_var: string -> string
-
-(* [findlib_conf prefix dest_path]
-   if ocamlfind is installed under the current switch, ensure that the search
-   and install path in the configuration file point to local lib/ *)
-val findlib_conf: prefix:string -> write_path:string -> unit Lwt.t
-
-(** [install n v]
-    install package with name [n] and version [v] using OpamClient.SafeAPI *)
-val install: name:string -> version:string ->
-  [ `Fail of string | `Success | `Delegate of Job.id] Lwt.t
-
-(** [uninstall n v] uninstall package with name [n] and version [v]
-    using OpamClient.SafeAPI *)
-val uninstall: name:string -> version:string -> unit Lwt.t
-
-val update_metadata: install:bool -> path:string -> unit Lwt.t
 
 val update: unit -> unit Lwt.t
 

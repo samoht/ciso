@@ -16,16 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+(** OCaml compiler versions. *)
 
 type t with sexp
-(** The type for host configuration. *)
-
-val detect: unit -> t
-(** Detects the host configuration. *)
+(** The type for compiler versions. *)
 
 val to_string: t -> string
-(** Pretty-print the host configuration. *)
+(** [to_string t] is [t]'s string representation. *)
+
+val of_string: string -> t
+(** [of_string s] is the compiler version [t] such that [to_string t]
+    is [s]. *)
 
 val defaults: t list
-(** [defaults] is the list of host kinds supported by default. *)
+(** [defaults] is the list of compilers supported by default. *)

@@ -30,24 +30,46 @@ type t = {
   id: id;
   repos: repository list;
   pins:pin list;
-  compilers:string list;
+  compilers:Compiler.t list;
   hosts:Host.t list;
   packages:Package.t list;
 } with sexp
 
+let id t = t.id
 let packages t = t.packages
 
-let id ~repos ~pins ~compilers ~hosts ~packages =
+let hash ~repos ~pins ~compilers ~hosts ~packages =
   let x = String.concat "+" in
   let repos = List.map (function Repository (n, add) -> n ^ add) repos in
   let pins =
     List.map (function Pin (pkg, target) -> pkg ^ ":" ^ target) pins
   in
+  let compilers = List.map Compiler.to_string compilers in
   let hosts = List.map Host.to_string hosts in
   let packages = List.map Package.to_string packages in
   let str = x [x repos; x pins; x compilers; x hosts; x packages] in
   Id.digest `Task str
 
-let create ~repos ~pins ~compilers ~hosts ~packages =
-  let id = id ~repos ~pins ~compilers ~hosts ~packages in
+let create ?(repos=[]) ?(pins=[])
+    ?(compilers=Compiler.defaults) ?(hosts=Host.defaults)
+    packages =
+  let id = hash ~repos ~pins ~compilers ~hosts ~packages in
   { id; repos; pins; compilers; hosts; packages }
+
+let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
+
+
+type status = [
+  | `Success
+  | `Failure
+  | `Pending
+] with sexp
+
+let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
+let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
+
+let pp_status = function
+  | `Success -> "success"
+  | `Failure -> "failure"
+  | `Pending -> "pending"

@@ -44,7 +44,7 @@ val packages: t -> Package.t list
 val create:
   ?repos:repository list ->
   ?pins:pin list ->
-  ?compilers:string list ->
+  ?compilers:Compiler.t list ->
   ?hosts:Host.t list ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
@@ -76,7 +76,7 @@ val of_string: string -> t
 
 type status = [
   | `Success
-  | `Failed
+  | `Failure
   | `Pending
 ]
 (** The type for task status. *)

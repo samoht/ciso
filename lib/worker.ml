@@ -16,16 +16,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+type id = [`Worker] Id.t with sexp
 
-type t with sexp
-(** The type for host configuration. *)
+type t = {
+  id  : id;
+  host: Host.t;
+} with sexp
 
-val detect: unit -> t
-(** Detects the host configuration. *)
+let create host =
+  let id = Id.of_uuid `Worker in
+  { id; host }
 
-val to_string: t -> string
-(** Pretty-print the host configuration. *)
+let id t = t.id
+let host t = t.host
 
-val defaults: t list
-(** [defaults] is the list of host kinds supported by default. *)
+let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
+let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)

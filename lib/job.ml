@@ -22,41 +22,61 @@ type id = [`Job] Id.t with sexp
 
 type t = {
   id      : id;                                                 (* the job id *)
-  inputs  : Object.id list;      (* the immedidate objects needed for the job *)
-  compiler: string;                         (* switch on which to run the job *)
+  inputs  : id list;                 (* the transitive reduction of need jobs *)
+  compiler: Compiler.t;                     (* switch on which to run the job *)
   host    : Host.t;                           (* host on which to run the job *)
   repos   : Task.repository list;         (* list of opam repositories to use *)
   pins    : Task.pin list;                             (* list of pins to use *)
+  packages: Package.t list;                  (* the list of packages to build *)
 } with sexp
 
 let id t = t.id
 let inputs t = t.inputs
-let output t = t.output
 let compiler t = t.compiler
 let host t = t.host
 let repos t = t.repos
 let pins t = t.pins
-let result t = t.result
-let task t = t.task
 
 let to_string job = Sexplib.Sexp.to_string (sexp_of_t job)
 let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
 
-let create ~id ~inputs ~output ~compiler ~host ~repos ~pins ~result task =
-  { id; output; inputs; compiler; host; repos; pins; task; result }
+let hash ~repos ~pins ~host ~compiler ~packages =
+  let x = String.concat "+" in
+  let repos = List.map (function Task.Repository (n, add) -> n ^ add) repos in
+  let pins =
+    List.map (function Task.Pin (pkg, target) -> pkg ^ ":" ^ target) pins
+  in
+  let compilers = [Compiler.to_string compiler] in
+  let hosts = [Host.to_string host] in
+  let packages = List.map Package.to_string packages in
+  let str = x [x repos; x pins; x compilers; x hosts; x packages] in
+  Id.digest `Job str
 
-type entry = {
-  job : t;
-  dependencies : Object.id list;
-} with sexp
+let create ?(inputs=[]) ?(repos=[]) ?(pins=[]) host compiler packages =
+  let id = hash ~repos ~pins ~host ~compiler ~packages in
+  { id; inputs; compiler; host; repos; pins; packages; }
 
-let create_entry job dependencies = {job; dependencies}
-let unwrap_entry {job; dependencies} = job, dependencies
-let string_of_entry entry = Sexplib.Sexp.to_string (sexp_of_entry entry)
-let entry_of_string s = entry_of_sexp (Sexplib.Sexp.of_string s)
 
-let pretty_result = function
-  | `Success -> "SUCCESS"
-  | `Fail f -> "FAIL: " ^ f
-  | `Delegate id ->"DELEGATE " ^ Id.to_string id
-  | `Unknown -> "UNKNOWN"
+type status = [
+  | `Success
+  | `Failure of string
+  | `Pending
+  | `Running
+] with sexp
+
+let pp_status = function
+  | `Success   -> "success"
+  | `Failure s -> "failure: " ^ s
+  | `Pending   -> "pending"
+  | `Running   -> "running"
+
+let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
+let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
+
+let is_success = function `Success -> true | _ -> false
+let is_failure = function `Failure _ -> true | _ -> false
+
+let task_status l: Task.status =
+  if List.for_all is_success l then `Success
+  else if List.for_all is_failure l then `Failure
+  else `Pending

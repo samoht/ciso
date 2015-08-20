@@ -16,17 +16,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
+(* FIXME: doc *)
 
-type worker_msg =
-  | Register of Host.t
-  | Heartbeat of Job.id option
-  | Publish of [`Success | `Fail of string | `Delegate of Job.id] * Job.id
-  | Spawn_jobs of (Job.id * string * Object.id list) list
-  with sexp
-
-type master_msg =
-  | Ack_register of [`Worker] Id.t
-  | Ack_heartbeat
-  | New_job of Job.id * Object.id list
-with sexp
+type id = [`Worker] Id.t
+type t
+val create: Host.t -> t
+val id: t -> id
+val host: t -> Host.t
+val to_string: t -> string
+val of_string: string -> t
