@@ -16,10 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Build objects. *)
+(** Build objects.
+
+    The objects are built by {{!Job}jobs} executed by {{!Worker}workers}.
+
+*)
 
 type id = [`Object] Id.t with sexp
-(** The type for object identifiers. *)
+(** The type for object identifiers. Object identifiers are
+    deterministic, i.e. two similar objects will have the same
+    identifiers. The notion of similiraty depends on the object
+    type. *)
 
 type archive = {
   files: (string * Digest.t) list;

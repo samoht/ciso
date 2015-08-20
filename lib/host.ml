@@ -160,6 +160,8 @@ let to_string t =
   let l = String.concat "." in
   Printf.sprintf "%s:%s:%s" (l t.arch) (l t.os) (l t.distribution)
 
+let pp = to_string
+
 let defaults =
   List.map (fun (a, o, s) -> create a o s)
     [

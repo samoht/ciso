@@ -25,43 +25,43 @@ type t = {
   inputs  : id list;                 (* the transitive reduction of need jobs *)
   compiler: Compiler.t;                     (* switch on which to run the job *)
   host    : Host.t;                           (* host on which to run the job *)
-  repos   : Task.repository list;         (* list of opam repositories to use *)
-  pins    : Task.pin list;                             (* list of pins to use *)
-  packages: Package.t list;                  (* the list of packages to build *)
+  packages: (Package.t * Package.info) list; (* the list of packages to build *)
 } with sexp
 
 let id t = t.id
 let inputs t = t.inputs
 let compiler t = t.compiler
 let host t = t.host
-let repos t = t.repos
-let pins t = t.pins
+let packages t = t.packages
 
 let to_string job = Sexplib.Sexp.to_string (sexp_of_t job)
 let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
 
-let hash ~repos ~pins ~host ~compiler ~packages =
-  let x = String.concat "+" in
-  let repos = List.map (function Task.Repository (n, add) -> n ^ add) repos in
-  let pins =
-    List.map (function Task.Pin (pkg, target) -> pkg ^ ":" ^ target) pins
-  in
+let digest buf = Cstruct.to_string (Nocrypto.Hash.SHA1.digest buf)
+
+let hash ~host ~compiler ~packages =
+  let x l = String.concat "+" (List.sort String.compare l) in
+  let y   = String.concat "-" in
   let compilers = [Compiler.to_string compiler] in
   let hosts = [Host.to_string host] in
-  let packages = List.map Package.to_string packages in
-  let str = x [x repos; x pins; x compilers; x hosts; x packages] in
+  let packages =
+    List.map (fun (p, i) ->
+        y [Package.to_string p; digest (Package.opam i); digest (Package.url i)]
+      ) packages
+  in
+  let str = y [x compilers; x hosts; x packages] in
   Id.digest `Job str
 
-let create ?(inputs=[]) ?(repos=[]) ?(pins=[]) host compiler packages =
-  let id = hash ~repos ~pins ~host ~compiler ~packages in
-  { id; inputs; compiler; host; repos; pins; packages; }
-
+let create ?(inputs=[]) host compiler packages =
+  let id = hash ~host ~compiler ~packages in
+  { id; inputs; compiler; host; packages; }
 
 type status = [
   | `Success
   | `Failure of string
   | `Pending
   | `Running
+  | `Cancelled
 ] with sexp
 
 let pp_status = function
@@ -69,14 +69,17 @@ let pp_status = function
   | `Failure s -> "failure: " ^ s
   | `Pending   -> "pending"
   | `Running   -> "running"
+  | `Cancelled -> "cancelled"
 
 let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
 let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
 
 let is_success = function `Success -> true | _ -> false
 let is_failure = function `Failure _ -> true | _ -> false
+let is_cancelled = function `Cancelled -> true | _ -> false
 
 let task_status l: Task.status =
   if List.for_all is_success l then `Success
-  else if List.for_all is_failure l then `Failure
+  else if List.exists is_failure l then `Failure     (* maybe a bit strong... *)
+  else if List.exists is_cancelled l then `Cancelled
   else `Pending

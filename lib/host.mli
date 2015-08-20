@@ -24,8 +24,12 @@ type t with sexp
 val detect: unit -> t
 (** Detects the host configuration. *)
 
+val pp: t -> string
+(** Pretty-print the host configuration. FIXME: use Fmt. *)
+
 val to_string: t -> string
-(** Pretty-print the host configuration. *)
+(** [to_string t] is the string representation of [t]. *)
 
 val defaults: t list
-(** [defaults] is the list of host kinds supported by default. *)
+(** [defaults] is the list of host configurations supported by
+    default. *)

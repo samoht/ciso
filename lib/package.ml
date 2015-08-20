@@ -34,3 +34,12 @@ let of_string s = match Stringext.cut s ~on:"." with
 let to_string t = match t.version with
   | None   -> t.name
   | Some v -> t.name ^ "." ^ v
+
+type info = {
+  opam: Cstruct.t;
+  url : Cstruct.t;
+} with sexp
+
+let info ~opam ~url = { opam; url }
+let opam i = i.opam
+let url i = i.opam

@@ -39,7 +39,8 @@ let id t = t.id
 let packages t = t.packages
 
 let hash ~repos ~pins ~compilers ~hosts ~packages =
-  let x = String.concat "+" in
+  let x l = String.concat "+" (List.sort compare l) in
+  let y   = String.concat "-" in
   let repos = List.map (function Repository (n, add) -> n ^ add) repos in
   let pins =
     List.map (function Pin (pkg, target) -> pkg ^ ":" ^ target) pins
@@ -47,7 +48,10 @@ let hash ~repos ~pins ~compilers ~hosts ~packages =
   let compilers = List.map Compiler.to_string compilers in
   let hosts = List.map Host.to_string hosts in
   let packages = List.map Package.to_string packages in
-  let str = x [x repos; x pins; x compilers; x hosts; x packages] in
+  let str = y [
+      y repos; (* the order in which we stack the repos is important *)
+      x pins; x compilers; x hosts; x packages
+    ] in
   Id.digest `Task str
 
 let create ?(repos=[]) ?(pins=[])
@@ -59,17 +63,18 @@ let create ?(repos=[]) ?(pins=[])
 let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
 
-
 type status = [
   | `Success
   | `Failure
   | `Pending
+  | `Cancelled
 ] with sexp
 
 let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
 let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
 
 let pp_status = function
-  | `Success -> "success"
-  | `Failure -> "failure"
-  | `Pending -> "pending"
+  | `Success  -> "success"
+  | `Failure  -> "failure"
+  | `Pending  -> "pending"
+  | `Cancelled -> "canceled"

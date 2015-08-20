@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 05f5910047520fdf9692d6c732cd03e0)
+# DO NOT EDIT (digest: e3241b8b49f09415b5a405ba033359c1)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -30,18 +30,15 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/worker/*.ml{,i,y}>: pkg_sexplib
 <lib/worker/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/worker/*.ml{,i,y}>: pkg_stringext
 <lib/worker/*.ml{,i,y}>: pkg_uuidm
 <lib/worker/*.ml{,i,y}>: use_ciso
 # Library ciso-master
 "lib/master/ciso-master.cmxs": use_ciso-master
-<lib/master/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/master/*.ml{,i,y}>: pkg_irmin.unix
 <lib/master/*.ml{,i,y}>: pkg_lwt
-<lib/master/*.ml{,i,y}>: pkg_nocrypto
-<lib/master/*.ml{,i,y}>: pkg_opium
 <lib/master/*.ml{,i,y}>: pkg_sexplib
 <lib/master/*.ml{,i,y}>: pkg_sexplib.syntax
-<lib/master/*.ml{,i,y}>: pkg_uri
 <lib/master/*.ml{,i,y}>: pkg_uuidm
 <lib/master/*.ml{,i,y}>: use_ciso
 # Library ciso-github
@@ -54,6 +51,7 @@ true: annot, bin_annot
 <lib/github/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/github/*.ml{,i,y}>: pkg_sexplib
 <lib/github/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/github/*.ml{,i,y}>: pkg_stringext
 <lib/github/*.ml{,i,y}>: pkg_uuidm
 <lib/github/*.ml{,i,y}>: use_ciso
 <lib/github/*.ml{,i,y}>: use_ciso-worker
@@ -75,34 +73,29 @@ true: annot, bin_annot
 <bin/worker_main.{native,byte}>: pkg_opam-lib.client
 <bin/worker_main.{native,byte}>: pkg_sexplib
 <bin/worker_main.{native,byte}>: pkg_sexplib.syntax
+<bin/worker_main.{native,byte}>: pkg_stringext
 <bin/worker_main.{native,byte}>: pkg_uuidm
 <bin/worker_main.{native,byte}>: use_ciso
 <bin/worker_main.{native,byte}>: use_ciso-worker
+<bin/*.ml{,i,y}>: pkg_cohttp.lwt
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_opam-lib.client
+<bin/*.ml{,i,y}>: pkg_stringext
 <bin/*.ml{,i,y}>: use_ciso-worker
 # Executable ciso-master
 <bin/master_main.{native,byte}>: pkg_cmdliner
-<bin/master_main.{native,byte}>: pkg_cohttp.lwt
 <bin/master_main.{native,byte}>: pkg_irmin.unix
 <bin/master_main.{native,byte}>: pkg_lwt
-<bin/master_main.{native,byte}>: pkg_nocrypto
-<bin/master_main.{native,byte}>: pkg_opium
 <bin/master_main.{native,byte}>: pkg_sexplib
 <bin/master_main.{native,byte}>: pkg_sexplib.syntax
-<bin/master_main.{native,byte}>: pkg_uri
 <bin/master_main.{native,byte}>: pkg_uuidm
 <bin/master_main.{native,byte}>: use_ciso
 <bin/master_main.{native,byte}>: use_ciso-master
 <bin/*.ml{,i,y}>: pkg_cmdliner
-<bin/*.ml{,i,y}>: pkg_cohttp.lwt
 <bin/*.ml{,i,y}>: pkg_irmin.unix
 <bin/*.ml{,i,y}>: pkg_lwt
-<bin/*.ml{,i,y}>: pkg_nocrypto
-<bin/*.ml{,i,y}>: pkg_opium
 <bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_sexplib.syntax
-<bin/*.ml{,i,y}>: pkg_uri
 <bin/*.ml{,i,y}>: pkg_uuidm
 <bin/*.ml{,i,y}>: use_ciso
 <bin/*.ml{,i,y}>: use_ciso-master

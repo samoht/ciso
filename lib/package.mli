@@ -39,3 +39,18 @@ val of_string: string -> t
 val to_string: t -> string
 (** [to_string t] is [name t ^ "." v] if [t] has the version [v],
     otherwise it is [name t]. *)
+
+(** {1 Package Information} *)
+
+type info with sexp
+(** The type for package information values. *)
+
+val info: opam:Cstruct.t -> url:Cstruct.t -> info
+(** [info ~opam ~url] is the package information value containing the
+    given opam and url file contents. *)
+
+val opam: info -> Cstruct.t
+(** [opam i] is the contents of [i]'s opam file. *)
+
+val url: info -> Cstruct.t
+(** [url i] is the contents of [i]'s url file. *)

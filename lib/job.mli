@@ -18,36 +18,34 @@
 
 (** Build jobs.
 
-    Jobs are for a specific compiler version and host kind. Jobs have
-    pre-requisites: these are objects which needs to be built and be
-    put into the worker context before the job could start.
+    Jobs are for a given {{!Compiler}compiler} version and
+    {{!Host}host} configurations. Jobs have pre-requisites: these are
+    {{!Object}objects} which needs to be built and be put into the
+    {{!Worker}worker} context before the job could start.
 
-    Completed jobs produce output object(s) which will be consummed by
-    other jobs.
+    Completed jobs produce output {{!Object}object(s)} which will be
+    consummed by other jobs.
 *)
+
+type id = [`Job] Id.t with sexp
+(** The type for job identifiers. Job identifiers are deterministic,
+    i.e. similar jobs will have the same identifiers. As for
+    {{!Task.id}tasks}, the identifier is built by calling {!Id.digest}
+    on the concatenation of {!create} arguments (after
+    normalisation). *)
 
 type t
 (** The type for job values. *)
 
-type id = [`Job] Id.t with sexp
-(** The type for job identifiers. *)
-
 val create:
   ?inputs:id list ->
-  ?repos:Task.repository list ->
-  ?pins:Task.pin list ->
-  Host.t -> Compiler.t -> Package.t list -> t
+  Host.t -> Compiler.t -> (Package.t * Package.info) list -> t
 (** [create h c pkgs] is the job of building the list of packages
     [pkgs] using the OCaml compiler [c] on a worker having [h] as host
-    kind.
+    configuration.
 
     The job will be able to access the outputs objects created by the
-    (optional) [inputs] jobs.
-
-    If [repo] is specified, the worker will use it to set-up its list
-    of known opam repositories (and it will remove the default
-    repository). If [pins] is specified, the worker will update its
-    opam configuration to use these packages pins. *)
+    (optional) [inputs] jobs. *)
 
 val to_string: t -> string
 (** [to_string t] is the string representation of [t]. *)
@@ -68,11 +66,8 @@ val host: t -> Host.t
 val inputs: t -> id list
 (** [input t] are [t]'s job inputs. *)
 
-val repos: t -> Task.repository list
-(** [repos t] are [t]'s repositories. *)
-
-val pins: t -> Task.pin list
-(** [pins t] are [t]'s pinned packages. *)
+val packages: t -> (Package.t * Package.info) list
+(** [packages t] are the packages that [t] has to build. *)
 
 (** {Job Status} *)
 
@@ -81,6 +76,7 @@ type status = [
   | `Failure of string
   | `Pending
   | `Running
+  | `Cancelled
 ]
 (** The type for job status. *)
 

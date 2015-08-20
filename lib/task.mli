@@ -16,13 +16,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** User-defined tasks. *)
+(** User-defined tasks.
 
-type t
+    A task is a high-level description of user intents. It allows to
+    express things like:
+
+    {i "I want to compiler the package X to all supported host
+    configurations and all OCaml compiler versions."}
+
+    Tasks are later translated into more specific {{!Job}jobs} by
+    {{!Worker}workers}, using the OPAM solver. These jobs are then
+    processed by other {{!Worker}workers} to generate build
+    {{!Object}objects}. The user can then access the jobs outputs and
+    results, and the genarated objects.
+*)
+
+type id = [`Task] Id.t with sexp
+(** The type for task identifiers. These identifiers are
+    deterministic, i.e. similar tasks will have the same
+    identifiers. This is done by hashing the concatenation of
+    {!create} arguments (after normalisation) and calling {!Id.digest}
+    on the result. *)
+
+type t with sexp
 (** The type for task values. *)
-
-type id = [`Task] Id.t
-(** The type for task identifiers. *)
 
 type repository = Repository of string * string with sexp
 (** The type for remote opam repositories. *)
@@ -48,9 +65,9 @@ val create:
   ?hosts:Host.t list ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
-    possible compiler version and on all possible host kinds. This
-    task can somehow be attenuated by specifying some optional
-    arguments:
+    possible compiler version and on all possible host
+    configurations. This task can somehow be attenuated by specifying
+    some optional arguments:
 
     {ul
     {- [repos] is the list of (remote) repositories the the workers
@@ -78,6 +95,7 @@ type status = [
   | `Success
   | `Failure
   | `Pending
+  | `Cancelled
 ]
 (** The type for task status. *)
 

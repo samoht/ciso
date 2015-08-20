@@ -32,3 +32,12 @@ let host t = t.host
 
 let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
 let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
+
+type status = [
+  | `Idle
+  | `Job of Job.id
+  | `Task of Task.id
+] with sexp
+
+let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
+let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)

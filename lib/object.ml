@@ -58,8 +58,10 @@ let of_string str = Sexplib.Sexp.of_string str |> t_of_sexp
 
 let hash k =
   let l = match k with
-  | `Files files -> List.map (fun (f, d) -> f ^ ":" ^ Digest.to_hex d) files
-  | `Lines lines -> lines
+    | `Lines lines -> lines
+    | `Files files ->
+      List.map (fun (f, d) -> f ^ ":" ^ Digest.to_hex d) files
+      |> List.sort String.compare
   in
   Id.digest `Object (String.concat "+" l)
 

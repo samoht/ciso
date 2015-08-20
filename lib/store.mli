@@ -16,7 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store API *)
+(** Store API. *)
 
 type t
 (** The type for store handlers. *)
@@ -29,6 +29,20 @@ val local: ?root:string -> unit -> t Lwt.t
 (** Create a local store handler, using Irmin's Git on-disk
     backend. [root] is the filesystem location to the Git repository
     holding the store contents. *)
+
+type 'a callback = 'a -> unit Lwt.t
+(** The type for callbacks. *)
+
+type cancel = unit callback
+(** The type for watch cancelling functions. *)
+
+val with_transaction:
+  ?retry:int -> t -> string ->  (t -> unit Lwt.t) -> bool Lwt.t
+(** [with_transaction t f] executes [f t] in a transaction and commit
+    the final result if the transaction is successful. Will retry
+    multiple times in case of conflict (default is 5) with an
+    exponential back-off. Return [true] is the transaction is
+    successful. *)
 
 module type S = sig
 
@@ -65,16 +79,28 @@ module Worker: sig
       current time since 00:00:00 GMT, Jan. 1, 1970, in seconds in the
       worker referential. *)
 
-  val job: t -> Worker.id -> Job.id option Lwt.t
+  val status: t -> Worker.id -> Worker.status Lwt.t
   (** [job t w] is the worker [w]'s current job. [None] means that the
       worker is idle. *)
 
-  val start: t -> Worker.id -> Job.id -> unit Lwt.t
-  (** [start t w j] registers that [w] is working on the job [j]. *)
+  val start_job: t -> Worker.id -> Job.id -> unit Lwt.t
+  (** [start_job t w j] asks the worker [w] to start working on the
+      build job [j]. *)
 
-  val stop: t -> Worker.id -> unit Lwt.t
-  (** [stop t w] registers that [w] has completed the job it was
-      working on. *)
+  val start_task: t -> Worker.id -> Task.id -> unit Lwt.t
+  (** [start_task t w ta] asks the worker [w] to start working on the
+      task [ta]. *)
+
+  val idle: t -> Worker.id -> unit Lwt.t
+  (** [idle t w] registers that [w] is idle. *)
+
+  val watch_status: t -> Worker.id -> Worker.status callback -> cancel Lwt.t
+  (** [watch_status t w f] calls [f] everytime [w]'s status is
+      updated. *)
+
+  val watch_ticks: t -> Worker.id -> float callback -> cancel Lwt.t
+  (** [watch_ticks t w f] calls [f] everytime the worker [w] calls
+      {!tick}. Return a cancel function. *)
 
 end
 
@@ -89,6 +115,10 @@ module Task: sig
 
   val jobs: t -> Task.id -> Job.id list Lwt.t
   (** [jobs t task] are [task]'s jobs in [t]. *)
+
+  val watch_status: t -> Task.id -> Task.status callback -> cancel Lwt.t
+  (** [watch_status t ta f] calls [f] everytime [ta]'s status is
+      updated. *)
 
 end
 
@@ -119,6 +149,10 @@ module Job: sig
 
   val list: t -> Job.id list Lwt.t
   (** [list t] is the list of all the jobs stored in [t]. *)
+
+  val watch_status: t -> Job.id -> Job.status callback -> cancel Lwt.t
+  (** [watch_status t j f] calls [f] everytime [j]'s status is
+      updated. *)
 
 end
 

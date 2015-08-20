@@ -20,45 +20,7 @@ open Lwt.Infix
 
 let debug fmt = Gol.debug ~section:"master" fmt
 
-module Response = Cohttp_lwt_unix.Response
-module Body = Cohttp_lwt_body
-
-let body_of_message m =
-  Message.sexp_of_master_msg m
-  |> Sexplib.Sexp.to_string
-  |> Body.of_string
-
-let message_of_body body =
-  Body.to_string body >>= fun b ->
-  Sexplib.Sexp.of_string b
-  |> Message.worker_msg_of_sexp
-  |> Lwt.return
-
-let empty_response ~status =
-  let resp = Response.make ~status () in
-  let body = Body.empty in
-  Lwt.return (resp, body)
-
-let register_handler s _params _headers body =
-  message_of_body body >|= fun m ->
-  let host =
-    let open Message in
-    match m with
-    | Register h -> h
-    | Heartbeat _ | Publish _ | Spawn_jobs _ ->
-      failwith "Wrong message for register"
-  in
-  let id = Monitor.create host in
-  let m = Message.Ack_register id in
-  let resp = Response.make ~status:`Created () in
-  let body = body_of_message m in
-  debug "register: %s new worker registered" (Id.to_string id);
-  resp, body
-
-let parse_wid params = List.assoc "id" params |> Id.of_string `Worker
-let parse_jid params = List.assoc "id" params |> Id.of_string `Job
-
-let heartbeat_handler params headers body =
+let heartbeat_handler t =
   let wid = parse_wid params in
   message_of_body body >|= fun m ->
   let resp_m =

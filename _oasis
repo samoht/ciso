@@ -13,22 +13,27 @@ Library ciso
   BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt, uuidm
 
 Library "ciso-worker"
+  Build: false
   Path: lib/worker
   FindlibParent: ciso
   FindlibName: worker
   InternalModules: Opam
   Modules: Ciso_worker
-  BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt, cohttp.lwt
+  BuildDepends:
+    ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt, cohttp.lwt,
+    stringext
 
 Library "ciso-master"
+  Build: false
   Path: lib/master
   FindlibParent: ciso
   FindlibName: master
   InternalModules: Scheduler, Monitor
   Modules: Master
-  BuildDepends: ciso, lwt, nocrypto, cohttp.lwt, uri, opium
+  BuildDepends: ciso, lwt
 
 Library "ciso-github"
+  Build: false
   Path: lib/github
   FindlibParent: ciso
   FindlibName: github
@@ -36,6 +41,7 @@ Library "ciso-github"
   BuildDepends: ciso, ciso.worker, github.unix, lwt
 
 Executable "ciso-store"
+  Build: false
   Path: bin
   MainIs: store_main.ml
   Custom: true
@@ -43,12 +49,14 @@ Executable "ciso-store"
   BuildDepends: ciso, cmdliner
 
 Executable "ciso-worker"
+  Build: false
   Path: bin
   MainIs: worker_main.ml
   CompiledObject: best
   BuildDepends: ciso.worker, cmdliner
 
 Executable "ciso-master"
+  Build: false
   Path: bin
   MainIs: master_main.ml
   CompiledObject: best
