@@ -9,8 +9,19 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
-  Modules: Gol, Store, Package, Object, Task, Host, Job, Id, Compiler, Worker
+  InternalModules: Gol
+  Modules: Id, Task, Job, Object, Package, Host, Compiler, Worker, Store
   BuildDepends: sexplib.syntax, sexplib, irmin.unix, lwt, uuidm
+
+Document ciso
+  Title:                CISO docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib
+  XOCamlbuildLibraries: ciso
+
+
 
 Library "ciso-worker"
   Build: false

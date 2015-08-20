@@ -1,13 +1,13 @@
 # OASIS_START
-# DO NOT EDIT (digest: 11fe76e51e2fa83ca7b61bc9692e350e)
-Gol
-Store
-Package
-Object
-Task
-Host
-Job
+# DO NOT EDIT (digest: e6f08ebef55f9a22ab43579c8f045ed4)
 Id
+Task
+Job
+Object
+Package
+Host
 Compiler
 Worker
+Store
+Gol
 # OASIS_STOP
