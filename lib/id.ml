@@ -22,5 +22,12 @@ type 'a t = string with sexp
 
 let to_string x = x
 let of_string _ x = x
-
 let of_uuid kind = of_string kind (Uuidm.to_bytes (Uuidm.create `V4))
+let pretty str = String.sub str 0 5
+let compare x y = String.compare x y
+
+let digest kind str =
+  let `Hex h =
+    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
+  in
+  of_string kind h

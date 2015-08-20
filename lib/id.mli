@@ -20,7 +20,10 @@
 
 type 'a t with sexp
 
+val compare: 'a t -> 'a t -> int
 val to_string: 'a t -> string
 val of_string: 'a -> string -> 'a t
+val pretty: 'a t -> string
 
 val of_uuid: 'a -> 'a t
+val digest: 'a -> string -> 'a t

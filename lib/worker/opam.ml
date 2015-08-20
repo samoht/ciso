@@ -21,7 +21,7 @@ open Lwt.Infix
 
 type plan = OpamSolver.ActionGraph.t
 
-type job = Common_types.id * Job.t * Common_types.id list
+type job = Job.id * Job.t * Object.id list
 
 let debug fmt = Gol.debug ~section:"opam" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
@@ -93,6 +93,14 @@ let compiler () =
   let s = load_state "compier" in
   s.OpamState.Types.compiler |> OpamCompiler.to_string
 
+module IdSet = struct
+  include Set.Make(struct
+      type t = Object.id
+      let compare = Id.compare
+    end)
+  let to_list s = fold (fun e acc -> e :: acc) s []
+end
+
 let jobs ?(repos=[]) ?(pins=[]) graph =
   let module Graph = OpamSolver.ActionGraph in
   let module Pkg = OpamPackage in
@@ -115,10 +123,6 @@ let jobs ?(repos=[]) ?(pins=[]) graph =
   done;
   let compiler = compiler () in
   let host = Host.detect () in
-  let module IdSet = struct
-    include Set.Make(String)
-    let to_list s = fold (fun e acc -> e :: acc) s []
-  end in
   let id_map = ref Pkg.Map.empty in
   let deps_map = ref Pkg.Map.empty in
   let j_lst = ref [] in
@@ -135,9 +139,15 @@ let jobs ?(repos=[]) ?(pins=[]) graph =
         IdSet.union d (IdSet.add pred_id pred_deps)
       ) graph v ([], IdSet.empty)
     in
-    let id = Task.hash_id ~repos ~pins task inputs compiler host in
-    let job = Job.create ~id ~inputs ~compiler ~host ~repos ~pins task in
-    id_map := Pkg.Map.add pkg id !id_map;
+    (* FIXME: confusion between object, task, job *)
+    let id = Task.id ~repos ~pins ~inputs ~compiler ~host task `Job in
+    let output = Id.of_string `Object (Id.to_string id) in
+    (* URGENT FIXME: read the job result in the store *)
+    let result = `Unknown in
+    let job =
+      Job.create ~id ~result ~inputs ~output ~compiler ~host ~repos ~pins task
+    in
+    id_map := Pkg.Map.add pkg output !id_map;
     deps_map := Pkg.Map.add pkg deps !deps_map;
     j_lst := (id, job, IdSet.to_list deps) :: !j_lst
   done;

@@ -38,7 +38,7 @@ val resolve: string list -> plan
 val resolve_packages: Package.t list -> plan
 (** Same as {!resolve} but without version constraint inequalities. *)
 
-type job = Common_types.id * Job.t * Common_types.id list
+type job = Job.id * Job.t * Object.id list
 (* FIXME *)
 
 val jobs: ?repos:Task.repository list -> ?pins:Task.pin list -> plan -> job list
@@ -65,7 +65,7 @@ val findlib_conf: prefix:string -> write_path:string -> unit Lwt.t
 (** [install n v]
     install package with name [n] and version [v] using OpamClient.SafeAPI *)
 val install: name:string -> version:string ->
-  [ `Fail of string | `Success | `Delegate of Common_types.id] Lwt.t
+  [ `Fail of string | `Success | `Delegate of Job.id] Lwt.t
 
 (** [uninstall n v] uninstall package with name [n] and version [v]
     using OpamClient.SafeAPI *)

@@ -17,17 +17,16 @@
  *)
 
 open Sexplib.Std
-open Common_types
 
 type worker_msg =
   | Register of Host.t
-  | Heartbeat of id option
-  | Publish of [`Success | `Fail of string | `Delegate of id] * id
-  | Spawn_jobs of (id * string * (id list)) list
+  | Heartbeat of Job.id option
+  | Publish of [`Success | `Fail of string | `Delegate of Job.id] * Job.id
+  | Spawn_jobs of (Job.id * string * Object.id list) list
   with sexp
 
 type master_msg =
-  | Ack_register of [`Worker] Id.t * Store.token
+  | Ack_register of [`Worker] Id.t
   | Ack_heartbeat
-  | New_job of id * string
+  | New_job of Job.id * Object.id list
 with sexp

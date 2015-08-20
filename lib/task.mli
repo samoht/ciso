@@ -16,21 +16,77 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: rework the API *)
+(** User-defined tasks. *)
 
-type t with sexp
+type t
+(** The type for task values. *)
+
+type id = [`Task] Id.t
+(** The type for task identifiers. *)
 
 type repository = Repository of string * string with sexp
+(** The type for remote opam repositories. *)
+
 type pin = Pin of string * string with sexp
+(** The type for pinned packages. The first argument is a package
+    name, the second one its pin target. It is either a version
+    string, or a Git repository. The target is similar to what would
+    be passed to {i opam pin add <name> <target>} *)
+
+val id: t -> id
+(** [id t] is [t]'s deterministic identifier. Is it obtaining by
+    hashing a stable representation of [t]'s components. *)
 
 val packages: t -> Package.t list
-val create: ?depopts:Package.t list -> Package.t -> t
+(** [packages t]'s is the list of packages that [t] wants to
+    install. *)
 
-(* FIXME: weird type *)
-val info_of_task: t -> string
-val to_compiler: t -> string option
+val create:
+  ?repos:repository list ->
+  ?pins:pin list ->
+  ?compilers:string list ->
+  ?hosts:Host.t list ->
+  Package.t list -> t
+(** [create pkgs] is the task of building the packages [pkgs] on all
+    possible compiler version and on all possible host kinds. This
+    task can somehow be attenuated by specifying some optional
+    arguments:
 
-(* FIXME: weird type *)
-val hash_id:
-  ?repos:repository list -> ?pins:pin list ->
-  t -> string list -> string -> Host.t -> string
+    {ul
+    {- [repos] is the list of (remote) repositories the the workers
+       should use.}
+    {- [pins] is the list of pinned packages that the worker should
+       use.}
+    {- [compilers] restricts the list of compilers to test to only the
+       ones appearing in the list. An empty list means all the
+       supported compilers.}
+    {- [hosts] restricts the list of host kinds to test to only the
+       ones appearing in the list. An empty list means all the
+       supported hosts.}
+    }
+*)
+
+val to_string: t -> string
+(** [to_string t] is the string representation of [t]. *)
+
+val of_string: string -> t
+(** [of_string s] is the value [t] such that [to_string t] is [s]. *)
+
+(** {1 Task Status} *)
+
+type status = [
+  | `Success
+  | `Failed
+  | `Pending
+]
+(** The type for task status. *)
+
+val pp_status: status -> string
+(** [pp_status s] is a pretty representation of [s]. FIXME: use fmt. *)
+
+val string_of_status: status -> string
+(** [string_of_result r] is the string representation of [r]. *)
+
+val status_of_string: string -> status
+(** [status_of_string s] is the status [t] such that [string_of_status
+    t] is [s]. *)

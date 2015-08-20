@@ -18,31 +18,20 @@
 
 open Sexplib.Std
 
-type result = [
-  | `Success
-  |`Fail of string
-  |`Delegate of Common_types.id
-] with sexp
+type id = [`Object] Id.t with sexp
 
 type t = {
-  id : Common_types.id;            (* object is referenced by id in scheduler *)
-  result : result;                                    (* result of opam build *)
-  output: string list;      (* relative paths of stdout and stderr in archive *)
-  installed : string list;    (* relative paths of installed files in archive *)
-  archive: string * string;
+  id : id;                         (* object is referenced by id in scheduler *)
+  outputs: string list;     (* relative paths of stdout and stderr in archive *)
+  files  : string list;       (* relative paths of installed files in archive *)
+  archive: string * Cstruct.t;
               (* archive who holds output and installed files, name * content *)
 } with sexp
 
 let id t = t.id
-let outputs t = t.installed, t.archive
-let result t = t.result
+let files t = t.files
+let archive t = t.archive
 let to_string obj = sexp_of_t obj |> Sexplib.Sexp.to_string
 let of_string str = Sexplib.Sexp.of_string str |> t_of_sexp
 
-let create ~id ~result ~output ~installed ~archive =
-  {id; result; output; installed; archive}
-
-let string_of_result = function
-  | `Success -> "SUCCESS"
-  | `Fail f -> "FAIL: " ^ f
-  | `Delegate id ->"DELEGATE " ^ id
+let create ~id ~outputs ~files ~archive = {id; outputs; files; archive}

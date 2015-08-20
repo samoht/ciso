@@ -17,36 +17,46 @@
  *)
 
 open Sexplib.Std
-open Common_types
+
+type id = [`Job] Id.t with sexp
 
 type t = {
-  id      : id;                              (* task is referenced by this id *)
-  inputs  : id list;                                 (* inputs are object ids *)
+  id      : id;                                                 (* the job id *)
+  inputs  : Object.id list;      (* the immedidate objects needed for the job *)
   compiler: string;                         (* switch on which to run the job *)
   host    : Host.t;                           (* host on which to run the job *)
   repos   : Task.repository list;         (* list of opam repositories to use *)
   pins    : Task.pin list;                             (* list of pins to use *)
-  task    : Task.t;           (* FIXME: the job can appear in multiple taskss *)
 } with sexp
 
+let id t = t.id
 let inputs t = t.inputs
+let output t = t.output
 let compiler t = t.compiler
 let host t = t.host
 let repos t = t.repos
 let pins t = t.pins
-let to_string job = Sexplib.Sexp.to_string (sexp_of_t job)
-let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
+let result t = t.result
 let task t = t.task
 
-let create ~id ~inputs ~compiler ~host ~repos ~pins task =
-  { id; inputs; compiler; host; repos; pins; task }
+let to_string job = Sexplib.Sexp.to_string (sexp_of_t job)
+let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
+
+let create ~id ~inputs ~output ~compiler ~host ~repos ~pins ~result task =
+  { id; output; inputs; compiler; host; repos; pins; task; result }
 
 type entry = {
   job : t;
-  dependencies : id list;
+  dependencies : Object.id list;
 } with sexp
 
 let create_entry job dependencies = {job; dependencies}
 let unwrap_entry {job; dependencies} = job, dependencies
 let string_of_entry entry = Sexplib.Sexp.to_string (sexp_of_entry entry)
 let entry_of_string s = entry_of_sexp (Sexplib.Sexp.of_string s)
+
+let pretty_result = function
+  | `Success -> "SUCCESS"
+  | `Fail f -> "FAIL: " ^ f
+  | `Delegate id ->"DELEGATE " ^ Id.to_string id
+  | `Unknown -> "UNKNOWN"

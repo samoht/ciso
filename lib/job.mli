@@ -16,32 +16,85 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: doc *)
+(** Build jobs.
+
+    Jobs are for a specific compiler version and host kind. Jobs have
+    pre-requisites: these are objects which needs to be built and be
+    put into the worker context before the job could start.
+
+    Completed jobs produce output object(s) which will be consummed by
+    other jobs.
+*)
 
 type t
+(** The type for job values. *)
+
+type id = [`Job] Id.t with sexp
+(** The type for job identifiers. *)
 
 val create:
-  id:Common_types.id ->
-  inputs:Common_types.id list ->
-  compiler:string ->
-  host:Host.t ->
-  repos:Task.repository list ->
-  pins:Task.pin list ->
-  Task.t -> t
+  ?inputs:id list ->
+  ?repos:Task.repository list ->
+  ?pins:Task.pin list ->
+  string -> Host.t -> Package.t list -> t
+(** [create c h pkgs] is the job of building the list of packages
+    [pkgs] using the OCaml compiler [c] on a worker having [h] as host
+    kind.
+
+    The job will be able to access the outputs objects created by the
+    (optional) [inputs] jobs.
+
+    If [repo] is specified, the worker will use it to set-up its list
+    of known opam repositories (and it will remove the default
+    repository). If [pins] is specified, the worker will update its
+    opam configuration to use these packages pins. *)
 
 val to_string: t -> string
+(** [to_string t] is the string representation of [t]. *)
+
 val of_string: string -> t
+(** [of_string s] is the value [t] such that [to_string t] is [s]. *)
+
+val id: t -> id
+(** [id t] id [t]'s deterministic identifier. It is obtained by hasing
+    a stable representation of [t]'s components. *)
 
 val compiler: t -> string
+(** [compiler t] is [t]'s compiler. *)
+
 val host: t -> Host.t
-val inputs: t -> Common_types.id list
+(** [host t] is [t]'s host. *)
+
+val inputs: t -> Object.id list
+(** [input t] are [t]'s inputs. *)
+
 val repos: t -> Task.repository list
+(** [repos t] are [t]'s repositories. *)
+
 val pins: t -> Task.pin list
-val task: t -> Task.t
+(** [pins t] are [t]'s pinned packages. *)
 
-type entry
+(** {Job Status} *)
 
-val create_entry: t -> Common_types.id list -> entry
-val string_of_entry: entry -> string
-val entry_of_string: string -> entry
-val unwrap_entry: entry -> t * Common_types.id list
+type status = [
+  | `Success
+  | `Failure of string
+  | `Pending
+  | `Running
+]
+(** The type for job status. *)
+
+val pp_status: Format.formatter -> status -> unit
+(** [pretty_status s] is a pretty representation of [s]. FIXME: use fmt *)
+
+val string_of_status: status -> string
+(** [string_of_result r] is the string representation of [r]. *)
+
+val status_of_string: string -> status
+(** [status_of_string s] is the status [t] such that [string_of_status
+    t] is [s]. *)
+
+val task_status: status list -> Task.status
+(** [task_status s] is the status summary of s. If all status are
+    [`Success] then it is a [`Success]. If all status are [`Failed]
+    then it is also [`Failed]. Otherwise it is [`Pending]. *)

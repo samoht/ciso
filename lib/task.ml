@@ -24,61 +24,30 @@ type repository = Repository of string * string with sexp
 (* package, target *)
 type pin = Pin of string * string with sexp
 
-type t =
-  | Package of Package.t * Package.t list
-  (* package name * version * depopts *)
-  | Compiler of string
- (* compiler version[+tag] *)
-with sexp
+type id = [`Task] Id.t with sexp
 
-let info_of_task task =
-  match task with
-  | Package (p, []) -> Package.to_string p
-  | Package (p, depopts) ->
-     let depopt_info =
-       List.rev_map Package.to_string depopts
-       |> String.concat ";"
-     in
-     Package.to_string p ^ "+" ^ depopt_info
-  | Compiler c -> c
+type t = {
+  id: id;
+  repos: repository list;
+  pins:pin list;
+  compilers:string list;
+  hosts:Host.t list;
+  packages:Package.t list;
+} with sexp
 
+let packages t = t.packages
 
-let packages = function
-  | Package (n, depopts) -> n :: depopts
-  | Compiler _ -> assert false
-
-(* return a deterministic id, based on pakcage name, version, and dependencies
-   could add os and architecture later *)
-let hash_id ?(repos=[]) ?(pins=[]) task inputs compiler host =
-  let task_str = match task with
-    | Compiler c -> c
-    | Package (n, depopt) ->
-      let depopt_str = List.map Package.to_string depopt |> String.concat ";" in
-      Package.to_string n ^ depopt_str
+let id ~repos ~pins ~compilers ~hosts ~packages =
+  let x = String.concat "+" in
+  let repos = List.map (function Repository (n, add) -> n ^ add) repos in
+  let pins =
+    List.map (function Pin (pkg, target) -> pkg ^ ":" ^ target) pins
   in
-  let repo_str = match (repos: repository list) with
-    | [] -> ""
-    | _  ->
-      List.rev_map (function Repository (n, add) -> n ^ add) repos
-      |> String.concat ";"
-  in
-  let pin_str = match (pins: pin list) with
-    | [] -> ""
-    | _  ->
-      List.rev_map (function Pin (pkg, target) -> pkg ^ ":" ^ target) pins
-      |> String.concat ";"
-  in
-  let input_str = String.concat ";" inputs in
-  let str =
-    task_str ^ repo_str ^ pin_str ^ input_str ^ compiler ^ Host.to_string host
-  in
-  let `Hex h =
-    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
-  in
-  h
+  let hosts = List.map Host.to_string hosts in
+  let packages = List.map Package.to_string packages in
+  let str = x [x repos; x pins; x compilers; x hosts; x packages] in
+  Id.digest `Task str
 
-let create ?(depopts=[]) pkg = Package (pkg, depopts)
-
-let to_compiler = function
-  | Compiler c -> Some c
-  | _ -> None
+let create ~repos ~pins ~compilers ~hosts ~packages =
+  let id = id ~repos ~pins ~compilers ~hosts ~packages in
+  { id; repos; pins; compilers; hosts; packages }

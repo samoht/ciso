@@ -16,35 +16,56 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: API and doc *)
+(** Monitored workers. *)
 
-open Common_types
-type worker_status
+type status = Idle | Working of Job.id
+(** The type for worker status. It is either [Idle] or working on a
+    given job. *)
 
-type worker_id = [`Worker] Id.t
+type t = [`Worker] Id.t
+(** The type for monitored worker. Values of that type are not
+    persistent and should be regenarated when the master restarts. *)
 
-val new_worker: Host.t -> worker_id * Store.token
+val create: Host.t -> t
+(** [create h] is a monitored worker, using the host kind [h]. *)
 
-val verify_worker: worker_id -> Store.token -> unit
+val rank: t -> Object.id list -> int
+(** [rank t ids] compute the the number of objects in [js] already
+    built by the given worker. *)
 
-val job_rank: Store.token -> id list -> int
+val start: t -> Job.id -> unit
+(** [start t j] registers that the worker [t] starts to work on
+    [j]. *)
 
-val new_job: id -> compiler:string -> Store.token -> unit
+val complete: t -> unit
+(** [complete t] registers that the worker [t] has completed its
+    job. *)
 
-val job_completed: id -> Store.token -> unit
+val publish: t -> Object.id -> unit
+(** [publish t o] registers that the worker [t] has published the
+    object [o]. This will call {!complete}. *)
 
-val publish_object: id -> Store.token -> unit
+val host: t -> Host.t
+(** [host t] is [t]'s host kind. *)
 
-val worker_statuses: unit -> (worker_id * Store.token * worker_status) list
+val available_hosts: unit -> Host.t list
+(** [available_hosts ()] is the list of hosts where a worker is
+    available. *)
+
+val status: unit -> (t * status) list
+(** [status ()] is the status of the monitored workers. *)
+
+(*
+
 
 val info_of_status: worker_status -> string * string option
 
 val worker_hosts: unit -> Host.t list
-
-val worker_host: Store.token -> Host.t
 
 val worker_compiler: Store.token -> string option
 
 val compilers: unit -> string list
 
 val worker_monitor: Store.t -> (worker_id * Store.token) list Lwt.t
+
+*)

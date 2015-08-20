@@ -16,56 +16,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Common_types
+(** Schedule jobs. *)
 
-(* object id -> task
-   if task A is supposed to produce object a,
-   then there is the binding a.id -> A *)
-type job_tbl
+val start: Store.t -> unit Lwt.t
+(** [start s] starts the in-memory scheduler by reading incomple jobs
+    (due to previous master failure) from the store [s]. *)
 
-(* object id -> object id
-   if task A has dependencies objects b, c, d,
-   and task A is supposed to produce object a,
-   then there will be bindins b.id -> a.id, c.id -> a.id, d.id -> a.id,
-   whenever b/c/d is published in the obj_tbl,
-   a hook function will examine if task A becomes runnable *)
-type hook_tbl
+val find_job: Monitor.t -> (Job.t * Object.id list) option
+(** [find_job m] finds a suitable job for the woker [m], based on its
+    host kind. Return the job and the transitive closure of objects
+    that it needs. *)
 
-(* task state *)
-type state = [`Pending | `Runnable | `Completed | `Dispatched of Store.token]
+(* FIXME: doc and API *)
 
-(* object id -> task state
-   if task A is supposed to produce object a,
-   then there is binding a.id -> A.state *)
-type state_tbl
 
-(******************************************************************************)
-
-(*  finds a suitable task based on given worker token, if there is one,
-    return the task id and description *)
-val find_job: Store.token -> (id * string * string) option
+(* given a task id and return the pacakge name and version information *)
+val job_info: ?abbr:bool -> Job.id -> string
 
 (* given an object id and a worker token, add them in the logmap *)
 val publish_object:
-  Store.t -> Store.token -> [`Success | `Fail of string | `Delegate of id] ->
-  id -> unit Lwt.t
+  Store.t -> [`Success | `Fail of string | `Delegate of Job.id] -> Job.id ->
+  unit Lwt.t
 
-(* given a task id and return the pacakge name and version information *)
-val task_info: ?abbr:bool -> id -> string
+(* add new jobs into jobs/tables*)
+(* FIXME: the object list is the transitive closure of objects. *)
+val update_tables: Store.t -> (Job.id * Job.t * Object.id list) list -> unit Lwt.t
 
-(* pickup any uncompleted tasks due to master failure *)
-val bootstrap: Store.t -> unit Lwt.t
+(* get related jobs of an id and the corresponding state *)
+val progress_info: Store.t -> Job.id -> string Lwt.t
+
+(*
+
+
 
 (* eliminate a worker's token when worker is down*)
 val invalidate_token: Store.token -> unit
 
-(* add new jobs into jobs/tables*)
-val update_tables: Store.t -> (id * Job.t * id list) list -> unit Lwt.t
 
-(* get related jobs of an id and the corresponding state *)
-val progress_info: Store.t -> id -> string Lwt.t
 (******************************************************************************)
 
 (* given the pull request number from ocaml/opam-repository, resolve the task
    and add tasks into task table *)
 (* val github_hook : Store.t -> int -> unit Lwt.t *)
+
+*)

@@ -16,40 +16,77 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* FIXME: doc *)
-
-open Common_types
+(** Store API *)
 
 type t
+(** The type for store handlers. *)
 
-(* FIXME: why do we need tokens? *)
-type token with sexp
-val string_of_token: token -> string
-val token_of_string: string -> token
-val create_token: unit -> token
+val create: ?uri:string -> unit -> t Lwt.t
+(** Create a store handler, using Irmin's HTTP client. [uri] is the
+    adress of the Irmin daemon. *)
 
-val create: ?uri:string -> ?fresh:bool -> unit -> t Lwt.t
+module type S = sig
 
-val register_token: t -> token -> unit Lwt.t
+  (** The general signature to add and find values in the store. *)
 
-val invalidate_token: t -> token -> unit Lwt.t
+  type id
+  (** Type type for stable identifier of values kept in the store. *)
 
-val query_object: t -> id -> bool Lwt.t
+  type value
+  (** The type for values kept in the store. *)
 
-val publish_object: t -> token -> id -> Object.t -> unit Lwt.t
+  val add: t -> value -> unit Lwt.t
+  (** [add t v] adds [v] to the store [t]. *)
 
-val retrieve_object: t -> id -> Object.t Lwt.t
+  val mem: t -> id -> bool Lwt.t
+  (** [mem t id] is true if a value with the stable identifer [id] is
+      stored in [t]. *)
 
-val log_job: t -> id -> Job.t * (id list) -> unit Lwt.t
+  val find: t -> id -> value option Lwt.t
+  (** [find t id] is the value stored in [t] with the stable
+      identifier [id] . *)
 
-val unlog_job: t -> id -> unit Lwt.t
+end
 
-val retrieve_jobs: t -> (id * Job.t * (id list)) list Lwt.t
+module Task: sig
 
-val retrieve_job: t -> id -> (Job.t * (id list)) Lwt.t
+  (** {1 Persisting Task State} *)
 
-val query_compiler: t -> id -> bool Lwt.t
+  include S with type id := Task.id and type value := Task.t
 
-val publish_compiler: t -> token -> id -> Object.t -> unit Lwt.t
+  val status: t -> Task.id -> Task.status Lwt.t
+  (** [status t task] is [task]'s status in [t]. *)
 
-val retrieve_compiler: t -> id -> Object.t Lwt.t
+  val jobs: t -> Task.id -> Job.id list Lwt.t
+  (** [jobs t task] are [task]'s jobs in [t]. *)
+
+end
+
+module Job: sig
+
+  (** {1 Persisting Job State} *)
+
+  include S with type id := Job.id and type value := Job.t
+
+  val status: t -> Job.id -> Job.status Lwt.t
+  (** [status t job] is [job]'s status in [t]. *)
+
+  val running: t -> Job.id -> unit Lwt.t
+  (** [runnning t id] sets [id]'s status to [`Running]. *)
+
+  val success: t -> Job.id -> unit Lwt.t
+  (** [success t id] sets [id]'s status to [`Success]. *)
+
+  val failure: t -> Job.id -> string -> unit Lwt.t
+  (** [failure t id msg] set [id]'s status to [`Failure msg]. *)
+
+  val add_output: t -> Job.id -> Object.id -> unit Lwt.t
+  (** [add_output t j o] adds [o] to the list of objects created by
+      the job [j]. *)
+
+  val outputs: t -> Job.id -> Object.id list Lwt.t
+  (** [outputs t job] are [job]'s output objects. *)
+
+end
+
+module Object: S with type id := Object.id and type value := Object.t

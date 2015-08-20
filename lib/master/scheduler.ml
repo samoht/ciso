@@ -17,59 +17,50 @@
  *)
 
 open Lwt.Infix
-open Common_types
 
 let debug fmt = Gol.debug ~section:"scheduler" fmt
 
-type job_tbl = (id, Job.t) Hashtbl.t
-type deps_tbl = (id, id list) Hashtbl.t
+type state = [`Pending | `Runnable | `Completed | `Dispatched of Monitor.t ]
 
-type hook_tbl = (id, id) Hashtbl.t
+type job_tbl = (Job.id, Job.t) Hashtbl.t
+type state_tbl = (Job.id, state) Hashtbl.t
+type fail_tbl = (Job.id, int) Hashtbl.t
 
-type state = [`Pending | `Runnable | `Completed | `Dispatched of Store.token]
-type state_tbl = (id, state) Hashtbl.t
+(* [deps_tbl] contains the transitive closure of objects needed by all
+   the jobs *)
+type deps_tbl = (Job.id, Object.id list) Hashtbl.t
 
-type fail_tbl = (id, int) Hashtbl.t
-
-let j_tbl : job_tbl = Hashtbl.create 16
-let d_tbl : deps_tbl = Hashtbl.create 16
-let h_tbl : hook_tbl = Hashtbl.create 16
-let s_tbl : state_tbl = Hashtbl.create 16
+let j_tbl: job_tbl = Hashtbl.create 16
+let d_tbl: deps_tbl = Hashtbl.create 16
+let s_tbl: state_tbl = Hashtbl.create 16
+let f_tbl: fail_tbl = Hashtbl.create 16
 
 let fail_limit = 2
-let f_tbl : fail_tbl = Hashtbl.create 16
 
-let sub_abbr str = String.sub str 0 5
-
-let task_info ?(abbr = true) id =
+let job_info id =
   try
     let job = Hashtbl.find j_tbl id in
     let info = Job.task job |> Task.info_of_task in
-    (if abbr then String.sub id 0 5 else id ) ^ ":" ^ info
+    Id.to_string id ^ ":" ^ info
   with
   | Not_found ->
     let ids =
-      Hashtbl.fold (fun id _ acc -> id :: acc) j_tbl [] |> String.concat "\n"
+      Hashtbl.fold (fun id _ acc -> Id.to_string id :: acc) j_tbl []
+      |> String.concat "\n"
     in
-    Printf.sprintf "Object %s not in the ids: [\n%s]" id ids
+    Printf.sprintf "Object %s not in the ids: [\n%s]" (Id.pretty id) ids
   | e -> raise e
 
-let rec get_runnables ?host ?compiler () =
-  let env_match (h, c) = match host, compiler with
-    | None   , None    -> true
-    | Some h', None    -> h' = h
-    | None   , Some c' -> c' = c
-    | Some h', Some c' -> h' = h && c' = c
+let get_runnables ?host () =
+  let env_match h = match host with
+    | None    -> true
+    | Some h' -> h' = h
   in
   Hashtbl.fold (fun id j acc ->
-      if `Runnable = Hashtbl.find s_tbl id
-         && env_match (Job.host j, Job.compiler j)
+      if `Runnable = Hashtbl.find s_tbl id && env_match (Job.host j)
       then id :: acc
       else acc
     ) j_tbl []
-  |> fun lst ->
-  if compiler <> None && lst = [] then get_runnables ?host ()
-  else lst
 
 let count_runnables () =
   let r = get_runnables () in
@@ -83,28 +74,25 @@ let invalidate_token wtoken =
   let r, sum = count_runnables () in
   debug "invalidate %d/%d jobs" r sum
 
-let find_job wtoken =
-  let host = Monitor.worker_host wtoken in
-  let compiler = Monitor.worker_compiler wtoken in
-  let runnables = get_runnables ~host ?compiler () in
-  if runnables = [] then None
-  else (
-    let id, _ = List.fold_left (fun (i, max_r) tid ->
-        let deps = Hashtbl.find d_tbl tid in
-        let r = Monitor.job_rank wtoken deps in
-        if r > max_r then tid, r else i, max_r
-      ) ("", (-1)) runnables
+let find_job m =
+  let host = Monitor.host m in
+  let runnables = get_runnables ~host () in
+  match runnables with
+  | [] -> None
+  | i :: runnables ->
+    let rank i = Monitor.job_rank m (Hashtbl.find d_tbl i) in
+    let id, _ = List.fold_left (fun (max_i, max_r) i ->
+        let r = rank i in
+        if r > max_r then (i, r) else (max_i, max_r)
+      ) (i, rank i) runnables
     in
     Hashtbl.replace s_tbl id (`Dispatched wtoken);
     debug "find_job:  -> %s" (task_info id);
     let job = Hashtbl.find j_tbl id in
-    let deps = Hashtbl.find d_tbl id in
-    let desp = Job.create_entry job deps |> Job.string_of_entry in
-    let c = Job.compiler job in
-    Some (id, c, desp)
-  )
+    let deps = Hashtbl.find d_tbl id |> List.map Job.object_id in
+    Some (id, deps)
 
-let err_not_found id = Printf.ksprintf failwith "%s: not found" (sub_abbr id)
+let err_not_found id = Printf.ksprintf failwith "%s: not found" (Id.pretty id)
 
 let publish_object_hook s id =
   if not (Hashtbl.mem h_tbl id) then Lwt.return_unit
@@ -114,14 +102,14 @@ let publish_object_hook s id =
       List.rev_map (fun i ->
           i,
           try Hashtbl.find j_tbl i with Not_found ->
-            debug "publish_hook: Not_found J_TBL %s" (sub_abbr i);
+            debug "publish_hook: Not_found J_TBL %s" (Id.pretty i);
             err_not_found i
         ) ids
     in
     Lwt_list.fold_left_s (fun cache (i, job) ->
         let state =
           try Hashtbl.find s_tbl i with Not_found ->
-            debug "publish_hook: Not_found S_TBL %s" (sub_abbr i);
+            debug "publish_hook: Not_found S_TBL %s" (Id.pretty i);
             err_not_found i
         in
         if state <> `Pending then Lwt.return cache
@@ -164,20 +152,22 @@ let publish_object s _wtoken result id =
       Lwt.return_unit)
   >|= fun () ->
   debug "publish: publish hook completed";
-  let info_lst = List.rev_map (task_info ~abbr:true) (get_runnables ()) in
+  let info_lst = List.rev_map task_info (get_runnables ()) in
   debug "publish: {%s}" (String.concat " ; " info_lst)
 
 let update_tables s jobs =
-  Lwt_list.filter_p (fun (id, _, _) ->
-      Store.query_object s id >>= fun in_store ->
-      Lwt.return (not (in_store || Hashtbl.mem j_tbl id))) jobs
-  >>=fun new_jobs ->
+  Lwt_list.filter_p (fun (jid, _, _) ->
+      let id = Job.object_id jid in
+      Store.query_object s id >|= fun in_store ->
+      not (in_store || Hashtbl.mem j_tbl jid)
+    ) jobs
+  >>= fun new_jobs ->
   (* cache contains the results of Store.query_object, it can answer
      whether a previously queried dep is in the data store or not *)
-  Lwt_list.fold_left_s (fun cache (id, j, deps) ->
-      Store.log_job s id (j, deps) >>= fun () ->
-      Hashtbl.replace j_tbl id j;
-      Hashtbl.replace d_tbl id deps;
+  Lwt_list.fold_left_s (fun cache (jid, j, deps) ->
+      Store.log_job s jid (j, deps) >>= fun () ->
+      Hashtbl.replace j_tbl jid j;
+      Hashtbl.replace d_tbl jid deps;
       let _cached, to_lookup =
         List.partition (fun d -> List.mem_assoc d cache) deps
       in
