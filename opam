@@ -17,19 +17,14 @@ build-test: [
 install: [make "install"]
 remove: ["ocamlfind" "remove" "ciso"]
 depends: [
-  "cmdliner"
   "uuidm"
-  "cohttp"
   "lwt"
   "uri"
-  "re"
   "fmt"
-  "opam-lib"
-  "ocamlgraph"
-  "github"
-  "opium"
   "nocrypto"
   "sexplib"
-  "irmin-unix"
-  "irmin" {>= "0.9.9"}
+  "irmin-unix" {>= "0.9.9"}
+#  "cmdliner"
+#  "opam-lib"
+#  "ocamlgraph"
 ]

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 21f4aadf1bb4021c52d69cdb7cbff25c)
+# DO NOT EDIT (digest: a94aaec6885188b952647d8ba2aec20c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,8 +19,10 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_fmt
 <lib/*.ml{,i,y}>: pkg_irmin.unix
 <lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_sexplib
 <lib/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/*.ml{,i,y}>: pkg_uri
 <lib/*.ml{,i,y}>: pkg_uuidm
 # Library ciso-worker
 "lib/worker/ciso-worker.cmxs": use_ciso-worker
@@ -28,11 +30,13 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: pkg_fmt
 <lib/worker/*.ml{,i,y}>: pkg_irmin.unix
 <lib/worker/*.ml{,i,y}>: pkg_lwt
+<lib/worker/*.ml{,i,y}>: pkg_nocrypto
 <lib/worker/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/worker/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/worker/*.ml{,i,y}>: pkg_sexplib
 <lib/worker/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/worker/*.ml{,i,y}>: pkg_stringext
+<lib/worker/*.ml{,i,y}>: pkg_uri
 <lib/worker/*.ml{,i,y}>: pkg_uuidm
 <lib/worker/*.ml{,i,y}>: use_ciso
 # Library ciso-master
@@ -40,8 +44,10 @@ true: annot, bin_annot
 <lib/master/*.ml{,i,y}>: pkg_fmt
 <lib/master/*.ml{,i,y}>: pkg_irmin.unix
 <lib/master/*.ml{,i,y}>: pkg_lwt
+<lib/master/*.ml{,i,y}>: pkg_nocrypto
 <lib/master/*.ml{,i,y}>: pkg_sexplib
 <lib/master/*.ml{,i,y}>: pkg_sexplib.syntax
+<lib/master/*.ml{,i,y}>: pkg_uri
 <lib/master/*.ml{,i,y}>: pkg_uuidm
 <lib/master/*.ml{,i,y}>: use_ciso
 # Library ciso-github
@@ -51,11 +57,13 @@ true: annot, bin_annot
 <lib/github/*.ml{,i,y}>: pkg_github.unix
 <lib/github/*.ml{,i,y}>: pkg_irmin.unix
 <lib/github/*.ml{,i,y}>: pkg_lwt
+<lib/github/*.ml{,i,y}>: pkg_nocrypto
 <lib/github/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/github/*.ml{,i,y}>: pkg_opam-lib.client
 <lib/github/*.ml{,i,y}>: pkg_sexplib
 <lib/github/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/github/*.ml{,i,y}>: pkg_stringext
+<lib/github/*.ml{,i,y}>: pkg_uri
 <lib/github/*.ml{,i,y}>: pkg_uuidm
 <lib/github/*.ml{,i,y}>: use_ciso
 <lib/github/*.ml{,i,y}>: use_ciso-worker
@@ -64,8 +72,10 @@ true: annot, bin_annot
 <bin/store_main.{native,byte}>: pkg_fmt
 <bin/store_main.{native,byte}>: pkg_irmin.unix
 <bin/store_main.{native,byte}>: pkg_lwt
+<bin/store_main.{native,byte}>: pkg_nocrypto
 <bin/store_main.{native,byte}>: pkg_sexplib
 <bin/store_main.{native,byte}>: pkg_sexplib.syntax
+<bin/store_main.{native,byte}>: pkg_uri
 <bin/store_main.{native,byte}>: pkg_uuidm
 <bin/store_main.{native,byte}>: use_ciso
 <bin/store_main.{native,byte}>: custom
@@ -75,11 +85,13 @@ true: annot, bin_annot
 <bin/worker_main.{native,byte}>: pkg_fmt
 <bin/worker_main.{native,byte}>: pkg_irmin.unix
 <bin/worker_main.{native,byte}>: pkg_lwt
+<bin/worker_main.{native,byte}>: pkg_nocrypto
 <bin/worker_main.{native,byte}>: pkg_ocamlgraph
 <bin/worker_main.{native,byte}>: pkg_opam-lib.client
 <bin/worker_main.{native,byte}>: pkg_sexplib
 <bin/worker_main.{native,byte}>: pkg_sexplib.syntax
 <bin/worker_main.{native,byte}>: pkg_stringext
+<bin/worker_main.{native,byte}>: pkg_uri
 <bin/worker_main.{native,byte}>: pkg_uuidm
 <bin/worker_main.{native,byte}>: use_ciso
 <bin/worker_main.{native,byte}>: use_ciso-worker
@@ -93,8 +105,10 @@ true: annot, bin_annot
 <bin/master_main.{native,byte}>: pkg_fmt
 <bin/master_main.{native,byte}>: pkg_irmin.unix
 <bin/master_main.{native,byte}>: pkg_lwt
+<bin/master_main.{native,byte}>: pkg_nocrypto
 <bin/master_main.{native,byte}>: pkg_sexplib
 <bin/master_main.{native,byte}>: pkg_sexplib.syntax
+<bin/master_main.{native,byte}>: pkg_uri
 <bin/master_main.{native,byte}>: pkg_uuidm
 <bin/master_main.{native,byte}>: use_ciso
 <bin/master_main.{native,byte}>: use_ciso-master
@@ -102,8 +116,10 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_fmt
 <bin/*.ml{,i,y}>: pkg_irmin.unix
 <bin/*.ml{,i,y}>: pkg_lwt
+<bin/*.ml{,i,y}>: pkg_nocrypto
 <bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_sexplib.syntax
+<bin/*.ml{,i,y}>: pkg_uri
 <bin/*.ml{,i,y}>: pkg_uuidm
 <bin/*.ml{,i,y}>: use_ciso
 <bin/*.ml{,i,y}>: use_ciso-master

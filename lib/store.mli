@@ -21,7 +21,7 @@
 type t
 (** The type for store handlers. *)
 
-val remote: ?uri:string -> unit -> t Lwt.t
+val remote: ?uri:Uri.t -> unit -> t Lwt.t
 (** Create a remote store handler, using Irmin's HTTP client. [uri] is
     the location of the Irmin daemon. *)
 

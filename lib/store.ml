@@ -44,8 +44,8 @@ let task msg =
   let owner = "ciso" in
   Irmin.Task.create ~date ~owner msg
 
-let remote ?(uri = "http://127.0.0.1:8888") () =
-  let config = Irmin_http.config (Uri.of_string uri) in
+let remote ?(uri = Uri.of_string "http://127.0.0.1:8888") () =
+  let config = Irmin_http.config uri in
   R.create config task >|= fun t ->
   fun x -> R (t x)
 
