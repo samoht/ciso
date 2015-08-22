@@ -41,17 +41,18 @@ type id = [`Task] Id.t
 type t
 (** The type for task values. *)
 
+type repo = string * Uri.t
 (** The type for remote opam repositories. *)
-type repo = Repository of (string * Uri.t)
 
 val pp_repo: repo Fmt.t
 (** [pp_repository] formats a repository. *)
 
+type pin = string * Uri.t option
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
-    be passed to {i opam pin add <name> <target>} *)
-type pin = Pin of (string * Uri.t)
+    be passed to {i opam pin add <name> <target>}. If the target is
+    not specified, it means {i --dev}. *)
 
 val pp_pin: pin Fmt.t
 (** [pp_pin] formats a pin package. *)

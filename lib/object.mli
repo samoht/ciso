@@ -35,18 +35,14 @@ type archive = {
 }
 (** The type for archive values. *)
 
-type contents =
-  | Archive of archive
-  | Stdout of string list
-  | Stderr of string list
-(** The type for object contents. Can either be an archive, or stdout
-    and stderr dumps. *)
+type file = string * Cstruct.t
+(** The type for UTF-8 encoded files. *)
 
-type kind = [
-  | `Archive
-  | `Stdout
-  | `Stderr
-]
+type contents = Archive of archive | File of file
+(** The type for object contents. Can either be an UTF-8 encoded
+    {!file} or an {!archive}. *)
+
+type kind = [ `Archive | `File ]
 (** The type for object kinds. *)
 
 type t
@@ -65,14 +61,8 @@ val archive: (string * Digest.t) list -> Cstruct.t -> t
 (** [archive f c] is the archive containing the files [f] and with raw
     contents [c]. *)
 
-val stdout: string list -> t
-(** [stdout lines] is the object containing a list of UTF-8 encoded
-    [lines], corresponding to a job's standard output. CISO will {b
-    not} check that the lines have the correct encoding. *)
-
-val stderr: string list -> t
-(** [stderr lines] is similar to {!stdout} but for the standard
-    errors. *)
+val file: string -> Cstruct.t -> t
+(** [file f c] is the file [f] whose contents is [c]. *)
 
 val equal: t -> t -> bool
 (** [equal] is the equality function for objects. *)

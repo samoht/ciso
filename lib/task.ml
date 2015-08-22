@@ -17,39 +17,34 @@
  *)
 
 (* name, address option *)
-type repo = Repository of (string * Uri.t)
+type repo = string * Uri.t
 
 (* package, target *)
-type pin = Pin of (string * Uri.t)
+type pin = string * Uri.t option
 
 let json_uri =
   let dec s = `Ok (Uri.of_string s) in
   let enc u = Uri.to_string u in
   Jsont.(view (dec, enc) string)
 
-let json_pair kind =
+let json_pair kind json_uri =
   let o = Jsont.objc ~kind () in
   let name = Jsont.mem o "name" Jsont.string in
-  let url  = Jsont.mem o "uri"  json_uri in
+  let uri  = Jsont.mem o "uri"  json_uri in
   let c = Jsont.obj ~seal:true o in
-  let dec o = `Ok (Jsont.get name o, Jsont.get url o) in
-  let enc (n, u) = Jsont.(new_obj c [memv name n; memv url u]) in
+  let dec o = `Ok (Jsont.get name o, Jsont.get uri o) in
+  let enc (n, u) = Jsont.(new_obj c [memv name n; memv uri u]) in
   Jsont.view (dec, enc) c
 
-let pp_pair ppf (n, u) = Fmt.(pf ppf "%s:%s" n (Uri.to_string u))
+let pp_uri ppf x = Fmt.string ppf (Uri.to_string x)
 
-let json_repository =
-  let dec s = `Ok (Repository s) in
-  let enc (Repository s) = s in
-  Jsont.view (dec, enc) (json_pair "repository")
+let pp_pair ppf (n, u) pp_uri = Fmt.(pf ppf "%s:%a" n pp_uri u)
 
-let json_pin =
-  let dec s = `Ok (Pin s) in
-  let enc (Pin s) = s in
-  Jsont.view (dec, enc) (json_pair "pin")
+let json_repo = json_pair "repository" json_uri
+let json_pin  = json_pair "pin" (Jsont.some json_uri)
 
-let pp_repo ppf (Repository s) = pp_pair ppf s
-let pp_pin ppf (Pin s) = pp_pair ppf s
+let pp_repo ppf s = pp_pair ppf s pp_uri
+let pp_pin ppf s  = pp_pair ppf s (Fmt.option pp_uri)
 
 type id = [`Task] Id.t
 
@@ -67,7 +62,7 @@ let equal x y = Id.equal x.id y.id
 let json =
   let o = Jsont.objc ~kind:"task" () in
   let id = Jsont.mem o "id" Id.json in
-  let repos = Jsont.(mem ~opt:`Yes_rem o "repos" @@ array json_repository) in
+  let repos = Jsont.(mem ~opt:`Yes_rem o "repos" @@ array json_repo) in
   let pins = Jsont.(mem ~opt:`Yes_rem o "pins" @@ array json_pin) in
   let switches = Jsont.(mem ~opt:`Yes_rem o "switches" @@ array Switch.json) in
   let hosts = Jsont.(mem o ~opt:`Yes_rem "hosts" @@ array Host.json) in
@@ -110,9 +105,8 @@ let packages t = t.packages
 let hash ~repos ~pins ~switches ~hosts ~packages =
   let x l = String.concat "+" (List.sort compare l) in
   let y   = String.concat "-" in
-  let p (x, y) = x ^ ":" ^ Uri.to_string y in
-  let repos = List.map (function Repository s -> p s) repos in
-  let pins = List.map (function Pin s -> p s) pins in
+  let repos = List.map (Fmt.to_to_string pp_repo) repos in
+  let pins = List.map (Fmt.to_to_string pp_pin) pins in
   let switches = List.map (Fmt.to_to_string Switch.pp) switches in
   let hosts = List.map (Fmt.to_to_string Host.pp) hosts in
   let packages = List.map Package.to_string packages in

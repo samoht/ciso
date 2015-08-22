@@ -130,14 +130,15 @@ let lines n =
     | 0 -> acc
     | n -> aux (random_ascii_string 80 :: acc) (n-1)
   in
-  aux [] n
+  let str = String.concat "\n" (aux [] n) in
+  Cstruct.of_string str
 
 let objects = [
   obj ();
   obj ();
   obj ();
-  Object.stderr (lines 10);
-  Object.stdout (lines 100);
+  Object.file "foo" (lines 10);
+  Object.file "bar" (lines 100);
 ]
 
 let simple_object () =

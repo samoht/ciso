@@ -18,11 +18,7 @@
 
 type id = [`Object] Id.t
 
-type kind = [
-  | `Archive
-  | `Stdout
-  | `Stderr
-]
+type kind = [ `Archive | `File ]
 
 type archive = {
   files: (string * Digest.t) list;
@@ -37,7 +33,7 @@ let json_digest =
   let enc s = Digest.to_hex s in
   Jsont.view ~default:(Digest.string "") (dec, enc) Jsont.string
 
-let json_file =
+let json_file_d =
   let o = Jsont.objc ~kind:"file" () in
   let name = Jsont.mem o "name" Jsont.string in
   let digest  = Jsont.mem o "digest" json_digest in
@@ -54,44 +50,53 @@ let json_cstruct =
 
 let json_archive =
   let o = Jsont.objc ~kind:"archive" () in
-  let files = Jsont.(mem o "files" @@ array json_file) in
+  let files = Jsont.(mem o "files" @@ array json_file_d) in
   let raw  = Jsont.mem o "raw" json_cstruct in
   let c = Jsont.obj ~seal:true o in
   let dec o = `Ok { files = Jsont.get files o; raw = Jsont.get raw o } in
   let enc a = Jsont.(new_obj c [memv files a.files; memv raw a.raw]) in
   Jsont.view (dec, enc) c
 
-type contents =
-  | Archive of archive
-  | Stdout of string list
-  | Stderr of string list
+type file = string * Cstruct.t
+
+let pp_file ppf (p, _) = Fmt.string ppf p
+
+let json_file =
+  let o = Jsont.objc ~kind:"archive" () in
+  let name = Jsont.(mem o "name" string) in
+  let raw  = Jsont.(mem o "contents" string) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok (Jsont.get name o, Cstruct.of_string (Jsont.get raw o)) in
+  let enc (n, r) =
+    Jsont.(new_obj c [memv name n; memv raw (Cstruct.to_string r)])
+  in
+  Jsont.view (dec, enc) c
+
+type contents = Archive of archive | File of file
 
 let pp_contents ppf = function
   | Archive a -> pp_archive ppf a
-  | Stdout lines
-  | Stderr lines -> Fmt.(list string) ppf lines
+  | File f    -> pp_file ppf f
 
 let json_contents =
   let o = Jsont.objc ~kind:"contents" () in
   let archive = Jsont.(mem_opt o "archive" json_archive) in
-  let stdout = Jsont.(mem_opt o "stdout" @@ array string) in
-  let stderr = Jsont.(mem_opt o "stderr" @@ array string) in
+  let file = Jsont.(mem_opt o "file" json_file) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get f = Jsont.get f o in
-    match get archive, get stdout, get stderr with
-    | Some a, None, None -> `Ok (Archive a)
-    | None, Some l, None -> `Ok (Stdout l)
-    | None, None, Some l -> `Ok (Stderr l)
+    match get archive, get file with
+    | Some a, None -> `Ok (Archive a)
+    | None, Some f -> `Ok (File f)
     | _ -> `Error "json_contents"
   in
   let enc t =
     Jsont.(new_obj c [match t with
-      | Archive a -> memv archive (Some a)
-      | Stdout l  -> memv stdout (Some l)
-      | Stderr l  -> memv stderr (Some l)])
-  in
-  Jsont.view ~default:(Stdout []) (dec, enc) c
+        | Archive a -> memv archive (Some a)
+        | File f    -> memv file (Some f)
+      ]) in
+  let default = File ("", Cstruct.of_string "") in
+  Jsont.view ~default (dec, enc) c
 
 type t = { id : id; contents: contents; }
 
@@ -118,12 +123,11 @@ let contents t = t.contents
 
 let kind t = match t.contents with
   | Archive _ -> `Archive
-  | Stdout _  -> `Stdout
-  | Stderr _  -> `Stderr
+  | File _    -> `File
 
 let hash k =
   let l = match k with
-    | `Lines lines -> lines
+    | `File (n, r) -> [n; Cstruct.to_string r]
     | `Files files ->
       List.map (fun (f, d) -> f ^ ":" ^ Digest.to_hex d) files
       |> List.sort String.compare
@@ -134,10 +138,6 @@ let archive files raw =
   let id = hash (`Files files) in
   { id; contents = Archive { files; raw } }
 
-let stdout lines =
-  let id = hash (`Lines lines) in
-  { id; contents = Stdout lines }
-
-let stderr lines =
-  let id = hash (`Lines lines) in
-  { id; contents = Stderr lines }
+let file name raw =
+  let id = hash (`File (name, raw)) in
+  { id; contents = File (name, raw) }
