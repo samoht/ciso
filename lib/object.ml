@@ -35,7 +35,7 @@ let pp_archive ppf t = Fmt.(pf ppf "[@[<v>files: %a@]]" (list pp_file) t.files)
 let json_digest =
   let dec o = `Ok (Digest.from_hex o) in
   let enc s = Digest.to_hex s in
-  Jsont.view ~default:(Digest.bytes "") (dec, enc) Jsont.string
+  Jsont.view ~default:(Digest.string "") (dec, enc) Jsont.string
 
 let json_file =
   let o = Jsont.objc ~kind:"file" () in

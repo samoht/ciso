@@ -118,7 +118,7 @@ let simple_job () =
     ) jobs
 
 let obj () =
-  let file name contents = name, Digest.bytes contents in
+  let file name contents = name, Digest.string contents in
   let files = [
     file "foo.ml"  "let x = 3";
     file "foo.cmo" (random_ascii_string 1024)
