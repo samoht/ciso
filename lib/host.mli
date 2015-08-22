@@ -18,7 +18,7 @@
 
 (** Detection of host configuration. *)
 
-type t with sexp
+type t
 (** The type for host configuration. *)
 
 val detect: unit -> t
@@ -27,8 +27,8 @@ val detect: unit -> t
 val pp: t Fmt.t
 (** [pp] formats a {{!t}host configuration}. *)
 
-val to_string: t -> string
-(** [to_string t] is the string representation of [t]. *)
+val json: t Jsont.codec
+(** [json] is the JSON codec for host configurations. *)
 
 val defaults: t list
 (** [defaults] is the list of host configurations supported by

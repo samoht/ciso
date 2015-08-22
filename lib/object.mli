@@ -23,7 +23,7 @@
 
 *)
 
-type id = [`Object] Id.t with sexp
+type id = [`Object] Id.t
 (** The type for object identifiers. Object identifiers are
     deterministic, i.e. two similar objects will have the same
     identifiers. The notion of similiraty depends on the object
@@ -52,12 +52,11 @@ type kind = [
 type t
 (** The type for object values. *)
 
-val to_string: t -> string
-(** [to_string t] is the string representing [t]. *)
+val pp: t Fmt.t
+(** [pp] format objects. *)
 
-val of_string: string -> t
-(** [of_string s] is the object [t] whose string representation is
-    [s]. *)
+val json: t Jsont.codec
+(** [json] is the JSON codec for objects. *)
 
 val id: t -> id
 (** [id t] is [t]'s id. *)

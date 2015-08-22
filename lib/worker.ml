@@ -16,12 +16,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type id = [`Worker] Id.t with sexp
+type id = [`Worker] Id.t
 
-type t = {
-  id  : id;
-  host: Host.t;
-} with sexp
+type t = { id: id; host: Host.t; }
+
+let pp ppf t =
+  Fmt.pf ppf
+    "@[<v>\
+     id:   %a@;\
+     host: %a@]"
+    Id.pp t.id Host.pp t.host
+
+let json =
+  let o = Jsont.objc ~kind:"worker" () in
+  let id = Jsont.(mem o "id" Id.json) in
+  let host = Jsont.(mem o "host" Host.json) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok { id = Jsont.get id o; host = Jsont.get host o } in
+  let enc t = Jsont.(new_obj c [memv id t.id; memv host t.host]) in
+  Jsont.view (dec, enc) c
 
 let create host =
   let id = Id.of_uuid `Worker in
@@ -30,14 +43,37 @@ let create host =
 let id t = t.id
 let host t = t.host
 
-let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
-let of_string s = t_of_sexp (Sexplib.Sexp.of_string s)
-
 type status = [
   | `Idle
   | `Job of Job.id
   | `Task of Task.id
-] with sexp
+]
 
-let string_of_status t = Sexplib.Sexp.to_string (sexp_of_status t)
-let status_of_string s = status_of_sexp (Sexplib.Sexp.of_string s)
+let pp_status ppf = function
+  | `Idle   -> Fmt.string ppf "idle"
+  | `Job j  -> Fmt.pf ppf "job %a" Id.pp j
+  | `Task t -> Fmt.pf ppf "task %a" Id.pp t
+
+let json_status =
+  let o = Jsont.objc ~kind:"worker-status" () in
+  let status =
+    Jsont.(mem o "status" @@ enum ["idle", `Idle; "job", `Job; "task", `Task])
+  in
+  let id = Jsont.(mem_opt o "id" string) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    match Jsont.get status o, Jsont.get id o with
+    | `Idle, None   -> `Ok `Idle
+    | `Job , Some x -> `Ok (`Job (Id.of_string `Job x))
+    | `Task, Some x -> `Ok (`Task (Id.of_string `Task x))
+    | _ -> `Error "worker_status"
+  in
+  let enc t =
+    let s, i = match t with
+      | `Idle   -> `Idle, None
+      | `Job x  -> `Job , Some (Id.to_string x)
+      | `Task x -> `Task, Some (Id.to_string x)
+    in
+    Jsont.(new_obj c [memv status s; memv id i])
+  in
+  Jsont.view (dec, enc) c

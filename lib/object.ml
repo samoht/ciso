@@ -16,15 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
-
-module Digest = struct
-  include Digest
-  let sexp_of_t t = Sexplib.Conv.sexp_of_string (Digest.to_hex t)
-  let t_of_sexp s = Digest.from_hex (Sexplib.Conv.string_of_sexp s)
-end
-
-type id = [`Object] Id.t with sexp
+type id = [`Object] Id.t
 
 type kind = [
   | `Archive
@@ -35,15 +27,89 @@ type kind = [
 type archive = {
   files: (string * Digest.t) list;
   raw  : Cstruct.t;
-} with sexp
+}
+
+let pp_file ppf (f, d) = Fmt.pf ppf "%s %s" f (Digest.to_hex d)
+let pp_archive ppf t = Fmt.(pf ppf "@[<v>files: %a@]" (list pp_file) t.files)
+
+let json_digest =
+  let dec o = `Ok (Digest.from_hex o) in
+  let enc s = Digest.to_hex s in
+  Jsont.view (dec, enc) Jsont.string
+
+let json_file =
+  let o = Jsont.objc ~kind:"file" () in
+  let name = Jsont.mem o "name" Jsont.string in
+  let digest  = Jsont.mem o "digest" json_digest in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok (Jsont.get name o, Jsont.get digest o) in
+  let enc (n, d) = Jsont.(new_obj c [memv name n; memv digest d]) in
+  Jsont.view (dec, enc) c
+
+let json_cstruct =
+  let dec o = `Ok (Cstruct.of_string o) in
+  let enc c = Cstruct.to_string c in
+  Jsont.view (dec, enc) Jsont.nat_string
+
+(* FIXME: it's probably not a good idea to store the raw contents in
+   JSON *)
+let json_archive =
+  let o = Jsont.objc ~kind:"archive" () in
+  let files = Jsont.(mem o "files" @@ array json_file) in
+  let raw  = Jsont.mem o "raw" json_cstruct in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok { files = Jsont.get files o; raw = Jsont.get raw o } in
+  let enc a = Jsont.(new_obj c [memv files a.files; memv raw a.raw]) in
+  Jsont.view (dec, enc) c
 
 type contents =
   | Archive of archive
   | Stdout of string list
   | Stderr of string list
-with sexp
 
-type t = { id : id; contents: contents; } with sexp
+let pp_contents ppf = function
+  | Archive a -> pp_archive ppf a
+  | Stdout lines
+  | Stderr lines -> Fmt.(list string) ppf lines
+
+let json_contents =
+  let o = Jsont.objc ~kind:"contents" () in
+  let archive = Jsont.(mem_opt o "archive" json_archive) in
+  let stdout = Jsont.(mem_opt o "stdout" @@ array string) in
+  let stderr = Jsont.(mem_opt o "stderr" @@ array string) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    let get f = Jsont.get f o in
+    match get archive, get stdout, get stderr with
+    | Some a, None, None -> `Ok (Archive a)
+    | None, Some l, None -> `Ok (Stdout l)
+    | None, None, Some l -> `Ok (Stderr l)
+    | _ -> `Error "json_contents"
+  in
+  let enc t = Jsont.(new_obj c [match t with
+      | Archive a -> memv archive (Some a)
+      | Stdout l  -> memv stdout (Some l)
+      | Stderr l  -> memv stderr (Some l)])
+  in
+  Jsont.view (dec, enc) c
+
+type t = { id : id; contents: contents; }
+
+let pp ppf t = Fmt.pf ppf
+    "@[<v>\
+     id:       %a@;\
+     contents: %a@@]"
+    Id.pp t.id
+    pp_contents t.contents
+
+let json =
+  let o = Jsont.objc ~kind:"object" () in
+  let id = Jsont.(mem o "id" Id.json) in
+  let contents = Jsont.(mem o "contents" json_contents) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok { id = Jsont.get id o; contents = Jsont.get contents o } in
+  let enc t = Jsont.(new_obj c [memv id t.id; memv contents t.contents]) in
+  Jsont.view (dec, enc) c
 
 let id t = t.id
 let contents t = t.contents
@@ -52,9 +118,6 @@ let kind t = match t.contents with
   | Archive _ -> `Archive
   | Stdout _  -> `Stdout
   | Stderr _  -> `Stderr
-
-let to_string obj = sexp_of_t obj |> Sexplib.Sexp.to_string
-let of_string str = Sexplib.Sexp.of_string str |> t_of_sexp
 
 let hash k =
   let l = match k with

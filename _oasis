@@ -13,10 +13,7 @@ Library ciso
   Modules:
     Id, Task, Job, Object, Package, Host, Compiler, Worker, Store
   BuildDepends:
-    sexplib, irmin.unix, lwt, uuidm, fmt, nocrypto, uri,
-    sexplib.syntax
-  XMETARequires:
-    sexplib, irmin.unix, lwt, uuidm, fmt, nocrypto, uri
+    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm
 
 Document ciso
   Title:                CISO docs

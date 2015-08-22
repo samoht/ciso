@@ -15,15 +15,16 @@ build-test: [
   [make "test"]
 ]
 install: [make "install"]
-remove: ["ocamlfind" "remove" "ciso"]
+remove:  ["ocamlfind" "remove" "ciso"]
 depends: [
   "uuidm"
   "lwt"
   "uri"
-  "fmt"
   "nocrypto"
-  "sexplib"
   "irmin-unix" {>= "0.9.9"}
+  "fmt"
+  "jsont"
+  "js_of_ocaml" # needed because of https://github.com/dbuenzli/jsont/issues/3
 #  "cmdliner"
 #  "opam-lib"
 #  "ocamlgraph"

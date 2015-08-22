@@ -18,15 +18,14 @@
 
 (** OCaml compiler versions. *)
 
-type t with sexp
+type t
 (** The type for compiler versions. *)
-
-val to_string: t -> string
-(** [to_string t] is [t]'s string representation. *)
-
-val of_string: string -> t
-(** [of_string s] is the compiler version [t] such that [to_string t]
-    is [s]. *)
 
 val defaults: t list
 (** [defaults] is the list of compilers supported by default. *)
+
+val json: t Jsont.codec
+(** [json] is the JSON codec for values compiler versions. *)
+
+val pp: t Fmt.t
+(** [pp] formats compiler versions. *)

@@ -86,6 +86,23 @@ let with_transaction ?retry:n t msg f =
     (* no nested transactions *)
     Lwt.return_false
 
+let to_str codec v =
+  let b = Buffer.create 64 in
+  let e = Jsonm.encoder (`Buffer b) in
+  let e = Jsont.encoder e codec v in
+  match Jsont.encode e with
+  | `Ok      -> Buffer.contents b
+  | `Partial -> assert false
+
+let of_str codec s =
+  let e = Jsonm.decoder (`String s) in
+  let e = Jsont.decoder e codec in
+  match Jsont.decode e with
+  | `Ok (_, v)    -> v
+  | `Await        -> assert false
+  | `Error (_, e) ->
+    invalid_arg (Jsont.error_to_string e)
+
 module Store = struct
 
   let mem = function
@@ -160,23 +177,24 @@ module XJob = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      Store.update (mk t "add job" id) (value_p id) (Job.to_string job)
+      Store.update (mk t "add job" id) (value_p id) (to_str Job.json job)
       >|= fun () ->
       debug "add: job %s published!" (pretty id)
 
   let find t id =
-    Store.read (mk t "find job" id) (value_p id) >|= map_o Job.of_string
+    Store.read (mk t "find job" id) (value_p id) >|= map_o (of_str Job.json)
 
   let update_status status t id =
-    let status = Job.string_of_status status in
+    let status = to_str Job.json_status status in
     Store.update (mk t ("job " ^ status) id) (status_p id) status
 
   let success = update_status `Success
   let running = update_status `Running
-  let failure t id msg = update_status (`Failure msg) t id
+  let failure = update_status `Failure
 
   let status t id =
-    Store.read_exn (mk t "job status" id) (status_p id) >|= Job.status_of_string
+    Store.read_exn (mk t "job status" id) (status_p id) >|=
+    of_str Job.json_status
 
   let add_output t id obj =
     Store.update (mk t "add job output" id) (output_p id obj) ""
@@ -200,7 +218,7 @@ module XJob = struct
   let watch_status t id f =
     Store.watch_key (mk t "watch job status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (Job.status_of_string s)
+        | `Added (_, s) -> f (of_str Job.json_status s)
         | `Removed _    -> f `Cancelled
       )
 end
@@ -220,12 +238,13 @@ module XTask = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      Store.update (mk t "add task" id) (value_p id) (Task.to_string task)
+      Store.update (mk t "add task" id) (value_p id) (to_str Task.json task)
       >|= fun () ->
       debug "add: task %s published!" (pretty id)
 
   let find t id =
-    Store.read (mk t "find task" id) (value_p id) >|= map_o Task.of_string
+    Store.read (mk t "find task" id) (value_p id) >|=
+    map_o (of_str Task.json)
 
   let jobs t id =
     Store.list (mk t "list jobs" id) (jobs_p id) >|=
@@ -238,18 +257,18 @@ module XTask = struct
   let update_status t id =
     jobs t id >>= fun jobs ->
     Lwt_list.map_p (XJob.status t) jobs >>= fun status ->
-    let status = Job.task_status status |> Task.string_of_status in
+    let status = Job.task_status status |> to_str Task.json_status in
     Store.update (mk t "update task status" id) (status_p id) status
 
   let status t id =
     update_status t id >>= fun () ->
     Store.read_exn (mk t "task status" id) (status_p id) >|=
-    Task.status_of_string
+    of_str Task.json_status
 
   let watch_status t id f =
     Store.watch_key (mk t "watch task status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (Task.status_of_string s)
+        | `Added (_, s) -> f (of_str Task.json_status s)
         | `Removed _    -> f `Cancelled
       )
 
@@ -268,13 +287,13 @@ module XObject = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      let obj = Object.to_string obj in
+      let obj = to_str Object.json obj in
       Store.update (mk t "publish object" id) (value_p id) obj >|= fun () ->
       debug "add: object %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "retrieve object" id) (value_p id) >|=
-    map_o Object.of_string
+    map_o (of_str Object.json)
 
 end
 
@@ -293,23 +312,23 @@ module XWorker = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      let w = Worker.to_string w in
+      let w = to_str Worker.json w in
       Store.update (mk t "publish worker" id) (value_p id) w >|= fun () ->
       debug "add: worker %s published!" (pretty id)
 
   let find t id =
     Store.read (mk t "retrieve worker" id) (value_p id) >|=
-    map_o Worker.of_string
+    map_o (of_str Worker.json)
 
   let tick t id f =
     Store.update (mk t "tick worker" id) (tick_p id) (string_of_float f)
 
   let status t id =
     Store.read_exn (mk t "worker status" id) (status_p id) >|=
-    Worker.status_of_string
+    of_str Worker.json_status
 
   let start t id status =
-    let status_s = Worker.string_of_status status in
+    let status_s = to_str Worker.json_status status in
     let msg = match status with
       | `Idle -> "worker is idle"
       | _     -> "worker starts " ^ status_s
@@ -330,7 +349,7 @@ module XWorker = struct
   let watch_status t id f =
     Store.watch_key (mk t "watch status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (Worker.status_of_string s)
+        | `Added (_, s) -> f (of_str Worker.json_status s)
         | `Removed _    -> f `Idle
       )
 

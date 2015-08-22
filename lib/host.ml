@@ -72,7 +72,7 @@ let os () = match Sys.os_type with
   | "Cygwin" -> `Cygwin
   | s        -> `Other s
 
-let distribution = function
+let distrib = function
   | `Darwin ->
     if has_command "brew" then Some `Homebrew
     else if has_command "port" then Some `Macports
@@ -102,65 +102,149 @@ let distribution = function
      with Not_found | Failure _ -> None)
   | _ -> None
 
-(* generate OPAM depexts flags *)
+type arch = [
+  | `X86_64
+  | `X86
+  | `Arm7
+  | `PPC
+  | `Other of string
+]
 
-let archflags = function
-  | `X86_64 -> ["x86_64"]
-  | `X86 -> ["x86"]
-  | `Arm7 -> ["arm";"armv7"]
-  | `PPC -> ["ppc"]
-  | `Other s -> [String.lowercase s]
+let string_of_arch = function
+  | `X86_64 -> "x86_64"
+  | `X86 -> "x86"
+  | `Arm7 -> "armv7"
+  | `PPC -> "ppc"
+  | `Other s -> String.lowercase s
 
-let osflags = function
-  | `Darwin -> ["osx"]
-  | `Linux -> ["linux"]
-  | `Unix -> ["unix"]
-  | `FreeBSD -> ["bsd";"freebsd"]
-  | `OpenBSD -> ["bsd";"openbsd"]
-  | `NetBSD -> ["bsd";"netbsd"]
-  | `DragonFly -> ["bsd";"dragonfly"]
-  | `Win32 -> ["mswindows";"win32"]
-  | `Cygwin -> ["mswindows";"cygwin"]
-  | `Other s -> [String.lowercase s]
+let arch_of_string = function
+  | "x86_64" -> `Ok `X86_64
+  | "x86" -> `Ok `X86
+  | "armv7" -> `Ok `Arm7
+  | "ppc" -> `Ok `PPC
+  | s -> `Ok (`Other (String.lowercase s))
 
-let distrflags = function
-  | Some `Homebrew -> ["homebrew"]
-  | Some `Macports -> ["macports"]
-  | Some `Debian -> ["debian"]
-  | Some `Ubuntu -> ["ubuntu"]
-  | Some `Centos -> ["centos"]
-  | Some `Fedora -> ["fedora"]
-  | Some `Mageia -> ["mageia"]
-  | Some `Archlinux -> ["archlinux"]
-  | Some `Gentoo -> ["gentoo"]
-  | Some (`Other s) -> [String.lowercase s]
-  | None -> []
+type os = [
+  | `Darwin
+  | `Linux
+  | `Unix
+  | `FreeBSD
+  | `OpenBSD
+  | `NetBSD
+  | `DragonFly
+  | `Win32
+  | `Cygwin
+  | `Other of string
+]
+
+let string_of_os = function
+  | `Darwin -> "osx"
+  | `Linux -> "linux"
+  | `Unix -> "unix"
+  | `FreeBSD -> "freebsd"
+  | `OpenBSD -> "openbsd"
+  | `NetBSD -> "netbsd"
+  | `DragonFly -> "dragonfly"
+  | `Win32 -> "win32"
+  | `Cygwin -> "cygwin"
+  | `Other s -> String.lowercase s
+
+let os_of_string = function
+  | "osx" -> `Ok `Darwin
+  | "linux" -> `Ok `Linux
+  | "unix" -> `Ok `Unix
+  | "freebsd" -> `Ok `FreeBSD
+  | "openbsd" -> `Ok `OpenBSD
+  | "netbsd" -> `Ok `NetBSD
+  | "dragonfly" -> `Ok `DragonFly
+  | "win32" -> `Ok `Win32
+  | "cygwin" -> `Ok `Cygwin
+  | s -> `Ok (`Other (String.lowercase s))
+
+type distr = [
+  | `Homebrew
+  | `Macports
+  | `Debian
+  | `Ubuntu
+  | `Centos
+  | `Fedora
+  | `Mageia
+  | `Archlinux
+  | `Gentoo
+  | `Other of string
+]
+
+let string_of_distr = function
+  | `Homebrew -> "homebrew"
+  | `Macports -> "macports"
+  | `Debian -> "debian"
+  | `Ubuntu -> "ubuntu"
+  | `Centos -> "centos"
+  | `Fedora -> "fedora"
+  | `Mageia -> "mageia"
+  | `Archlinux -> "archlinux"
+  | `Gentoo -> "gentoo"
+  | `Other s -> String.lowercase s
+
+let distr_of_string = function
+  | "homebrew" -> `Ok `Homebrew
+  | "macports" -> `Ok `Macports
+  | "debian" -> `Ok `Debian
+  | "ubuntu" -> `Ok `Ubuntu
+  | "centos" -> `Ok `Centos
+  | "fedora" -> `Ok `Fedora
+  | "mageia" -> `Ok `Mageia
+  | "archlinux" -> `Ok `Archlinux
+  | "gentoo" -> `Ok `Gentoo
+  | s -> `Ok (`Other (String.lowercase s))
 
 (* end of copy-pate *)
 
-open Sexplib.Std
-
 type t = {
-  arch: string list;
-  os: string list;
-  distribution: string list;
-} with sexp
-
-let create arch os distr = {
-  arch         = archflags arch;
-  os           = osflags os;
-  distribution = distrflags distr;
+  arch: arch;
+  os: os;
+  distr: distr option;
 }
+
+let create arch os distr = { arch; os; distr }
 
 let detect () =
   let os = os () in
-  create (arch ()) os (distribution os)
+  create (arch ()) os (distrib os)
 
-let to_string t =
-  let l = String.concat "." in
-  Printf.sprintf "%s:%s:%s" (l t.arch) (l t.os) (l t.distribution)
+let pp_arch ppf x = Fmt.string ppf (string_of_arch x)
+let pp_os ppf x = Fmt.string ppf (string_of_os x)
+let pp_distr ppf x = Fmt.string ppf (string_of_distr x)
 
-let pp fmt t = Fmt.string fmt (to_string t)
+let pp ppf t =
+  Fmt.pf ppf
+    "@[<v>\
+     arch:  %a@;\
+     os:    %a@;\
+     distr: %a@]"
+    pp_arch t.arch
+    pp_os t.os
+    (Fmt.option pp_distr) t.distr
+
+let json_arch = Jsont.view (arch_of_string, string_of_arch) Jsont.string
+let json_os = Jsont.view (os_of_string, string_of_os) Jsont.string
+let json_distr = Jsont.view (distr_of_string, string_of_distr) Jsont.string
+
+let json =
+  let o = Jsont.objc ~kind:"host" () in
+  let arch = Jsont.(mem o "arch" json_arch) in
+  let os = Jsont.(mem o "os" json_os) in
+  let distr = Jsont.(mem_opt o "distr" json_distr) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    let get f = Jsont.get f o in
+    `Ok { arch = get arch; os = get os; distr = get distr; }
+  in
+  let enc t =
+    Jsont.(new_obj c [memv arch t.arch; memv os t.os; memv distr t.distr])
+  in
+  Jsont.view (dec, enc) c
+
 
 let defaults =
   List.map (fun (a, o, s) -> create a o s)

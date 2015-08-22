@@ -16,12 +16,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
-
 type t = {
   name: string;
   version: string option;
-} with sexp
+}
+
+let pp ppf t =
+  Fmt.(pf ppf
+    "@[<v>\
+     name:    %s@;\
+     version: %a@]"
+    t.name (option string) t.version)
+
+let json =
+  let o = Jsont.objc ~kind:"package" () in
+  let name = Jsont.(mem o "name" string) in
+  let version = Jsont.(mem_opt o "version" string) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok { name = Jsont.get name o; version = Jsont.get version o } in
+  let enc t = Jsont.(new_obj c [memv name t.name; memv version t.version]) in
+  Jsont.view (dec, enc) c
 
 let name t = t.name
 let version t = t.version
@@ -38,7 +52,25 @@ let to_string t = match t.version with
 type info = {
   opam: Cstruct.t;
   url : Cstruct.t;
-} with sexp
+}
+
+let pp_info ppf i =
+  (* FIXME: to_string *)
+  Fmt.pf ppf "@[<v>%s@;%s@]" (Cstruct.to_string i.opam) (Cstruct.to_string i.url)
+
+let json_cstruct =
+  let dec o = `Ok (Cstruct.of_string o) in
+  let enc c = Cstruct.to_string c in
+  Jsont.view (dec, enc) Jsont.nat_string
+
+let json_info =
+  let o = Jsont.objc ~kind:"package" () in
+  let opam = Jsont.(mem o "opam" json_cstruct) in
+  let url = Jsont.(mem ~opt:`Yes_rem o "url" json_cstruct) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok { opam = Jsont.get opam o; url = Jsont.get url o } in
+  let enc t = Jsont.(new_obj c [memv opam t.opam; memv url t.url]) in
+  Jsont.view (dec, enc) c
 
 let info ~opam ~url = { opam; url }
 let opam i = i.opam

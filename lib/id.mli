@@ -24,7 +24,7 @@
     {{!module:Worker}workers}.
 *)
 
-type 'a t with sexp
+type 'a t
 (** The type for deterministic or random dentifiers. *)
 
 val of_uuid: 'a -> 'a t
@@ -32,18 +32,20 @@ val of_uuid: 'a -> 'a t
     version 4 (random based) according to
     {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
 
+val of_string: 'a -> string -> 'a t
+(** [of_string] is the identity function. *)
+
+val to_string: 'a t -> string
+(** [to_string] is the identity function. *)
+
 val digest: 'a -> string -> 'a t
 (** [digest k s] is [s]'s SHA1 digest. *)
 
 val compare: 'a t -> 'a t -> int
 (** [compare x y] compares the representation of two identifiers. *)
 
-val to_string: 'a t -> string
-(** [to_string t] is the string representation of [t]. *)
-
-val of_string: 'a -> string -> 'a t
-(** [of_string k s] is the identifier [t] of type [k] such that
-    [to_string t] is [s]. *)
-
 val pp: 'a t Fmt.t
 (** [pp t] formats [t]. *)
+
+val json: 'a t Jsont.codec
+(** [json] is the JSON codec for identifiers. *)

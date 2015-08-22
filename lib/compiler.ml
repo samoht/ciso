@@ -16,11 +16,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Conv
+type t = string
 
-type t = string with sexp
-let to_string x = x
-let of_string x = x
+let pp = Fmt.string
+let json = Jsont.string
 
 let defaults = [
   "3.12.1";

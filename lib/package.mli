@@ -18,7 +18,7 @@
 
 (** Package name with optional version. *)
 
-type t with sexp
+type t
 (** The type for package names with an optional version. *)
 
 val name: t -> string
@@ -40,9 +40,15 @@ val to_string: t -> string
 (** [to_string t] is [name t ^ "." v] if [t] has the version [v],
     otherwise it is [name t]. *)
 
+val json: t Jsont.codec
+(** [json] is the JSON codec for packages. *)
+
+val pp: t Fmt.t
+(** [pp] formats packages. *)
+
 (** {1 Package Information} *)
 
-type info with sexp
+type info
 (** The type for package information values. *)
 
 val info: opam:Cstruct.t -> url:Cstruct.t -> info
@@ -54,3 +60,9 @@ val opam: info -> Cstruct.t
 
 val url: info -> Cstruct.t
 (** [url i] is the contents of [i]'s url file. *)
+
+val pp_info: info Fmt.t
+(** [pp_info] formats package infos. *)
+
+val json_info: info Jsont.codec
+(** [json_info] is the JSON codec for package infos. *)

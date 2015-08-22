@@ -31,24 +31,24 @@
     outputs and results, and the genarated objects.
 *)
 
-type id = [`Task] Id.t with sexp
+type id = [`Task] Id.t
 (** The type for task identifiers. These identifiers are
     deterministic, i.e. similar tasks will have the same
     identifiers. This is done by hashing the concatenation of
     {!create} arguments (after normalisation) and calling {!Id.digest}
     on the result. *)
 
-type t with sexp
+type t
 (** The type for task values. *)
 
 (** The type for remote opam repositories. *)
-type repository = Repository of string * string with sexp
+type repository = Repository of (string * Uri.t)
 
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
     be passed to {i opam pin add <name> <target>} *)
-type pin = Pin of string * string with sexp
+type pin = Pin of (string * Uri.t)
 
 val id: t -> id
 (** [id t] is [t]'s deterministic identifier. Is it obtaining by
@@ -83,11 +83,11 @@ val create:
     }
 *)
 
-val to_string: t -> string
-(** [to_string t] is the string representation of [t]. *)
+val pp: t Fmt.t
+(** [pp] formats tasks. *)
 
-val of_string: string -> t
-(** [of_string s] is the value [t] such that [to_string t] is [s]. *)
+val json: t Jsont.codec
+(** [json] is the JSON codec for tasks. *)
 
 (** {1 Task Status} *)
 
@@ -102,9 +102,5 @@ type status = [
 val pp_status: status Fmt.t
 (** [pp_status] formats tasks {!status}. *)
 
-val string_of_status: status -> string
-(** [string_of_result r] is the string representation of [r]. *)
-
-val status_of_string: string -> status
-(** [status_of_string s] is the status [t] such that [string_of_status
-    t] is [s]. *)
+val json_status: status Jsont.codec
+(** [json_status] is the JSON coded for task status. *)

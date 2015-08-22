@@ -31,6 +31,12 @@ type id = [`Worker] Id.t
 type t
 (** The type for worker configration .*)
 
+val pp: t Fmt.t
+(** [pp] formats workers. *)
+
+val json: t Jsont.codec
+(** [json] is the JSON coded for workers. *)
+
 val create: Host.t -> t
 (** [create h] is the worker with host configuration [h]. *)
 
@@ -42,12 +48,6 @@ val id: t -> id
 val host: t -> Host.t
 (** [host t] is [t]'s host configuration. *)
 
-val to_string: t -> string
-(** [to_string t] is the string representation of [t]. *)
-
-val of_string: string -> t
-(** [of_string s] is the worker [t] such that [to_string t] is [s]. *)
-
 (** {1 Worker Status} *)
 
 type status = [
@@ -58,9 +58,8 @@ type status = [
 (** The worker status. Can either be idle, or processing a build job,
     or converting a task into a sequence of jobs. *)
 
-val string_of_status: status -> string
-(** [string_of_status t] is the string representation of [t]. *)
+val pp_status: status Fmt.t
+(** [pp_status] formats worker status. *)
 
-val status_of_string: string -> status
-(** [status_of_string s] is the status [t] such that [string_of_status
-    t] is [s]. *)
+val json_status: status Jsont.codec
+(** [json_status] is the JSON codec for worker status. *)

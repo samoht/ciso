@@ -10,7 +10,9 @@ compile and install the project:
 ```shell
 opam pin add opam-lib --dev
 opam pin add fmt https://github.com/dbuenzli/fmt -n
-opam pin add ciso https://github.com/samoht/ciso.git
+opam pin add jsont https://github.com/dbuenzli/jsont.git -n
+opam pin add ciso https://github.com/samoht/ciso.git -n
+opam install ciso
 ```
 
 ### Architecture

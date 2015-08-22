@@ -16,19 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
+type 'a t = string
 
-type 'a t = string with sexp
-
-let to_string x = x
-let of_string _ x = x
-let of_uuid kind = of_string kind (Uuidm.to_bytes (Uuidm.create `V4))
+let of_uuid _kind = Uuidm.to_bytes (Uuidm.create `V4)
 let compare x y = String.compare x y
+let pp = Fmt.string
+let json = Jsont.string
+let of_string _ x = x
+let to_string x = x
 
-let digest kind str =
+let digest _kind str =
   let `Hex h =
     Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
   in
-  of_string kind h
-
-let pp = Fmt.string
+  h

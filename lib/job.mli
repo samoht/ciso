@@ -28,7 +28,7 @@
     will be consummed by other jobs.
 *)
 
-type id = [`Job] Id.t with sexp
+type id = [`Job] Id.t
 (** The type for job identifiers. Job identifiers are deterministic,
     i.e. similar jobs will have the same identifiers. As for
     {{!Task.id}tasks}, the identifier is built by calling {!Id.digest}
@@ -48,11 +48,11 @@ val create:
     The job will be able to access the outputs objects created by the
     (optional) [inputs] jobs. *)
 
-val to_string: t -> string
-(** [to_string t] is the string representation of [t]. *)
+val json: t Jsont.codec
+(** [json] is the JSON codec for jobs. *)
 
-val of_string: string -> t
-(** [of_string s] is the value [t] such that [to_string t] is [s]. *)
+val pp: t Fmt.t
+(** [pp] formats jobs. *)
 
 val id: t -> id
 (** [id t] id [t]'s deterministic identifier. It is obtained by hasing
@@ -74,22 +74,18 @@ val packages: t -> (Package.t * Package.info) list
 
 type status = [
   | `Success
-  | `Failure of string
+  | `Failure
   | `Pending
   | `Running
   | `Cancelled
 ]
 (** The type for job status. *)
 
+val json_status: status Jsont.codec
+(** [json_status] is the JSON codec for job status. *)
+
 val pp_status: status Fmt.t
 (** [pp_status] formats jobs {!status}. *)
-
-val string_of_status: status -> string
-(** [string_of_result r] is the string representation of [r]. *)
-
-val status_of_string: string -> status
-(** [status_of_string s] is the status [t] such that [string_of_status
-    t] is [s]. *)
 
 val task_status: status list -> Task.status
 (** [task_status s] is the status summary of s. If all status are
