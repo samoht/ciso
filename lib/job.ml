@@ -26,6 +26,8 @@ type t = {
   packages: (Package.t * Package.info) list; (* the list of packages to build *)
 }
 
+let equal x y = Id.equal x.id y.id
+
 let json_package =
   let o = Jsont.objc ~kind:"job" () in
   let package = Jsont.(mem o "package" Package.json) in

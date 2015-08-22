@@ -24,6 +24,9 @@ type t
 val detect: unit -> t
 (** Detects the host configuration. *)
 
+val equal: t -> t -> bool
+(** [equal] is the equality for host configurations. *)
+
 val pp: t Fmt.t
 (** [pp] formats a {{!t}host configuration}. *)
 

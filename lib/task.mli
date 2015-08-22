@@ -83,6 +83,9 @@ val create:
     }
 *)
 
+val equal: t -> t -> bool
+(** [equal] is the task equality. *)
+
 val pp: t Fmt.t
 (** [pp] formats tasks. *)
 

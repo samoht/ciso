@@ -31,12 +31,6 @@ type id = [`Worker] Id.t
 type t
 (** The type for worker configration .*)
 
-val pp: t Fmt.t
-(** [pp] formats workers. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON coded for workers. *)
-
 val create: Host.t -> t
 (** [create h] is the worker with host configuration [h]. *)
 
@@ -47,6 +41,15 @@ val id: t -> id
 
 val host: t -> Host.t
 (** [host t] is [t]'s host configuration. *)
+
+val equal: t -> t -> bool
+(** [equal] is the equality for workers. *)
+
+val pp: t Fmt.t
+(** [pp] formats workers. *)
+
+val json: t Jsont.codec
+(** [json] is the JSON coded for workers. *)
 
 (** {1 Worker Status} *)
 

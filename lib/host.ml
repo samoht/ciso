@@ -253,3 +253,17 @@ let defaults =
       (`X86, `Linux , Some `Debian);
       (`X86, `Darwin, Some `Homebrew);
     ]
+
+let equal_other x y = match x, y with
+  | `Other x, `Other y -> String.(compare (lowercase x) (lowercase y)) = 0
+  | x, y -> x = y
+
+let equal_option eq x y = match x, y with
+  | None  , None   -> true
+  | Some x, Some y -> eq x y
+  | _ -> false
+
+let equal x y =
+  equal_other x.arch y.arch
+  && equal_other x.os y.os
+  && equal_option equal_other x.distr y.distr

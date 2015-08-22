@@ -20,6 +20,8 @@ type 'a t = string
 
 let of_uuid _kind = Uuidm.to_bytes (Uuidm.create `V4)
 let compare x y = String.compare x y
+let equal x y = compare x y = 0
+
 let pp = Fmt.string
 let json = Jsont.string
 let of_string _ x = x

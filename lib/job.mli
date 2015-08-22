@@ -48,12 +48,6 @@ val create:
     The job will be able to access the outputs objects created by the
     (optional) [inputs] jobs. *)
 
-val json: t Jsont.codec
-(** [json] is the JSON codec for jobs. *)
-
-val pp: t Fmt.t
-(** [pp] formats jobs. *)
-
 val id: t -> id
 (** [id t] id [t]'s deterministic identifier. It is obtained by hasing
     a stable representation of [t]'s components. *)
@@ -69,6 +63,15 @@ val inputs: t -> id list
 
 val packages: t -> (Package.t * Package.info) list
 (** [packages t] are the packages that [t] has to build. *)
+
+val equal: t -> t -> bool
+(** [equal] is the job equality. *)
+
+val json: t Jsont.codec
+(** [json] is the JSON codec for jobs. *)
+
+val pp: t Fmt.t
+(** [pp] formats jobs. *)
 
 (** {Job Status} *)
 

@@ -21,6 +21,13 @@ type t = {
   version: string option;
 }
 
+let equal x y =
+  String.compare x.name y.name = 0
+  && match x.version, y.version with
+  | None  , None   -> true
+  | Some x, Some y -> String.compare x y = 0
+  | _ -> false
+
 let pp ppf t =
   Fmt.(pf ppf
     "@[<v>\

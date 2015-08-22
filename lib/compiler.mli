@@ -24,6 +24,9 @@ type t
 val defaults: t list
 (** [defaults] is the list of compilers supported by default. *)
 
+val equal: t -> t -> bool
+(** [equal] is the equality for compiler versions. *)
+
 val json: t Jsont.codec
 (** [json] is the JSON codec for values compiler versions. *)
 

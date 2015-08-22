@@ -20,6 +20,8 @@ type id = [`Worker] Id.t
 
 type t = { id: id; host: Host.t; }
 
+let equal x y = Id.equal x.id y.id
+
 let pp ppf t =
   Fmt.pf ppf
     "@[<v>\

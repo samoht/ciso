@@ -62,6 +62,8 @@ type t = {
   packages: Package.t list;
 }
 
+let equal x y = Id.equal x.id y.id
+
 let json =
   let o = Jsont.objc ~kind:"task" () in
   let id = Jsont.mem o "id" Id.json in

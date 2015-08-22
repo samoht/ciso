@@ -18,6 +18,7 @@
 
 type t = string
 
+let equal x y = String.compare x y = 0
 let pp = Fmt.string
 let json = Jsont.string
 

@@ -52,12 +52,6 @@ type kind = [
 type t
 (** The type for object values. *)
 
-val pp: t Fmt.t
-(** [pp] format objects. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for objects. *)
-
 val id: t -> id
 (** [id t] is [t]'s id. *)
 
@@ -78,3 +72,12 @@ val stdout: string list -> t
 val stderr: string list -> t
 (** [stderr lines] is similar to {!stdout} but for the standard
     errors. *)
+
+val equal: t -> t -> bool
+(** [equal] is the equality function for objects. *)
+
+val pp: t Fmt.t
+(** [pp] format objects. *)
+
+val json: t Jsont.codec
+(** [json] is the JSON codec for objects. *)

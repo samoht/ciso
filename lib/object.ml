@@ -95,6 +95,8 @@ let json_contents =
 
 type t = { id : id; contents: contents; }
 
+let equal x y = Id.equal x.id y.id
+
 let pp ppf t = Fmt.pf ppf
     "@[<v>\
      id:       %a@;\

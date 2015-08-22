@@ -40,6 +40,9 @@ val to_string: t -> string
 (** [to_string t] is [name t ^ "." v] if [t] has the version [v],
     otherwise it is [name t]. *)
 
+val equal: t -> t -> bool
+(** [equal] is the equality for packages. *)
+
 val json: t Jsont.codec
 (** [json] is the JSON codec for packages. *)
 
