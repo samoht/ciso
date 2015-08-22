@@ -13,7 +13,7 @@ Library ciso
   Modules:
     Id, Task, Job, Object, Package, Host, Compiler, Worker, Store
   BuildDepends:
-    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm
+    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
 
 Document ciso
   Title:                CISO docs
@@ -22,6 +22,20 @@ Document ciso
   Install:              true
   XOCamlbuildPath:      lib
   XOCamlbuildLibraries: ciso
+
+Executable test_ciso
+  Build$:           flag(tests)
+  Path:             lib_test
+  MainIs:           test.ml
+  CompiledObject:   best
+  Install:          false
+  BuildDepends:     alcotest, ciso
+
+Test test_ciso
+  Run$:             flag(tests)
+  Command:          $test_ciso -q
+  WorkingDirectory: lib_test/
+
 
 Library "ciso-worker"
   Build: false
