@@ -20,12 +20,14 @@
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Task</span>&nbsp;]&nbsp;<span class="constructor">Id</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;repository&nbsp;=&nbsp;<span class="constructor">Repository</span>&nbsp;<span class="keyword">of</span>&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Uri</span>.t)<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;repo&nbsp;=&nbsp;<span class="constructor">Repository</span>&nbsp;<span class="keyword">of</span>&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Uri</span>.t)<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp_repo&nbsp;:&nbsp;<span class="constructor">Task</span>.repo&nbsp;<span class="constructor">Fmt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;pin&nbsp;=&nbsp;<span class="constructor">Pin</span>&nbsp;<span class="keyword">of</span>&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Uri</span>.t)<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp_pin&nbsp;:&nbsp;<span class="constructor">Task</span>.pin&nbsp;<span class="constructor">Fmt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id&nbsp;:&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.id<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;packages&nbsp;:&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.t&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;?repos:<span class="constructor">Task</span>.repository&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?repos:<span class="constructor">Task</span>.repo&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;?pins:<span class="constructor">Task</span>.pin&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;?switches:<span class="constructor">Switch</span>.t&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?hosts:<span class="constructor">Host</span>.t&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.t&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;equal&nbsp;:&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool<br>

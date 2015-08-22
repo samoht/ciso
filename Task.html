@@ -64,12 +64,12 @@ The type for task values.<br>
 </div>
 
 
-<pre><code><span id="TYPErepository"><span class="keyword">type</span> <code class="type"></code>repository</span> = </code></pre><table class="typetable">
+<pre><code><span id="TYPErepo"><span class="keyword">type</span> <code class="type"></code>repo</span> = </code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTrepository.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
+<code><span id="TYPEELTrepo.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
 
 </tr></table>
 
@@ -77,6 +77,10 @@ The type for task values.<br>
 The type for remote opam repositories.<br>
 </div>
 
+
+<pre><span id="VALpp_repo"><span class="keyword">val</span> pp_repo</span> : <code class="type"><a href="Task.html#TYPErepo">repo</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp_repository</code> formats a repository.<br>
+</div>
 
 <pre><code><span id="TYPEpin"><span class="keyword">type</span> <code class="type"></code>pin</span> = </code></pre><table class="typetable">
 <tr>
@@ -95,6 +99,10 @@ The type for pinned packages. The first argument is a package
 </div>
 
 
+<pre><span id="VALpp_pin"><span class="keyword">val</span> pp_pin</span> : <code class="type"><a href="Task.html#TYPEpin">pin</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp_pin</code> formats a pin package.<br>
+</div>
+
 <pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> <a href="Task.html#TYPEid">id</a></code></pre><div class="info ">
 <code class="code">id t</code> is <code class="code">t</code>'s deterministic identifier. Is it obtaining by
     hashing a stable representation of <code class="code">t</code>'s components.<br>
@@ -105,7 +113,7 @@ The type for pinned packages. The first argument is a package
     install.<br>
 </div>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?repos:<a href="Task.html#TYPErepository">repository</a> list -><br>       ?pins:<a href="Task.html#TYPEpin">pin</a> list -><br>       ?switches:<a href="Switch.html#TYPEt">Switch.t</a> list -> ?hosts:<a href="Host.html#TYPEt">Host.t</a> list -> <a href="Package.html#TYPEt">Package.t</a> list -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?repos:<a href="Task.html#TYPErepo">repo</a> list -><br>       ?pins:<a href="Task.html#TYPEpin">pin</a> list -><br>       ?switches:<a href="Switch.html#TYPEt">Switch.t</a> list -> ?hosts:<a href="Host.html#TYPEt">Host.t</a> list -> <a href="Package.html#TYPEt">Package.t</a> list -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
     possible compiler switches and on all possible host
     configurations. This task can somehow be attenuated by specifying
