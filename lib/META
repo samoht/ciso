@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8a907f30eeb831462b8351c67e749bd3)
+# DO NOT EDIT (digest: aaa9410bfa7ceacfa8e565df84e9561e)
 version = "0.0.0"
 description = "distributed integration engine for opam packages"
-requires = "irmin.unix lwt uuidm fmt nocrypto uri jsont.jsonm"
+requires = "irmin.unix lwt uuidm fmt nocrypto uri jsont.jsonm hex"
 archive(byte) = "ciso.cma"
 archive(byte, plugin) = "ciso.cma"
 archive(native) = "ciso.cmxa"

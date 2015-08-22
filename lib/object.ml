@@ -30,29 +30,28 @@ type archive = {
 }
 
 let pp_file ppf (f, d) = Fmt.pf ppf "%s %s" f (Digest.to_hex d)
-let pp_archive ppf t = Fmt.(pf ppf "@[<v>files: %a@]" (list pp_file) t.files)
+let pp_archive ppf t = Fmt.(pf ppf "[@[<v>files: %a@]]" (list pp_file) t.files)
 
 let json_digest =
   let dec o = `Ok (Digest.from_hex o) in
   let enc s = Digest.to_hex s in
-  Jsont.view (dec, enc) Jsont.string
+  Jsont.view ~default:(Digest.bytes "") (dec, enc) Jsont.string
 
 let json_file =
   let o = Jsont.objc ~kind:"file" () in
   let name = Jsont.mem o "name" Jsont.string in
   let digest  = Jsont.mem o "digest" json_digest in
   let c = Jsont.obj ~seal:true o in
-  let dec o = `Ok (Jsont.get name o, Jsont.get digest o) in
+  let dec o =`Ok  (Jsont.get name o, Jsont.get digest o) in
   let enc (n, d) = Jsont.(new_obj c [memv name n; memv digest d]) in
   Jsont.view (dec, enc) c
 
+(* FIXME: it's probably not a good idea to do that. *)
 let json_cstruct =
-  let dec o = `Ok (Cstruct.of_string o) in
-  let enc c = Cstruct.to_string c in
+  let dec o = `Ok (Cstruct.of_string (Hex.to_string (`Hex o))) in
+  let enc c = let `Hex h = Hex.of_cstruct c in h in
   Jsont.view (dec, enc) Jsont.nat_string
 
-(* FIXME: it's probably not a good idea to store the raw contents in
-   JSON *)
 let json_archive =
   let o = Jsont.objc ~kind:"archive" () in
   let files = Jsont.(mem o "files" @@ array json_file) in
@@ -86,12 +85,13 @@ let json_contents =
     | None, None, Some l -> `Ok (Stderr l)
     | _ -> `Error "json_contents"
   in
-  let enc t = Jsont.(new_obj c [match t with
+  let enc t =
+    Jsont.(new_obj c [match t with
       | Archive a -> memv archive (Some a)
       | Stdout l  -> memv stdout (Some l)
       | Stderr l  -> memv stderr (Some l)])
   in
-  Jsont.view (dec, enc) c
+  Jsont.view ~default:(Stdout []) (dec, enc) c
 
 type t = { id : id; contents: contents; }
 

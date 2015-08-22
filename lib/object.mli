@@ -66,8 +66,9 @@ val archive: (string * Digest.t) list -> Cstruct.t -> t
     contents [c]. *)
 
 val stdout: string list -> t
-(** [stdout lines] is the object containing the [lines] of the
-    standard output of a job. *)
+(** [stdout lines] is the object containing a list of UTF-8 encoded
+    [lines], corresponding to a job's standard output. CISO will {b
+    not} check that the lines have the correct encoding. *)
 
 val stderr: string list -> t
 (** [stderr lines] is similar to {!stdout} but for the standard
