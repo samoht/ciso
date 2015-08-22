@@ -1,6 +1,9 @@
 ## CISO:
 
-A (distributed) Continuous Integration engine for OPAM
+A (distributed) Continuous Integration engine for OPAM.
+
+[![Build Status](https://travis-ci.org/samoht/ciso.svg)](https://travis-ci.org/samoht/ciso)
+[![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://samoht.github.io/ciso/)
 
 ### Install
 
