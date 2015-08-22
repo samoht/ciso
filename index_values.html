@@ -13,7 +13,7 @@
 <link title="Object" rel="Chapter" href="Object.html">
 <link title="Package" rel="Chapter" href="Package.html">
 <link title="Host" rel="Chapter" href="Host.html">
-<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html"><title>Index of values</title>
 </head>
@@ -46,11 +46,6 @@
 <code class="code">compare</code> is the comparison for identifiers.
 </div>
 </td></tr>
-<tr><td><a href="Job.html#VALcompiler">compiler</a> [<a href="Job.html">Job</a>]</td>
-<td><div class="info">
-<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.
-</div>
-</td></tr>
 <tr><td><a href="Object.html#VALcontents">contents</a> [<a href="Object.html">Object</a>]</td>
 <td><div class="info">
 <code class="code">contents t</code> is <code class="code">t</code>s contents.
@@ -69,21 +64,21 @@
 <tr><td><a href="Job.html#VALcreate">create</a> [<a href="Job.html">Job</a>]</td>
 <td><div class="info">
 <code class="code">create h c pkgs</code> is the job of building the list of packages
-    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
-    configuration.
+    <code class="code">pkgs</code> using the OCaml compiler switch <code class="code">c</code> on a worker having <code class="code">h</code>
+    as host configuration.
 </div>
 </td></tr>
 <tr><td><a href="Task.html#VALcreate">create</a> [<a href="Task.html">Task</a>]</td>
 <td><div class="info">
 <code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
-    possible compiler version and on all possible host
+    possible compiler switches and on all possible host
     configurations.
 </div>
 </td></tr>
 <tr><td align="left"><br>D</td></tr>
-<tr><td><a href="Compiler.html#VALdefaults">defaults</a> [<a href="Compiler.html">Compiler</a>]</td>
+<tr><td><a href="Switch.html#VALdefaults">defaults</a> [<a href="Switch.html">Switch</a>]</td>
 <td><div class="info">
-<code class="code">defaults</code> is the list of compilers supported by default.
+<code class="code">defaults</code> is the list of default switches.
 </div>
 </td></tr>
 <tr><td><a href="Host.html#VALdefaults">defaults</a> [<a href="Host.html">Host</a>]</td>
@@ -108,9 +103,9 @@ Detects the host configuration.
 <code class="code">equal</code> is the equality for workers.
 </div>
 </td></tr>
-<tr><td><a href="Compiler.html#VALequal">equal</a> [<a href="Compiler.html">Compiler</a>]</td>
+<tr><td><a href="Switch.html#VALequal">equal</a> [<a href="Switch.html">Switch</a>]</td>
 <td><div class="info">
-<code class="code">equal</code> is the equality for compiler versions.
+<code class="code">equal</code> is the equality for compiler switches.
 </div>
 </td></tr>
 <tr><td><a href="Host.html#VALequal">equal</a> [<a href="Host.html">Host</a>]</td>
@@ -214,9 +209,9 @@ Detects the host configuration.
 <code class="code">json</code> is the JSON coded for workers.
 </div>
 </td></tr>
-<tr><td><a href="Compiler.html#VALjson">json</a> [<a href="Compiler.html">Compiler</a>]</td>
+<tr><td><a href="Switch.html#VALjson">json</a> [<a href="Switch.html">Switch</a>]</td>
 <td><div class="info">
-<code class="code">json</code> is the JSON codec for values compiler versions.
+<code class="code">json</code> is the JSON codec for values compiler switches.
 </div>
 </td></tr>
 <tr><td><a href="Host.html#VALjson">json</a> [<a href="Host.html">Host</a>]</td>
@@ -301,6 +296,11 @@ Create a local store handler, using Irmin's Git on-disk
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Switch.html#VALof_string">of_string</a> [<a href="Switch.html">Switch</a>]</td>
+<td><div class="info">
+<code class="code">of_string</code> is the identity function.
+</div>
+</td></tr>
 <tr><td><a href="Package.html#VALof_string">of_string</a> [<a href="Package.html">Package</a>]</td>
 <td><div class="info">
 <code class="code">of_string <span class="string">"n.v"</span></code> is the package with name <code class="code">n</code> and version <code class="code">v</code>.
@@ -345,9 +345,9 @@ Create a local store handler, using Irmin's Git on-disk
 <code class="code">pp</code> formats workers.
 </div>
 </td></tr>
-<tr><td><a href="Compiler.html#VALpp">pp</a> [<a href="Compiler.html">Compiler</a>]</td>
+<tr><td><a href="Switch.html#VALpp">pp</a> [<a href="Switch.html">Switch</a>]</td>
 <td><div class="info">
-<code class="code">pp</code> formats compiler versions.
+<code class="code">pp</code> formats compiler switches.
 </div>
 </td></tr>
 <tr><td><a href="Host.html#VALpp">pp</a> [<a href="Host.html">Host</a>]</td>
@@ -456,6 +456,11 @@ Create a remote store handler, using Irmin's HTTP client.
 <code class="code">success t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>.
 </div>
 </td></tr>
+<tr><td><a href="Job.html#VALswitch">switch</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">switch t</code> is <code class="code">t</code>'s switch.
+</div>
+</td></tr>
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Job.html#VALtask_status">task_status</a> [<a href="Job.html">Job</a>]</td>
 <td><div class="info">
@@ -466,6 +471,11 @@ Create a remote store handler, using Irmin's HTTP client.
 <td><div class="info">
 <code class="code">tick t w f</code> updates the worker <code class="code">w</code>'s status with the timestamp
       <code class="code">f</code>.
+</div>
+</td></tr>
+<tr><td><a href="Switch.html#VALto_string">to_string</a> [<a href="Switch.html">Switch</a>]</td>
+<td><div class="info">
+<code class="code">to_string</code> is the identity function.
 </div>
 </td></tr>
 <tr><td><a href="Package.html#VALto_string">to_string</a> [<a href="Package.html">Package</a>]</td>

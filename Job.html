@@ -17,7 +17,7 @@
 <link title="Object" rel="Chapter" href="Object.html">
 <link title="Package" rel="Chapter" href="Package.html">
 <link title="Host" rel="Chapter" href="Host.html">
-<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html"><title>Job</title>
 </head>
@@ -32,7 +32,7 @@
 Build jobs.
 <p>
 
-    Jobs are for a given <a href="Compiler.html">compiler</a> version and
+    Jobs are for a given <a href="Switch.html">switch</a> version and
     <a href="Host.html">host</a> configurations. Jobs have pre-requisites:
     these are <a href="Object.html">objects</a> which needs to be built and be
     put into the <a href="Worker.html">worker</a> context before the job could
@@ -60,10 +60,10 @@ The type for job values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?inputs:<a href="Job.html#TYPEid">id</a> list -><br>       <a href="Host.html#TYPEt">Host.t</a> -> <a href="Compiler.html#TYPEt">Compiler.t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list -> <a href="Job.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?inputs:<a href="Job.html#TYPEid">id</a> list -><br>       <a href="Host.html#TYPEt">Host.t</a> -> <a href="Switch.html#TYPEt">Switch.t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list -> <a href="Job.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">create h c pkgs</code> is the job of building the list of packages
-    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
-    configuration.
+    <code class="code">pkgs</code> using the OCaml compiler switch <code class="code">c</code> on a worker having <code class="code">h</code>
+    as host configuration.
 <p>
 
     The job will be able to access the outputs objects created by the
@@ -75,8 +75,8 @@ The type for job values.<br>
     a stable representation of <code class="code">t</code>'s components.<br>
 </div>
 
-<pre><span id="VALcompiler"><span class="keyword">val</span> compiler</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Compiler.html#TYPEt">Compiler.t</a></code></pre><div class="info ">
-<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.<br>
+<pre><span id="VALswitch"><span class="keyword">val</span> switch</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Switch.html#TYPEt">Switch.t</a></code></pre><div class="info ">
+<code class="code">switch t</code> is <code class="code">t</code>'s switch.<br>
 </div>
 
 <pre><span id="VALhost"><span class="keyword">val</span> host</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Host.html#TYPEt">Host.t</a></code></pre><div class="info ">

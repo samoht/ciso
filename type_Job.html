@@ -12,7 +12,7 @@
 <link title="Object" rel="Chapter" href="Object.html">
 <link title="Package" rel="Chapter" href="Package.html">
 <link title="Host" rel="Chapter" href="Host.html">
-<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html"><title>Job</title>
 </head>
@@ -22,9 +22,9 @@
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;?inputs:<span class="constructor">Job</span>.id&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Compiler</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Package</span>.t&nbsp;*&nbsp;<span class="constructor">Package</span>.info)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Package</span>.t&nbsp;*&nbsp;<span class="constructor">Package</span>.info)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.id<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;compiler&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Compiler</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;switch&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Switch</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;host&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Host</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;inputs&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.id&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;packages&nbsp;:&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Package</span>.t&nbsp;*&nbsp;<span class="constructor">Package</span>.info)&nbsp;list<br>

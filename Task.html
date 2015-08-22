@@ -17,7 +17,7 @@
 <link title="Object" rel="Chapter" href="Object.html">
 <link title="Package" rel="Chapter" href="Package.html">
 <link title="Host" rel="Chapter" href="Host.html">
-<link title="Compiler" rel="Chapter" href="Compiler.html">
+<link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html"><title>Task</title>
 </head>
@@ -105,9 +105,9 @@ The type for pinned packages. The first argument is a package
     install.<br>
 </div>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?repos:<a href="Task.html#TYPErepository">repository</a> list -><br>       ?pins:<a href="Task.html#TYPEpin">pin</a> list -><br>       ?compilers:<a href="Compiler.html#TYPEt">Compiler.t</a> list -> ?hosts:<a href="Host.html#TYPEt">Host.t</a> list -> <a href="Package.html#TYPEt">Package.t</a> list -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?repos:<a href="Task.html#TYPErepository">repository</a> list -><br>       ?pins:<a href="Task.html#TYPEpin">pin</a> list -><br>       ?switches:<a href="Switch.html#TYPEt">Switch.t</a> list -> ?hosts:<a href="Host.html#TYPEt">Host.t</a> list -> <a href="Package.html#TYPEt">Package.t</a> list -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
-    possible compiler version and on all possible host
+    possible compiler switches and on all possible host
     configurations. This task can somehow be attenuated by specifying
     some optional arguments:
 <p>
@@ -117,12 +117,12 @@ The type for pinned packages. The first argument is a package
        should use.</li>
 <li><code class="code">pins</code> is the list of pinned packages that the worker should
        use.</li>
-<li><code class="code">compilers</code> restricts the list of compilers to test to only the
-       ones appearing in the list. An empty list means all the
-       supported compilers.</li>
-<li><code class="code">hosts</code> restricts the list of host kinds to test to only the
-       ones appearing in the list. An empty list means all the
-       supported hosts.</li>
+<li><code class="code">switches</code> restricts the list of compiler switches to test to
+       only the ones appearing in the list. An empty list means all
+       the <a href="Switch.html#VALdefaults">supported</a> compiler switches.</li>
+<li><code class="code">hosts</code> restricts the list of host configurations to test to only
+       the ones appearing in the list. An empty list means all the
+       <a href="Host.html#VALdefaults">supported</a> hosts.</li>
 </ul>
 <br>
 </div>
