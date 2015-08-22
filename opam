@@ -22,6 +22,7 @@ depends: [
   "uri"
   "nocrypto"
   "irmin-unix" {>= "0.9.9"}
+  "hex"
   "fmt"
   "jsont"
   "js_of_ocaml" # needed because of https://github.com/dbuenzli/jsont/issues/3
