@@ -20,14 +20,16 @@ open OpamTypes
 open OpamState.Types
 open Lwt.Infix
 
+module Graph = OpamSolver.ActionGraph
+
 type plan = {
-  t: OpamSolver.ActionGraph.t;
-  host: Host.t;
-  switch: Switch.t;
+  g: Graph.t;
+  h: Host.t;
+  s: Switch.t;
 }
 
-let host t = t.host
-let switch t = t.switch
+let host t = t.h
+let switch t = t.s
 
 let debug fmt = Gol.debug ~section:"opam" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
@@ -37,17 +39,22 @@ let package p = OpamPackage.to_string p
 
 let parse_atom str =
   match fst OpamArg.atom str with `Ok a -> a | `Error s ->
-    Printf.eprintf "Cannot parse %s: %s\n%!" str s;
-    exit 1
+    fail "Cannot parse %s: %s\n%!" str s
+
+let atom_of_package p = parse_atom (Package.to_string p)
+let opam_switch s = OpamSwitch.of_string (Switch.to_string s)
+let map_o f = function None -> None | Some x -> Some (f x)
 
 (* FIXME: user OPAM's master when #2292 is merged. *)
 let init ?switch ?root () =
-  let root =
-    match root with None -> OpamStateConfig.opamroot () | Some root -> root
+  let root = match root with
+    | None   -> OpamStateConfig.opamroot ()
+    | Some r -> OpamFilename.Dir.of_string r
   in
+  let switch = map_o opam_switch switch in
   OpamFormatConfig.init ();
   let init = OpamStateConfig.load_defaults root in
-  if not init then (Printf.eprintf "OPAM is not initialized\n"; exit 1);
+  if not init then (fail "OPAM is not initialized\n");
   let log_dir = OpamFilename.(Dir.to_string Op.(root / "log")) in
   OpamStd.Config.init ~answer:(Some true) ~log_dir ();
   OpamRepositoryConfig.init ();
@@ -59,9 +66,11 @@ let load_state ?switch dbg =
   init ?switch ();
   let switch = match switch with
     | None   -> OpamStateConfig.(!r.current_switch)
-    | Some s -> s
+    | Some s -> opam_switch s
   in
   OpamState.load_state ("ci-opam-" ^ dbg) switch
+
+let root () = OpamFilename.Dir.to_string (OpamStateConfig.opamroot ())
 
 let get_var v =
   let t = load_state "get-var" in
@@ -90,7 +99,7 @@ let resolve atoms_s =
   in
   let graph = OpamSolver.get_atomic_action_graph solution in
   let oc = open_out "solver_log" in
-  OpamSolver.ActionGraph.Dot.output_graph oc graph; close_out oc;
+  Graph.Dot.output_graph oc graph; close_out oc;
   graph
 
 let resolve_packages pkgs = resolve (List.map Package.to_string pkgs)
@@ -104,10 +113,8 @@ let plans ?(hosts=Host.defaults) ?(switches=Switch.defaults) task =
     set_env h s;
     resolve_packages (Task.packages task)
   in
-  List.fold_left (fun acc host ->
-      List.fold_left (fun acc switch ->
-          { t = one host switch; host; switch } :: acc
-        ) acc switches
+  List.fold_left (fun acc h ->
+      List.fold_left (fun acc s -> { g = one h s; h; s } :: acc) acc switches
     ) [] hosts
 
 module IdSet = struct
@@ -115,7 +122,6 @@ module IdSet = struct
       type t = Job.id
       let compare = Id.compare
     end)
-  let to_list s = fold (fun e acc -> e :: acc) s []
 end
 
 let package_of_opam p =
@@ -136,50 +142,39 @@ let jobs_of_plan plan =
     | `Install target -> target
     | `Change (_, o, t) -> fail "change %s -> %s" (package o) (package t)
     | `Remove p | `Reinstall p | `Build p ->
-      fail "Not expect delete/recompile %s" package p
+      fail "Not expect delete/recompile %s" (package p)
   in
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
-      if Graph.out_degree graph v = 0 then Queue.add v process_queue
-    ) graph;
+      if Graph.out_degree plan.g v = 0 then Queue.add v process_queue
+    ) plan.g;
   while not (Queue.is_empty process_queue) do
     let v = Queue.pop process_queue in
-    Graph.iter_pred (fun pred -> Queue.add pred process_queue) graph v;
+    Graph.iter_pred (fun pred -> Queue.add pred process_queue) plan.g v;
     Stack.push v add_stack;
   done;
-  let switch = switch plan in
-  let host = Host.detect () in
-  let id_map = ref Pkg.Map.empty in
-  let deps_map = ref Pkg.Map.empty in
+  let id_map = ref OpamPackage.Map.empty in
   let j_lst = ref [] in
   while not (Stack.is_empty add_stack) do
     let v = Stack.pop add_stack in
     let pkg = package_of_action v in
     let p = package_of_opam pkg in
-    let job = Job.create ?repos ?pins host compiler [p] in
-    let inputs, deps = Graph.fold_pred (fun pred (i, d) ->
+    let inputs = Graph.fold_pred (fun pred i ->
         let pred_pkg  = package_of_action pred in
-        let pred_id   = Pkg.Map.find pred_pkg !id_map in
-        let pred_deps = Pkg.Map.find pred_pkg !deps_map in
-        pred_id :: i,
-        IdSet.union d (IdSet.add pred_id pred_deps)
-      ) graph v ([], IdSet.empty)
+        let pred_id   = OpamPackage.Map.find pred_pkg !id_map in
+        pred_id :: i
+      ) plan.g v []
     in
-    id_map  := Pkg.Map.add pkg (Job.id job) !id_map;
-    deps_map := Pkg.Map.add pkg deps !deps_map;
-    j_lst := (job, IdSet.to_list deps) :: !j_lst
+    (* URGENT FIXME *)
+    let opam = Cstruct.of_string "" and url = Cstruct.of_string "" in
+    let job = Job.create ~inputs plan.h plan.s [p, Package.info ~opam ~url] in
+    id_map  := OpamPackage.Map.add pkg (Job.id job) !id_map;
+    j_lst := job :: !j_lst
   done;
   !j_lst
 
-let is_simple g =
-  if OpamSolver.ActionGraph.nb_vertex g > 1 then None
-  else
-    let p = ref None in
-    OpamSolver.ActionGraph.iter_vertex (fun v -> p := Some v) g;
-    match !p with
-    | Some (`Install p) -> Some (package_of_opam p)
-    | _ -> failwith "invalid base action"
+let jobs t = List.fold_left (fun jobs p -> jobs_of_plan p @ jobs) [] (plans t)
 
 let (@@++) x f =
   let open OpamProcess.Job.Op in
@@ -187,45 +182,52 @@ let (@@++) x f =
   | Some err -> raise err
   | None     -> f ()
 
-let install pkg =
+let install pkgs =
   let state = load_state "install" in
-  match Lwt_unix.fork () with
-  | 0 ->
-    let nv = opam_of_package pkg in
-    let job =
-      let open OpamProcess.Job.Op in
-      OpamAction.download_package state nv @@+ function
-      | `Error err         -> failwith err
-      | `Successful source ->
-        OpamAction.build_package state source nv @@++ fun () ->
-        OpamAction.install_package state nv @@++ fun () ->
-        let { installed; installed_roots; reinstall; _ } = state in
-        let installed = OpamPackage.Set.add nv installed in
-        OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
-        |> fun _ -> exit 0
-    in
-    OpamProcess.Job.run job
-  | pid ->
+  if List.length pkgs = 0 then Lwt.return_unit
+  else match Lwt_unix.fork () with
+    | 0 ->
+      begin match pkgs with
+        | [pkg] ->
+          let nv = opam_of_package pkg in
+          let job =
+            let open OpamProcess.Job.Op in
+            OpamAction.download_package state nv @@+ function
+            | `Error err         -> failwith err
+            | `Successful source ->
+              OpamAction.build_package state source nv @@++ fun () ->
+              OpamAction.install_package state nv @@++ fun () ->
+              let { installed; installed_roots; reinstall; _ } = state in
+              let installed = OpamPackage.Set.add nv installed in
+              OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
+              |> fun _ -> exit 0
+          in
+          OpamProcess.Job.run job
+        | pkgs ->
+          let atoms = List.map atom_of_package pkgs in
+          let add_to_root = None in
+          let deps_only = false in
+          OpamClient.SafeAPI.install atoms add_to_root deps_only;
+          Lwt.return_unit
+      end
+    | pid ->
       let open Lwt_unix in
       Lwt_unix.waitpid [] pid >>= fun (_, stat) ->
       match stat with
       | WEXITED i when i = 0 -> Lwt.return_unit
       | WEXITED _ | WSIGNALED _ | WSTOPPED _ ->
-        err "opam install %s failed" (Package.to_string pkg)
+        err "opam install %s failed"
+          (String.concat ", " @@ List.map Package.to_string pkgs)
 
-let uninstall pkg =
-  let pkg  = opam_of_package pkg in
-  let atom = OpamPackage.(name pkg, Some (`Eq, version pkg)) in
-  init ();
-  OpamClient.SafeAPI.remove ~autoremove:true ~force:true [atom];
-  Lwt.return_unit
+let remove = function
+  | []   -> Lwt.return_unit
+  | pkgs ->
+    let atoms = List.map atom_of_package pkgs in
+    init ();
+    OpamClient.SafeAPI.remove ~autoremove:true ~force:true atoms;
+    Lwt.return_unit
 
-let current_switch () =
-  let s = load_state "compier" in
-  s.switch
-  |> OpamSwitch.to_string
-  |> Switch.of_string
-
+(*
 let install_switch s =
   init ();
   let root = OpamStateConfig.(!r.root_dir) in
@@ -257,13 +259,14 @@ let eval_opam_config_env ?switch () =
   let env_s = load_state ?switch "opam-eval-env" in
   let env = OpamState.get_opam_env ~force_path:true env_s in
   List.iter (fun (n, v) -> Unix.putenv n v) env
+*)
 
-let switch_to c =
+let switch_to s =
   init ();
   let root = OpamStateConfig.(!r.root_dir) in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
-  let switch = OpamSwitch.of_string c in
-  let compiler = OpamCompiler.of_string c in
+  let switch = opam_switch s in
+  let compiler = OpamCompiler.of_string (Switch.to_string s) in
   let new_aliases = OpamSwitch.Map.add switch compiler aliases in
   OpamFile.Aliases.write (OpamPath.aliases root) new_aliases;
   OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
@@ -279,7 +282,7 @@ let clean_repos () =
     ) repos
 
 let add_repos repos =
-  let add_one_repo (Task.Repository (name, address)) =
+  let add_one_repo (name, address) =
     let address = Uri.to_string address in
     debug "repository: add %s %s" name address;
     let name = OpamRepositoryName.of_string name in
@@ -298,22 +301,24 @@ let add_repos repos =
     match s with
     | WEXITED i when i = 0 -> Lwt.return_unit
     | WEXITED i | WSIGNALED i | WSTOPPED i ->
-      err "add_repo %s failed"
-        (Fmt.(to_to_string (list Task.pp_repository) repos))
+      err "add_repo %s failed (exit %d)"
+        (Fmt.(to_to_string (list Task.pp_repo) repos)) i
 
 let add_pins pin =
-  let add_one_pin (Task.Pin (pkg, target)) =
+  let add_one (pkg, target) =
     let name = OpamPackage.Name.of_string pkg in
-    if target = "dev-repo" then
+    match target with
+    | None -> (* --dev *)
       OpamClient.SafeAPI.PIN.pin ~edit:false ~action:false name None
-    else
+    | Some target ->
+      let target = Uri.to_string target in
       let pin_option = OpamTypesBase.pin_option_of_string ?kind:None target in
       let kind = OpamTypesBase.kind_of_pin_option pin_option in
       let () = assert (kind <> `local) in
       OpamClient.SafeAPI.PIN.pin
         ~edit:false ~action:false name (Some pin_option)
   in
-  List.iter add_one_pin pin;
+  List.iter add_one pin;
   Lwt.return_unit
 
 let update () =
@@ -329,50 +334,31 @@ let update () =
     | WEXITED i when i = 0 -> Lwt.return_unit
     | WEXITED i | WSIGNALED i | WSTOPPED i -> err "exited %d when opam update" i
 
-(* only for testing *)
-let show_repo_pin () =
-  let state = load_state "show-repo-pin" in
-  let repo = state.repositories in
-  let pin = state.pinned in
-  let repo_str =
-    OpamRepositoryName.Map.fold (fun name repo acc ->
-        let name = OpamRepositoryName.to_string name in
-        let kind = OpamTypesBase.string_of_repository_kind repo.repo_kind in
-        let address =
-          let url, segment = repo.repo_address in
-          match segment with
-          | None -> url
-          | Some s -> url ^ "#" ^ s in
-        let priority = string_of_int repo.repo_priority in
-        Printf.sprintf "[%s] %s %s %s" priority name kind address :: acc
-      ) repo  []
-    |> String.concat "\n"
-  in
-  let pin_str =
-    OpamPackage.Name.Map.fold (fun name pin_option acc ->
-        let name = OpamPackage.Name.to_string name in
-        let pin_option = OpamTypesBase.string_of_pin_option pin_option in
-        Printf.sprintf "%s %s" name pin_option :: acc
-      ) pin []
-    |> String.concat "\n"
-  in
-  debug "repo_pin:\n[Repo]:\n%s\n[Pin]:\n%s" repo_str pin_str;
-  Lwt.return_unit
-
-let installed () =
-  let t = load_state "installed" in
+let read_installed switch =
+  let t = load_state ~switch "installed" in
   t.installed
   |> OpamPackage.Set.elements
   |> List.map OpamPackage.to_string
   |> List.map Package.of_string
 
-let write_installed installed =
+let write_installed switch installed =
   let installed =
     installed
     |> List.map Package.to_string
     |> List.map OpamPackage.of_string
     |> OpamPackage.Set.of_list
   in
-  let t = load_state "write-installed" in
+  let t = load_state ~switch "write-installed" in
   let file = OpamPath.Switch.installed t.root t.switch in
   OpamFile.Installed.write file installed
+
+let write_pinned switch pinned =
+  let t = load_state ~switch "write-pinned" in
+  let file = OpamPath.Switch.pinned t.root t.switch in
+  let pinned =
+    List.map (fun (n, t) ->
+        let t = match t with None -> failwith "TODO" | Some t -> t in
+        [n; Uri.to_string t]
+      ) pinned
+  in
+  OpamFile.Lines.write file pinned

@@ -19,4 +19,4 @@
 (** The worker API. *)
 
 (* FIXME *)
-val run: base:string -> uri:string -> fresh:bool -> unit Lwt.t
+val run: ?root:string -> Uri.t -> unit Lwt.t

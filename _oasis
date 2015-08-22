@@ -37,7 +37,6 @@ Test test_ciso
   WorkingDirectory: lib_test/
 
 Library "ciso-worker"
-  Build: false
   Path: lib/worker
   FindlibParent: ciso
   FindlibName: worker

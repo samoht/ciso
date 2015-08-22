@@ -37,15 +37,15 @@ val jobs: Task.t -> Job.t list
 
 (** {1 OPAM files} *)
 
-val read_installed: unit -> Package.t list
-(** [read_installed ()] is the list of installed packages on the
-    current switch. *)
+val read_installed: Switch.t -> Package.t list
+(** [read_installed s] is the list of installed packages on the switch
+    [s] or [[]] if the switch does not exist. *)
 
-val write_installed: Package.t list -> unit
+val write_installed: Switch.t -> Package.t list -> unit
 (** [write_installed pkgs] update the OPAM state to state that the
     package [pkgs] are installed. *)
 
-val write_pinned: Task.pin list -> unit
+val write_pinned: Switch.t -> Task.pin list -> unit
 (** [write_pinned] write the list of pinned packages. *)
 
 (** {1 OPAM commands} *)
@@ -62,29 +62,17 @@ val remove: Package.t list -> unit Lwt.t
 val switch_to: Switch.t -> unit Lwt.t
 (** [switch_to s] is {i opam switch [s]}. *)
 
-val current_switch: unit -> Switch.t
-(** [current_switch ()] is {i opam switch show}. *)
+val update: unit -> unit Lwt.t
+(** [update ()] is {i opam update}. *)
 
 (* FIXME: review the doc *)
-
-(* [parse_user_demand demand]:
-   parse the user demand string [demand] into a package name string and
-   package version string option *)
-val parse_user_demand: string -> string * string option
 
 (* [get_var v]
    as the command line `opam config var v`, to retrieve the variable `prefix`,
    most code copied from opamConfigCommand.ml*)
 val get_var: string -> string
 
-val update: unit -> unit Lwt.t
-
-val install_switch: string -> unit Lwt.t
-val remove_switch: string -> unit Lwt.t
-val export_switch: string -> unit Lwt.t
-
 val clean_repos: unit -> unit
 val add_repos: Task.repo list -> unit Lwt.t
 
 val add_pins: Task.pin list -> unit Lwt.t
-val show_repo_pin: unit -> unit Lwt.t
