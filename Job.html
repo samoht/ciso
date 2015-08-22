@@ -70,14 +70,6 @@ The type for job values.<br>
     (optional) <code class="code">inputs</code> jobs.<br>
 </div>
 
-<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
-<code class="code">json</code> is the JSON codec for jobs.<br>
-</div>
-
-<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
-<code class="code">pp</code> formats jobs.<br>
-</div>
-
 <pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Job.html#TYPEid">id</a></code></pre><div class="info ">
 <code class="code">id t</code> id <code class="code">t</code>'s deterministic identifier. It is obtained by hasing
     a stable representation of <code class="code">t</code>'s components.<br>
@@ -97,6 +89,18 @@ The type for job values.<br>
 
 <pre><span id="VALpackages"><span class="keyword">val</span> packages</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list</code></pre><div class="info ">
 <code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.<br>
+</div>
+
+<pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Job.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+<code class="code">equal</code> is the job equality.<br>
+</div>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for jobs.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats jobs.<br>
 </div>
 
 <pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `Pending | `Running | `Success ]</code> </pre>

@@ -43,7 +43,7 @@
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Id.html#VALcompare">compare</a> [<a href="Id.html">Id</a>]</td>
 <td><div class="info">
-<code class="code">compare x y</code> compares the representation of two identifiers.
+<code class="code">compare</code> is the comparison for identifiers.
 </div>
 </td></tr>
 <tr><td><a href="Job.html#VALcompiler">compiler</a> [<a href="Job.html">Job</a>]</td>
@@ -100,6 +100,47 @@ Detects the host configuration.
 <tr><td><a href="Id.html#VALdigest">digest</a> [<a href="Id.html">Id</a>]</td>
 <td><div class="info">
 <code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.
+</div>
+</td></tr>
+<tr><td align="left"><br>E</td></tr>
+<tr><td><a href="Worker.html#VALequal">equal</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality for workers.
+</div>
+</td></tr>
+<tr><td><a href="Compiler.html#VALequal">equal</a> [<a href="Compiler.html">Compiler</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality for compiler versions.
+</div>
+</td></tr>
+<tr><td><a href="Host.html#VALequal">equal</a> [<a href="Host.html">Host</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality for host configurations.
+</div>
+</td></tr>
+<tr><td><a href="Package.html#VALequal">equal</a> [<a href="Package.html">Package</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality for packages.
+</div>
+</td></tr>
+<tr><td><a href="Object.html#VALequal">equal</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality function for objects.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALequal">equal</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the job equality.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALequal">equal</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the task equality.
+</div>
+</td></tr>
+<tr><td><a href="Id.html#VALequal">equal</a> [<a href="Id.html">Id</a>]</td>
+<td><div class="info">
+<code class="code">equal</code> is the equality for identifiers.
 </div>
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
@@ -406,8 +447,8 @@ Create a remote store handler, using Irmin's HTTP client.
 </td></tr>
 <tr><td><a href="Object.html#VALstdout">stdout</a> [<a href="Object.html">Object</a>]</td>
 <td><div class="info">
-<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
-    standard output of a job.
+<code class="code">stdout lines</code> is the object containing a list of UTF-8 encoded
+    <code class="code">lines</code>, corresponding to a job's standard output.
 </div>
 </td></tr>
 <tr><td><a href="Store.Job.html#VALsuccess">success</a> [<a href="Store.Job.html">Store.Job</a>]</td>

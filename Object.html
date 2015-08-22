@@ -109,14 +109,6 @@ The type for object values.<br>
 </div>
 
 
-<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
-<code class="code">pp</code> format objects.<br>
-</div>
-
-<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
-<code class="code">json</code> is the JSON codec for objects.<br>
-</div>
-
 <pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEid">id</a></code></pre><div class="info ">
 <code class="code">id t</code> is <code class="code">t</code>'s id.<br>
 </div>
@@ -135,12 +127,24 @@ The type for object values.<br>
 </div>
 
 <pre><span id="VALstdout"><span class="keyword">val</span> stdout</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
-    standard output of a job.<br>
+<code class="code">stdout lines</code> is the object containing a list of UTF-8 encoded
+    <code class="code">lines</code>, corresponding to a job's standard output. CISO will <b>    not</b> check that the lines have the correct encoding.<br>
 </div>
 
 <pre><span id="VALstderr"><span class="keyword">val</span> stderr</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">stderr lines</code> is similar to <a href="Object.html#VALstdout"><code class="code"><span class="constructor">Object</span>.stdout</code></a> but for the standard
     errors.<br>
+</div>
+
+<pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+<code class="code">equal</code> is the equality function for objects.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> format objects.<br>
+</div>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for objects.<br>
 </div>
 </body></html>

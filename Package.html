@@ -63,6 +63,10 @@ The type for package names with an optional version.<br>
     otherwise it is <code class="code">name t</code>.<br>
 </div>
 
+<pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> <a href="Package.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+<code class="code">equal</code> is the equality for packages.<br>
+</div>
+
 <pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Package.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
 <code class="code">json</code> is the JSON codec for packages.<br>
 </div>
@@ -79,7 +83,8 @@ The type for package information values.<br>
 
 <pre><span id="VALinfo"><span class="keyword">val</span> info</span> : <code class="type">opam:Cstruct.t -> url:Cstruct.t -> <a href="Package.html#TYPEinfo">info</a></code></pre><div class="info ">
 <code class="code">info ~opam ~url</code> is the package information value containing the
-    given opam and url file contents.<br>
+    given opam and url file contents. Both files should contains only
+    valid UTF-8 characters. This is <b>not</b> checked by CISO.<br>
 </div>
 
 <pre><span id="VALopam"><span class="keyword">val</span> opam</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Cstruct.t</code></pre><div class="info ">
