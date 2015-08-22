@@ -57,7 +57,7 @@ type t = {
   id: id;
   repos: repository list;
   pins: pin list;
-  compilers: Compiler.t list;
+  switches: Switch.t list;
   hosts: Host.t list;
   packages: Package.t list;
 }
@@ -69,7 +69,7 @@ let json =
   let id = Jsont.mem o "id" Id.json in
   let repos = Jsont.(mem ~opt:`Yes_rem o "repos" @@ array json_repository) in
   let pins = Jsont.(mem ~opt:`Yes_rem o "pins" @@ array json_pin) in
-  let compilers = Jsont.(mem ~opt:`Yes_rem o "compilers" @@ array Compiler.json) in
+  let switches = Jsont.(mem ~opt:`Yes_rem o "switches" @@ array Switch.json) in
   let hosts = Jsont.(mem o ~opt:`Yes_rem "hosts" @@ array Host.json) in
   let packages = Jsont.(mem o "packages" @@ array Package.json) in
   let c = Jsont.obj ~seal:true o in
@@ -77,13 +77,13 @@ let json =
     let get m = Jsont.get m o in
     `Ok {
       id = get id; repos = get repos; pins = get pins;
-      compilers = get compilers; hosts = get hosts;
+      switches = get switches; hosts = get hosts;
       packages = get packages
     } in
   let enc t =
     Jsont.(new_obj c [
         memv id t.id; memv repos t.repos; memv pins t.pins;
-        memv compilers t.compilers; memv hosts t.hosts;
+        memv switches t.switches; memv hosts t.hosts;
         memv packages t.packages])
   in
   Jsont.view (dec, enc) c
@@ -91,42 +91,42 @@ let json =
 let pp ppf t =
   Fmt.(pf ppf
     "@[<v>\
-     id:        %a@,\
-     repos:     %a@,\
-     pins:      %a@,\
-     compilers: %a@,\
-     hosts:     %a@,\
-     packages:  %a@]"
+     id:       %a@,\
+     repos:    %a@,\
+     pins:     %a@,\
+     switches: %a@,\
+     hosts:    %a@,\
+     packages: %a@]"
     Id.pp t.id
     (list pp_repo) t.repos
     (list pp_pin) t.pins
-    (list Compiler.pp) t.compilers
+    (list Switch.pp) t.switches
     (list Host.pp) t.hosts
     (list Package.pp) t.packages)
 
 let id t = t.id
 let packages t = t.packages
 
-let hash ~repos ~pins ~compilers ~hosts ~packages =
+let hash ~repos ~pins ~switches ~hosts ~packages =
   let x l = String.concat "+" (List.sort compare l) in
   let y   = String.concat "-" in
   let p (x, y) = x ^ ":" ^ Uri.to_string y in
   let repos = List.map (function Repository s -> p s) repos in
   let pins = List.map (function Pin s -> p s) pins in
-  let compilers = List.map (Fmt.to_to_string Compiler.pp) compilers in
+  let switches = List.map (Fmt.to_to_string Switch.pp) switches in
   let hosts = List.map (Fmt.to_to_string Host.pp) hosts in
   let packages = List.map Package.to_string packages in
   let str = y [
       y repos; (* the order in which we stack the repos is important *)
-      x pins; x compilers; x hosts; x packages
+      x pins; x switches; x hosts; x packages
     ] in
   Id.digest `Task str
 
 let create ?(repos=[]) ?(pins=[])
-    ?(compilers=Compiler.defaults) ?(hosts=Host.defaults)
+    ?(switches=Switch.defaults) ?(hosts=Host.defaults)
     packages =
-  let id = hash ~repos ~pins ~compilers ~hosts ~packages in
-  { id; repos; pins; compilers; hosts; packages }
+  let id = hash ~repos ~pins ~switches ~hosts ~packages in
+  { id; repos; pins; switches; hosts; packages }
 
 type status = [
   | `Success

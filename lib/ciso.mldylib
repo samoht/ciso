@@ -1,12 +1,12 @@
 # OASIS_START
-# DO NOT EDIT (digest: e6f08ebef55f9a22ab43579c8f045ed4)
+# DO NOT EDIT (digest: a98b12fb8fecd86dbcd09688ed25d133)
 Id
 Task
 Job
 Object
 Package
 Host
-Compiler
+Switch
 Worker
 Store
 Gol

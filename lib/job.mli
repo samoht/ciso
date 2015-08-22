@@ -18,7 +18,7 @@
 
 (** Build jobs.
 
-    Jobs are for a given {{!module:Compiler}compiler} version and
+    Jobs are for a given {{!module:Switch}switch} version and
     {{!module:Host}host} configurations. Jobs have pre-requisites:
     these are {{!module:Object}objects} which needs to be built and be
     put into the {{!module:Worker}worker} context before the job could
@@ -40,10 +40,10 @@ type t
 
 val create:
   ?inputs:id list ->
-  Host.t -> Compiler.t -> (Package.t * Package.info) list -> t
+  Host.t -> Switch.t -> (Package.t * Package.info) list -> t
 (** [create h c pkgs] is the job of building the list of packages
-    [pkgs] using the OCaml compiler [c] on a worker having [h] as host
-    configuration.
+    [pkgs] using the OCaml compiler switch [c] on a worker having [h]
+    as host configuration.
 
     The job will be able to access the outputs objects created by the
     (optional) [inputs] jobs. *)
@@ -52,8 +52,8 @@ val id: t -> id
 (** [id t] id [t]'s deterministic identifier. It is obtained by hasing
     a stable representation of [t]'s components. *)
 
-val compiler: t -> Compiler.t
-(** [compiler t] is [t]'s compiler. *)
+val switch: t -> Switch.t
+(** [switch t] is [t]'s switch. *)
 
 val host: t -> Host.t
 (** [host t] is [t]'s host. *)

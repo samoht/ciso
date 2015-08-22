@@ -21,7 +21,7 @@ type id = [`Job] Id.t
 type t = {
   id      : id;                                                 (* the job id *)
   inputs  : id list;                 (* the transitive reduction of need jobs *)
-  compiler: Compiler.t;                     (* switch on which to run the job *)
+  switch  : Switch.t;                       (* switch on which to run the job *)
   host    : Host.t;                           (* host on which to run the job *)
   packages: (Package.t * Package.info) list; (* the list of packages to build *)
 }
@@ -41,20 +41,20 @@ let json =
   let o = Jsont.objc ~kind:"job" () in
   let id = Jsont.mem o "id" Id.json in
   let inputs = Jsont.(mem ~opt:`Yes_rem o "inputs" @@ array Id.json) in
-  let compiler = Jsont.(mem o "compiler" Compiler.json) in
+  let switch = Jsont.(mem o "switch" Switch.json) in
   let host = Jsont.(mem o "host" Host.json) in
   let packages = Jsont.(mem o "packages" @@ array json_package) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get m = Jsont.get m o in
     `Ok {
-      id = get id; inputs = get inputs; compiler = get compiler;
+      id = get id; inputs = get inputs; switch = get switch;
       host = get host; packages = get packages
     } in
   let enc t =
     Jsont.(new_obj c [
         memv id t.id; memv inputs t.inputs;
-        memv compiler t.compiler; memv host t.host;
+        memv switch t.switch; memv host t.host;
         memv packages t.packages])
   in
   Jsont.view (dec, enc) c
@@ -66,39 +66,39 @@ let pp ppf t =
     "@[<v>\
      id:       %a@;\
      inputs:   %a@;\
-     compiler: %a@;\
+     switch:   %a@;\
      host:     %a@;\
      packages: %a@]"
     Id.pp t.id
     (Fmt.list Id.pp) t.inputs
-    Compiler.pp t.compiler
+    Switch.pp t.switch
     Host.pp t.host
     (Fmt.list pp_package) t.packages
 
 let id t = t.id
 let inputs t = t.inputs
-let compiler t = t.compiler
+let switch t = t.switch
 let host t = t.host
 let packages t = t.packages
 
 let digest buf = Cstruct.to_string (Nocrypto.Hash.SHA1.digest buf)
 
-let hash ~host ~compiler ~packages =
+let hash ~host ~switch ~packages =
   let x l = String.concat "+" (List.sort String.compare l) in
   let y   = String.concat "-" in
-  let compilers = [Fmt.to_to_string Compiler.pp compiler] in
+  let switches = [Fmt.to_to_string Switch.pp switch] in
   let hosts = [Fmt.to_to_string Host.pp host] in
   let packages =
     List.map (fun (p, i) ->
         y [Package.to_string p; digest (Package.opam i); digest (Package.url i)]
       ) packages
   in
-  let str = y [x compilers; x hosts; x packages] in
+  let str = y [x switches; x hosts; x packages] in
   Id.digest `Job str
 
-let create ?(inputs=[]) host compiler packages =
-  let id = hash ~host ~compiler ~packages in
-  { id; inputs; compiler; host; packages; }
+let create ?(inputs=[]) host switch packages =
+  let id = hash ~host ~switch ~packages in
+  { id; inputs; switch; host; packages; }
 
 type status = [
   | `Success

@@ -49,13 +49,14 @@ val write_installed: Package.t list -> unit
 
 (** {1 OPAM commands} *)
 
-val install: Package.t -> [ `Fail of string | `Success] Lwt.t
-(** [install pkg] is similar to {i opam install pkg} but using
-    opam-lib. *)
+val install: Package.t -> unit Lwt.t
+(** [install pkg] is {i opam install [pkg]}. *)
 
 val remove: Package.t -> unit Lwt.t
-(** [remove pkg] is similar to {i opam remove pkg} but using
-    opam-lib. *)
+(** [remove pkg] is {i opam remove [pkg]}. *)
+
+val switch_to: Switch.t -> unit Lwt.t
+(** [switch_to s] is {i opam switch [s]}. *)
 
 (* FIXME *)
 
@@ -81,7 +82,6 @@ val update: unit -> unit Lwt.t
 
 val compiler: unit -> string
 
-val switch_to: string -> unit Lwt.t
 val install_switch: string -> unit Lwt.t
 val remove_switch: string -> unit Lwt.t
 val export_switch: string -> unit Lwt.t

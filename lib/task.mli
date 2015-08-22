@@ -61,11 +61,11 @@ val packages: t -> Package.t list
 val create:
   ?repos:repository list ->
   ?pins:pin list ->
-  ?compilers:Compiler.t list ->
+  ?switches:Switch.t list ->
   ?hosts:Host.t list ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
-    possible compiler version and on all possible host
+    possible compiler switches and on all possible host
     configurations. This task can somehow be attenuated by specifying
     some optional arguments:
 
@@ -74,12 +74,12 @@ val create:
        should use.}
     {- [pins] is the list of pinned packages that the worker should
        use.}
-    {- [compilers] restricts the list of compilers to test to only the
-       ones appearing in the list. An empty list means all the
-       supported compilers.}
-    {- [hosts] restricts the list of host kinds to test to only the
-       ones appearing in the list. An empty list means all the
-       supported hosts.}
+    {- [switches] restricts the list of compiler switches to test to
+       only the ones appearing in the list. An empty list means all
+       the {{!Switch.defaults}supported} compiler switches.}
+    {- [hosts] restricts the list of host configurations to test to only
+       the ones appearing in the list. An empty list means all the
+       {{!Host.defaults}supported} hosts.}
     }
 *)
 

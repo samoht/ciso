@@ -154,7 +154,8 @@ module System = struct
       let on_success () = debug "%s installed" src; Lwt.return_unit in
       exec ~on_success ~on_failure comm
     in
-    Lwt_list.iter_s (fun f ->
+    Lwt_list.iter_s (fun (f, _) ->
+        (* FIXME: verify integrity of the digest? *)
         let src_path = src / f in
         let dst_path = dst / f in
         mkdir (Filename.dirname (dst / f)) >>= fun () ->
@@ -192,6 +193,9 @@ let working_directory w =
   else
     Lwt.return path
 
+let archive_dir id =
+  Filename.get_temp_dir_name () / Id.to_string id  ^ ".tar.gz"
+
 let local_store w =
   working_directory w >>= fun root ->
   Store.local ~root ()
@@ -227,10 +231,15 @@ let fs_snapshots ?white_list dir =
   in
   loop [] sub_dirs
 
-let collect_outputs prefix pkg = function
+let opam_snapshot prefix =
+  if Sys.file_exists (prefix / "installed") then Opam.installed ()
+  else []
+
+(* FIXME: we want the outputs even if the job succeeds *)
+let collect_outputs prefix name = function
   | `Success -> Lwt.return []
-  | `Fail _  ->
-     let relative_path = "build" / Package.to_string pkg in
+  | `Failure ->
+     let relative_path = "build" / name in
      let path = prefix / relative_path in
      if Sys.file_exists path then
        let files = Sys.readdir path |> Array.to_list in
@@ -239,7 +248,7 @@ let collect_outputs prefix pkg = function
              (fun suffix -> Filename.check_suffix f suffix)
              [".info"; ".err"; ".out"; ".env"]
          ) files
-       |> List.rev_map (fun f -> relative_path / f)
+       |> List.rev_map (fun f -> let f = relative_path / f in f, Digest.file f)
        |> Lwt.return
      else
        Lwt.return []
@@ -254,19 +263,19 @@ let collect_installed prefix ~before ~after =
   (* TODO: collect deleted files *)
   let installed =
     List.fold_left (fun acc (f, checksum) ->
-        if not (CsMap.mem f cmap) then f :: acc else
+        if not (CsMap.mem f cmap) then (f, checksum) :: acc else
           let cs = CsMap.find f cmap in
-          if cs <> checksum then f :: acc
-          else acc
+          if cs <> checksum then (f, checksum) :: acc else acc
       ) [] after
   in
   (* 1 is for the delimiter *)
   let len = 1 + String.length prefix in
-  let chop_prefix f =
-    try String.sub f len (String.length f - len)
+  let chop_prefix (f, c) =
+    try String.sub f len (String.length f - len), c
     with e -> print_endline f; raise e
   in
-  Lwt.return (List.rev_map chop_prefix installed)
+  let files = List.rev_map chop_prefix installed in
+  Lwt.return files
 
 let compiler_fs_origin root switch ?snapshots () =
   let ss = match snapshots with
@@ -309,67 +318,68 @@ let switch_clean_up root compiler =
     done
   )
 
-
-(* FIXME: outputs should not be in the archive *)
-let create_object prefix id outputs files ~old_pkgs ~new_pkgs =
-  let dir = "/tmp" / Id.to_string id in
-  (if Sys.file_exists dir then System.exec ("rm -rf " ^ dir) else Lwt.return ())
-  >>= fun () ->
-  System.mkdir dir >>= fun () ->
+(* FIXME: console outputs should not be in the archive *)
+let create_archive prefix jid outputs files ~old_pkgs ~new_pkgs =
+  let path = archive_dir jid in
+  let dir  = Filename.dirname path in
   let files = List.rev_append outputs files in
   System.install_files ~src:prefix ~dst:dir files >>= fun () ->
   let installed = List.filter (fun p -> not (List.mem p old_pkgs)) new_pkgs in
   Opam.write_installed installed;
-  let name = Id.to_string id ^ ".tar.gz" in
-  let path = "/tmp" / name in
   let cmd = Printf.sprintf "tar -zcf %s %s" path dir in
   System.exec cmd >>= fun () ->
   System.read_file path >|= fun content ->
-  Object.create name, content
+  Object.archive files content
 
-let extract_object prefix obj =
-  let files = Object.files obj in
-  let archive = Object.archive obj in
-  System.install_archive archive >>= fun arch_path ->
-  System.extract_archive arch_path >>= fun () ->
-  let src = System.name_of_archive arch_path in
-  System.install_files ~src ~dst:prefix files >>= fun () ->
-  System.clean_tmp "extract_object" (Filename.basename arch_path) >>= fun () ->
-  Lwt.return arch_path
+let extract_obj prefix obj =
+  match Object.contents obj with
+  | Object.Stderr _ | Object.Stdout _ -> Lwt.return_none
+  | Object.Archive { Object.files; raw } ->
+    let path = archive_dir (Object.id obj) in
+    System.install_archive (path, raw) >>= fun arch_path ->
+    System.extract_archive arch_path >>= fun () ->
+    let src = System.name_of_archive arch_path in
+    System.install_files ~src ~dst:prefix files >>= fun () ->
+    System.clean_tmp "extract_object" (Filename.basename arch_path) >|= fun () ->
+    Some arch_path
 
-let pkg_build prefix jid pkg =
-  let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"] in
-  debug "pkg_build: snapshot %s BEFORE" prefix;
+let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"]
+
+let build name ~jid ~prefix ~install ~remove =
+  debug "build: %s, snapshot %s BEFORE" name prefix;
   let before = fs_snapshots ~white_list prefix in
-  let old_pkgs = Opam.installed () in
-  debug "pkg_build: %s" (Package.to_string pkg);
-  Opam.install pkg >>= fun result ->
-  (match result with
-   | `Success -> debug "pkg_build: %s SUCCESS" (Package.to_string pkg)
-   | `Fail f  -> debug "pkg_build: %s FAIL: %s" (Package.to_string pkg) f);
-  debug "pkg_build: snapshot %s AFTER" prefix;
+  let old_pkgs = opam_snapshot prefix in
+  debug "build: %s" name;
+  begin
+    Lwt.catch
+      (fun ()   -> install () >|= fun () -> `Success)
+      (fun _exn -> Lwt.return `Failure)
+  end >>= fun result ->
+  let () = match result with
+    | `Success -> debug "build: %s Success!" name
+    | `Failure -> debug "build: %s Failure!" name
+  in
+  debug "build: %s, snapshot %s AFTER" name prefix;
   let after = fs_snapshots ~white_list prefix in
-  let new_pkgs = Opam.installed () in
-  collect_outputs prefix pkg result >>= fun output ->
+  let new_pkgs = opam_snapshot prefix in
+  (* FIXME: move the outputs out of the archive *)
+  collect_outputs prefix name result      >>= fun output ->
   collect_installed prefix ~before ~after >>= fun installed ->
   create_archive prefix jid output installed ~old_pkgs ~new_pkgs
   >>= fun archive ->
-  System.clean_tmp "pkg_build" (fst archive) >>= fun () ->
-  Opam.remove pkg >|= fun () ->
-  result, output, installed, archive
+  System.clean_tmp "pkg_build" (archive_dir jid) >>= fun () ->
+  remove () >|= fun () ->
+  result, archive
 
-let build_compiler_object cid root compiler =
-  debug "snapshot: %s BEFORE" root;
-  let before = fs_snapshots ~white_list:[compiler] root in
-  Opam.install_switch compiler >>= fun () ->
-  debug "snapshot: %s AFTER" root;
-  let after = fs_snapshots ~white_list:[compiler] root in
-  compiler_fs_origin root compiler ~snapshots:after ();
-  let prefix = root / compiler in
-  collect_installed prefix ~before ~after >>= fun files ->
-  let new_pkgs = Opam.installed () in
-  create_archive prefix cid [] files ~old_pkgs:[] ~new_pkgs >|= fun archive ->
-  Object.create ~id:cid ~outputs:[] ~files ~archive
+let build_pkg pkg =
+  build (Package.to_string pkg)
+    ~install:(fun () -> Opam.install pkg)
+    ~remove: (fun () -> Opam.remove pkg)
+
+let build_switch switch =
+  build (Switch.to_string switch)
+    ~install:(fun () -> Opam.switch_to switch)
+    ~remove: (fun () -> Lwt.return_unit)
 
 let install_compiler worker c host =
   let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in

@@ -18,7 +18,7 @@ let package_t: Package.t Alcotest.testable = (module Package)
 let task_t: Task.t Alcotest.testable = (module Task)
 let host_t: Host.t Alcotest.testable = (module Host)
 let worker_t: Worker.t Alcotest.testable = (module Worker)
-let compiler_t: Compiler.t Alcotest.testable = (module Compiler)
+let switch_t: Switch.t Alcotest.testable = (module Switch)
 let job_t: Job.t Alcotest.testable = (module Job)
 let object_t: Object.t Alcotest.testable = (module Object)
 
@@ -83,11 +83,11 @@ let simple_host () =
       Alcotest.(check host_t) name h (json Host.json h)
     ) hosts
 
-let simple_compiler () =
+let simple_switch () =
   List.iter (fun c ->
-      let name = Fmt.to_to_string Compiler.pp c in
-      Alcotest.(check compiler_t) name c (json Compiler.json c)
-    ) Compiler.defaults
+      let name = Fmt.to_to_string Switch.pp c in
+      Alcotest.(check switch_t) name c (json Switch.json c)
+    ) Switch.defaults
 
 let simple_worker () =
   List.iter (fun w ->
@@ -108,7 +108,7 @@ let jobs =
       List.fold_left (fun acc c ->
           let inputs = List.map Job.id acc in
           Job.create ~inputs h c pkgs :: acc
-        ) acc Compiler.defaults
+        ) acc Switch.defaults
     ) [] hosts
 
 let simple_job () =
@@ -147,13 +147,13 @@ let simple_object () =
     ) objects
 
 let simple = [
-  "package" , `Quick, simple_package;
-  "task"    , `Quick, simple_task;
-  "host"    , `Quick, simple_host;
-  "compiler", `Quick, simple_compiler;
-  "worker"  , `Quick, simple_worker;
-  "job"     , `Quick, simple_job;
-  "object"  , `Quick, simple_object;
+  "package", `Quick, simple_package;
+  "task"   , `Quick, simple_task;
+  "host"   , `Quick, simple_host;
+  "switch" , `Quick, simple_switch;
+  "worker" , `Quick, simple_worker;
+  "job"    , `Quick, simple_job;
+  "object" , `Quick, simple_object;
 ]
 
 let () =
