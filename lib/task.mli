@@ -42,13 +42,19 @@ type t
 (** The type for task values. *)
 
 (** The type for remote opam repositories. *)
-type repository = Repository of (string * Uri.t)
+type repo = Repository of (string * Uri.t)
+
+val pp_repo: repo Fmt.t
+(** [pp_repository] formats a repository. *)
 
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
     be passed to {i opam pin add <name> <target>} *)
 type pin = Pin of (string * Uri.t)
+
+val pp_pin: pin Fmt.t
+(** [pp_pin] formats a pin package. *)
 
 val id: t -> id
 (** [id t] is [t]'s deterministic identifier. Is it obtaining by
@@ -59,10 +65,8 @@ val packages: t -> Package.t list
     install. *)
 
 val create:
-  ?repos:repository list ->
-  ?pins:pin list ->
-  ?switches:Switch.t list ->
-  ?hosts:Host.t list ->
+  ?repos:repo list -> ?pins:pin list ->
+  ?switches:Switch.t list -> ?hosts:Host.t list ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
     possible compiler switches and on all possible host

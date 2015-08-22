@@ -36,3 +36,23 @@ val json: t Jsont.codec
 val defaults: t list
 (** [defaults] is the list of host configurations supported by
     default. *)
+
+type os = [
+  | `Darwin
+  | `Linux
+  | `Unix
+  | `FreeBSD
+  | `OpenBSD
+  | `NetBSD
+  | `DragonFly
+  | `Win32
+  | `Cygwin
+  | `Other of string
+]
+(** The type for OS configuration. *)
+
+val pp_os: os Fmt.t
+(** [pp_os] format OS configurations. *)
+
+val os: t -> os
+(** [os t] is [t]'s OS. *)

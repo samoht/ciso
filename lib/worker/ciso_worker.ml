@@ -179,7 +179,11 @@ module System = struct
 
 end
 
-type t = { w: Worker.t; local : Store.t; global: Store.t }
+type t = {
+  w     : Worker.t;                              (* the worker configuration. *)
+  local : Store.t;              (* the local store, which is used as a cache. *)
+  global: Store.t;                   (* the global store, accessed over HTTP. *)
+}
 
 let idle_sleep = 3.0
 let working_sleep = 40.0
@@ -205,7 +209,7 @@ let create w uri =
   Store.remote ~uri () >|= fun global ->
   { w; local; global }
 
-let fs_snapshots ?white_list dir =
+let snapshots ?white_list ~prefix =
   let rec loop checksums = function
     | [] -> checksums
     | path :: tl ->
@@ -222,21 +226,21 @@ let fs_snapshots ?white_list dir =
         loop checksums (List.rev_append files tl)
   in
   let sub_dirs =
-    Sys.readdir dir
+    Sys.readdir prefix
     |> Array.to_list
     |> (fun lst -> match white_list with
         | Some wl -> List.filter (fun n -> List.mem n wl) lst
         | None    -> lst)
-    |> List.rev_map (fun n -> dir / n)
+    |> List.rev_map (fun n -> prefix / n)
   in
   loop [] sub_dirs
 
-let opam_snapshot prefix =
-  if Sys.file_exists (prefix / "installed") then Opam.installed ()
+let opam_snapshot ~prefix =
+  if Sys.file_exists (prefix / "installed") then Opam.read_installed ()
   else []
 
 (* FIXME: we want the outputs even if the job succeeds *)
-let collect_outputs prefix name = function
+let collect_outputs ~prefix name = function
   | `Success -> Lwt.return []
   | `Failure ->
      let relative_path = "build" / name in
@@ -253,7 +257,7 @@ let collect_outputs prefix name = function
      else
        Lwt.return []
 
-let collect_installed prefix ~before ~after =
+let collect_installed ~prefix ~before ~after =
   let module CsMap = Map.Make(String) in
   let cmap =
     List.fold_left
@@ -277,52 +281,10 @@ let collect_installed prefix ~before ~after =
   let files = List.rev_map chop_prefix installed in
   Lwt.return files
 
-let compiler_fs_origin root switch ?snapshots () =
-  let ss = match snapshots with
-    | Some s -> s
-    | None -> fs_snapshots ~white_list:[switch] root
-  in
-  debug "snapshots: %s origin fs state" switch;
-  origin_fs := List.rev_map fst ss
-
-let switch_clean_up root compiler =
-  let fs = !origin_fs in
-  if fs = [] then ()
-  else (
-    let module FileSet = Set.Make(String) in
-    let fset =
-      List.fold_left (fun acc f -> FileSet.add f acc) FileSet.empty fs
-    in
-    let read_dir dir =
-      Sys.readdir dir |> Array.to_list |> List.rev_map (fun f -> dir / f)
-    in
-    (* post-order iterate the fs, remove non-origin files and empty direcoties *)
-    let q = Queue.create () in
-    let s = Stack.create () in
-    Queue.add (root / compiler) q;
-    while not (Queue.is_empty q) do
-      let elem = Queue.pop q in
-      if Sys.is_directory elem then
-        read_dir elem
-        |> List.iter (fun sub -> Queue.add sub q);
-      Stack.push elem s;
-    done;
-    while not (Stack.is_empty s) do
-      let elem = Stack.pop s in
-      if Sys.is_directory elem then
-        if read_dir elem = [] then Unix.rmdir elem
-        else ()
-      else if not (FileSet.mem elem fset) then
-        Sys.remove elem
-      else ()
-    done
-  )
-
 (* FIXME: console outputs should not be in the archive *)
-let create_archive prefix jid outputs files ~old_pkgs ~new_pkgs =
-  let path = archive_dir jid in
+let create_archive ~prefix job files ~old_pkgs ~new_pkgs =
+  let path = archive_dir (Job.id job) in
   let dir  = Filename.dirname path in
-  let files = List.rev_append outputs files in
   System.install_files ~src:prefix ~dst:dir files >>= fun () ->
   let installed = List.filter (fun p -> not (List.mem p old_pkgs)) new_pkgs in
   Opam.write_installed installed;
@@ -331,24 +293,37 @@ let create_archive prefix jid outputs files ~old_pkgs ~new_pkgs =
   System.read_file path >|= fun content ->
   Object.archive files content
 
-let extract_obj prefix obj =
+let extract_object ~prefix obj =
   match Object.contents obj with
-  | Object.Stderr _ | Object.Stdout _ -> Lwt.return_none
+  | Object.Stderr _ | Object.Stdout _ -> Lwt.return_unit
   | Object.Archive { Object.files; raw } ->
     let path = archive_dir (Object.id obj) in
     System.install_archive (path, raw) >>= fun arch_path ->
     System.extract_archive arch_path >>= fun () ->
     let src = System.name_of_archive arch_path in
     System.install_files ~src ~dst:prefix files >>= fun () ->
-    System.clean_tmp "extract_object" (Filename.basename arch_path) >|= fun () ->
-    Some arch_path
+    System.clean_tmp "extract_object" (Filename.basename arch_path)
 
-let white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"]
+let prepare ~prefix t job  =
+  Lwt_list.fold_left_s (fun acc jid ->
+      Store.Job.outputs t.local jid >|= fun objs ->
+      objs @ acc
+    ) [] (Job.inputs job)
+  >>= fun objs ->
+  (* URGENT FIXME: installation order IS important *)
+  Lwt_list.iter_p (fun oid ->
+      Store.Object.find t.local oid >>= function
+      | None   -> err "cannot find object %s" (Id.to_string oid)
+      | Some o -> extract_object ~prefix o
+    ) objs
 
-let build name ~jid ~prefix ~install ~remove =
+let default_white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"]
+
+let build ?(white_list=default_white_list) t job name ~prefix ~install ~remove =
+  prepare ~prefix t job  >>= fun () ->
   debug "build: %s, snapshot %s BEFORE" name prefix;
-  let before = fs_snapshots ~white_list prefix in
-  let old_pkgs = opam_snapshot prefix in
+  let before = snapshots ~white_list ~prefix in
+  let old_pkgs = opam_snapshot ~prefix in
   debug "build: %s" name;
   begin
     Lwt.catch
@@ -360,64 +335,46 @@ let build name ~jid ~prefix ~install ~remove =
     | `Failure -> debug "build: %s Failure!" name
   in
   debug "build: %s, snapshot %s AFTER" name prefix;
-  let after = fs_snapshots ~white_list prefix in
-  let new_pkgs = opam_snapshot prefix in
+  let after = snapshots ~white_list ~prefix in
+  let new_pkgs = opam_snapshot ~prefix in
   (* FIXME: move the outputs out of the archive *)
-  collect_outputs prefix name result      >>= fun output ->
-  collect_installed prefix ~before ~after >>= fun installed ->
-  create_archive prefix jid output installed ~old_pkgs ~new_pkgs
+  collect_outputs ~prefix name result      >>= fun output ->
+  collect_installed ~prefix ~before ~after >>= fun installed ->
+  create_archive ~prefix job (output@installed) ~old_pkgs ~new_pkgs
   >>= fun archive ->
-  System.clean_tmp "pkg_build" (archive_dir jid) >>= fun () ->
+  System.clean_tmp "pkg_build" (archive_dir @@ Job.id job) >>= fun () ->
   remove () >|= fun () ->
-  result, archive
+  Store.with_transaction t.local "Job complete" (fun t ->
+      Store.Object.add t archive >>= fun () ->
+      Store.Job.add_output t (Job.id job) (Object.id archive)
+    ) >|= function
+  | true  -> result
+  | false -> `Failure
 
-let build_pkg pkg =
-  build (Package.to_string pkg)
-    ~install:(fun () -> Opam.install pkg)
-    ~remove: (fun () -> Opam.remove pkg)
+let build_pkg s job pkgs =
+  let pkgs = List.map fst pkgs in
+  let name = String.concat ", " (List.map Package.to_string pkgs) in
+  let prefix = Opam.root () / Switch.to_string (Job.switch job) in
+  build s job name
+    ~install:(fun () -> Opam.install pkgs)
+    ~remove: (fun () -> Opam.remove pkgs)
+    ~prefix
 
-let build_switch switch =
-  build (Switch.to_string switch)
+let build_switch s job =
+  let switch = Job.switch job in
+  let name = Switch.to_string switch in
+  let prefix = Opam.root () / name in
+  build s job name
     ~install:(fun () -> Opam.switch_to switch)
     ~remove: (fun () -> Lwt.return_unit)
+    ~prefix
 
-let install_compiler worker c host =
-  let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
-  let apply_compiler_obj obj =
-    debug "apply: %s start" c;
-    (* prefix directory has to be existe for apply_archive to work *)
-    let prefix = root / c in
-    (if not (Sys.file_exists prefix && Sys.is_directory prefix)
-     then Lwt_unix.mkdir prefix 0o770
-     else Lwt.return ()) >>= fun () ->
-    install_object prefix obj >>= fun _ ->
-    (* TODO: clean tmp archive file *)
-    Opam.switch_to c >|= fun () ->
-    debug "apply: %s end" c
-  in
-  local_query worker.local cid >>= fun local_exist ->
-  if local_exist then
-    (debug "install: %s retrieve locally" c;
-     local_retrieve worker.local cid) >>=
-    apply_compiler_obj >>= fun () ->
-    compiler_fs_origin root c ()
-  else
-    Store.query_compiler worker.store cid >>= fun remote_exist ->
-    if remote_exist then
-      (debug "install: %s retrieve remotely" c;
-       Store.retrieve_compiler worker.store cid) >>= fun cobj ->
-      local_publish worker.local cid cobj >>= fun () ->
-      apply_compiler_obj cobj >>= fun () ->
-      compiler_fs_origin root c ()
-    else
-      build_compiler_object cid root c >>= fun cobj ->
-      Store.publish_compiler worker.store cid cobj >>= fun () ->
-      local_publish worker.local cid cobj
+let procees_job s job =
+  match Job.packages job with
+  | []   -> build_switch s job (* FIXME: this condition is a bit weird *)
+  | pkgs ->  build_pkg s job pkgs
 
-let pkg_job_execute base worker jid job deps =
-  let root = OpamFilename.Dir.to_string OpamStateConfig.(!r.root_dir) in
-  let repos = Job.repos job in
-  let pins = Job.pins job in
+(*
   Lwt.catch (fun () ->
       (match repos with
        | [] -> Opam.clean_repos (); Lwt.return_unit
@@ -523,7 +480,9 @@ let rec execution_loop base worker cond =
     worker.status <- Idle;
     execution_loop base worker cond
   )
+*)
 
+(*
 let rec heartbeat_loop base worker cond =
   match worker.status with
   | Idle -> begin worker_heartbeat base worker >>= function
@@ -549,3 +508,4 @@ let run host uri =
     heartbeat_loop base worker cond;
     execution_loop base worker cond;
   ]
+*)

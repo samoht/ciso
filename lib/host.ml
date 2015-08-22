@@ -50,7 +50,7 @@ let has_command c =
 
 (* system detection *)
 
-let arch () =
+let guess_arch () =
   match command_output "uname -m" with
   | "x86_64" -> `X86_64
   | "x86" | "i386" | "i586" | "i686" -> `X86
@@ -58,7 +58,7 @@ let arch () =
   | "PPC" | "PowerPC" -> `PPC
   | s -> `Other s
 
-let os () = match Sys.os_type with
+let guess_os () = match Sys.os_type with
   | "Unix" ->
     (match command_output "uname -s" with
      | "Darwin"    -> `Darwin
@@ -72,7 +72,7 @@ let os () = match Sys.os_type with
   | "Cygwin" -> `Cygwin
   | s        -> `Other s
 
-let distrib = function
+let guess_distrib = function
   | `Darwin ->
     if has_command "brew" then Some `Homebrew
     else if has_command "port" then Some `Macports
@@ -206,11 +206,13 @@ type t = {
   distr: distr option;
 }
 
+let os t = t.os
+
 let create arch os distr = { arch; os; distr }
 
 let detect () =
-  let os = os () in
-  create (arch ()) os (distrib os)
+  let os = guess_os () in
+  create (guess_arch ()) os (guess_distrib os)
 
 let pp_arch ppf x = Fmt.string ppf (string_of_arch x)
 let pp_os ppf x = Fmt.string ppf (string_of_os x)

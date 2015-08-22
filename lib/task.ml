@@ -17,7 +17,7 @@
  *)
 
 (* name, address option *)
-type repository = Repository of (string * Uri.t)
+type repo = Repository of (string * Uri.t)
 
 (* package, target *)
 type pin = Pin of (string * Uri.t)
@@ -55,7 +55,7 @@ type id = [`Task] Id.t
 
 type t = {
   id: id;
-  repos: repository list;
+  repos: repo list;
   pins: pin list;
   switches: Switch.t list;
   hosts: Host.t list;

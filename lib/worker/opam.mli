@@ -21,50 +21,49 @@
 type plan
 (** The type for OPAM's build plan. *)
 
-val is_simple: plan -> Package.t option
-(** [is_simple p] is [Some pkg] if the plan [p] consists of only one
-    action: building and installing [p]. *)
+val host: plan -> Host.t
+(** [host p] is the host configuration of workers executing [p]. *)
 
-val resolve: string list -> plan
-(** [resolve atoms] returns a plan to build the list of (serialized) atoms
-    [atoms]. An atom is either:
+val switch: plan -> Switch.t
+(** [switch p] is the compiler switchs of workers executing [p]. *)
 
-    {ul
-    {- A package name.}
-    {- A package name and a fixed version, e.g. ["name.version"]}
-    {- A package name and a version constraint inequality,
-       e.g. ["name<=version"]. This is similar to what OPAM uses on
-       the command-line.}
-    }  *)
+val plans: ?hosts:Host.t list -> ?switches:Switch.t list -> Task.t -> plan list
+(** [plans t] is the list of plans, for all the supported hosts and
+    switches. If [hosts] is not set, use {!Host.defaults}. If
+    [switches] is not set, use {!Switch.default}. *)
 
-val resolve_packages: Package.t list -> plan
-(** Same as {!resolve} but without version constraint inequalities. *)
+val jobs: Task.t -> Job.t list
+(** [jobs p] are the jobs needed to execute the plan [p]. *)
 
-val installed: unit -> Package.t list
-(** [installed ()] is the list of installed packages on the current switch. *)
+(** {1 OPAM files} *)
+
+val read_installed: unit -> Package.t list
+(** [read_installed ()] is the list of installed packages on the
+    current switch. *)
 
 val write_installed: Package.t list -> unit
 (** [write_installed pkgs] update the OPAM state to state that the
     package [pkgs] are installed. *)
 
+val write_pinned: Task.pin list -> unit
+(** [write_pinned] write the list of pinned packages. *)
+
 (** {1 OPAM commands} *)
 
-val install: Package.t -> unit Lwt.t
-(** [install pkg] is {i opam install [pkg]}. *)
+val root: unit -> string
+(** [root ()] is {i opam config var root}. *)
 
-val remove: Package.t -> unit Lwt.t
-(** [remove pkg] is {i opam remove [pkg]}. *)
+val install: Package.t list -> unit Lwt.t
+(** [install pkgs] is {i opam install [pkgs]}. *)
+
+val remove: Package.t list -> unit Lwt.t
+(** [remove pkgs] is {i opam remove [pkgs]}. *)
 
 val switch_to: Switch.t -> unit Lwt.t
 (** [switch_to s] is {i opam switch [s]}. *)
 
-(* FIXME *)
-
-type job = Job.id * Job.t * Object.id list
-
-val jobs: ?repos:Task.repository list -> ?pins:Task.pin list -> plan -> job list
-(** [jobs p] is the list of jobs needed to fulfil the plan [p]. *)
-(* FIXME: should take a user-defined task as argument ... *)
+val current_switch: unit -> Switch.t
+(** [current_switch ()] is {i opam switch show}. *)
 
 (* FIXME: review the doc *)
 
@@ -80,14 +79,12 @@ val get_var: string -> string
 
 val update: unit -> unit Lwt.t
 
-val compiler: unit -> string
-
 val install_switch: string -> unit Lwt.t
 val remove_switch: string -> unit Lwt.t
 val export_switch: string -> unit Lwt.t
 
 val clean_repos: unit -> unit
-val add_repos: Task.repository list -> unit Lwt.t
+val add_repos: Task.repo list -> unit Lwt.t
 
 val add_pins: Task.pin list -> unit Lwt.t
 val show_repo_pin: unit -> unit Lwt.t
