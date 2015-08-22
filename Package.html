@@ -19,9 +19,7 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Compiler" rel="Chapter" href="Compiler.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><link title="Package Information" rel="Section" href="#1_PackageInformation">
-<link title="Package Information" rel="Section" href="#1_PackageInformation">
-<title>Package</title>
+<link title="Store" rel="Chapter" href="Store.html"><title>Package</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Object.html" title="Object">Previous</a>
@@ -64,8 +62,14 @@ The type for package names with an optional version.<br>
 <code class="code">to_string t</code> is <code class="code">name t ^ <span class="string">"."</span> v</code> if <code class="code">t</code> has the version <code class="code">v</code>,
     otherwise it is <code class="code">name t</code>.<br>
 </div>
-<br>
-<h1 id="1_PackageInformation">Package Information</h1><br>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Package.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for packages.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Package.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats packages.<br>
+</div>
 
 <pre><span id="TYPEinfo"><span class="keyword">type</span> <code class="type"></code>info</span> </pre>
 <div class="info ">
@@ -82,37 +86,15 @@ The type for package information values.<br>
 <code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.<br>
 </div>
 
-<pre><span id="VALurl"><span class="keyword">val</span> url</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Cstruct.t</code></pre>
-<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Package.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Package.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for package names with an optional version.<br>
-</div>
-<br>
-<code class="code">name t</code> is <code class="code">t</code>'s name.<br>
-<br>
-<code class="code">version t</code> is <code class="code">t</code>'s version or <code class="code"><span class="constructor">None</span></code> it <code class="code">t</code> does not have any
-    version.<br>
-<br>
-<code class="code">create ?version name</code> is the opam package <code class="code">name.version</code>.<br>
-<br>
-<code class="code">of_string <span class="string">"n.v"</span></code> is the package with name <code class="code">n</code> and version <code class="code">v</code>. If
-    <code class="code">s</code> does not contain any string, it is the package with name <code class="code">s</code>
-    and no version.<br>
-<br>
-<code class="code">to_string t</code> is <code class="code">name t ^ <span class="string">"."</span> v</code> if <code class="code">t</code> has the version <code class="code">v</code>,
-    otherwise it is <code class="code">name t</code>.<br>
-<br>
-<h1 id="1_PackageInformation">Package Information</h1><br>
-
-<pre><span id="VALinfo_of_sexp"><span class="keyword">val</span> info_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Package.html#TYPEinfo">info</a></code></pre>
-<pre><span id="VALsexp_of_info"><span class="keyword">val</span> sexp_of_info</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for package information values.<br>
-</div>
-<br>
-<code class="code">info ~opam ~url</code> is the package information value containing the
-    given opam and url file contents.<br>
-<br>
-<code class="code">opam i</code> is the contents of <code class="code">i</code>'s opam file.<br>
-<br>
+<pre><span id="VALurl"><span class="keyword">val</span> url</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> -> Cstruct.t</code></pre><div class="info ">
 <code class="code">url i</code> is the contents of <code class="code">i</code>'s url file.<br>
+</div>
+
+<pre><span id="VALpp_info"><span class="keyword">val</span> pp_info</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp_info</code> formats package infos.<br>
+</div>
+
+<pre><span id="VALjson_info"><span class="keyword">val</span> json_info</span> : <code class="type"><a href="Package.html#TYPEinfo">info</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json_info</code> is the JSON codec for package infos.<br>
+</div>
 </body></html>

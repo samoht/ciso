@@ -47,22 +47,12 @@ Detects the host configuration.<br>
 <code class="code">pp</code> formats a <a href="Host.html#TYPEt">host configuration</a>.<br>
 </div>
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Host.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Host.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for host configurations.<br>
 </div>
 
-<pre><span id="VALdefaults"><span class="keyword">val</span> defaults</span> : <code class="type"><a href="Host.html#TYPEt">t</a> list</code></pre>
-<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Host.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Host.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for host configuration.<br>
-</div>
-<br>
-Detects the host configuration.<br>
-<br>
-<code class="code">pp</code> formats a <a href="Host.html#TYPEt">host configuration</a>.<br>
-<br>
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-<br>
+<pre><span id="VALdefaults"><span class="keyword">val</span> defaults</span> : <code class="type"><a href="Host.html#TYPEt">t</a> list</code></pre><div class="info ">
 <code class="code">defaults</code> is the list of host configurations supported by
     default.<br>
+</div>
 </body></html>

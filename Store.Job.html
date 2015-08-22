@@ -19,8 +19,7 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Compiler" rel="Chapter" href="Compiler.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting Job State" rel="Section" href="#1_PersistingJobState">
-<title>Store.Job</title>
+<link title="Store" rel="Chapter" href="Store.html"><title>Store.Job</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Store.Task.html" title="Store.Task">Previous</a>
@@ -30,8 +29,6 @@
 <h1>Module <a href="type_Store.Job.html">Store.Job</a></h1>
 
 <pre><span class="keyword">module</span> Job: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
-<br>
-<h1 id="1_PersistingJobState">Persisting Job State</h1><br>
 
 <pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
 
@@ -47,8 +44,8 @@
 <code class="code">success t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>.<br>
 </div>
 
-<pre><span id="VALfailure"><span class="keyword">val</span> failure</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> string -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">failure t id msg</code> set <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Failure</span> msg</code>.<br>
+<pre><span id="VALfailure"><span class="keyword">val</span> failure</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">failure t id</code> set <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Failure</span></code>.<br>
 </div>
 
 <pre><span id="VALadd_output"><span class="keyword">val</span> add_output</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Object.html#TYPEid">Object.id</a> -> unit Lwt.t</code></pre><div class="info ">

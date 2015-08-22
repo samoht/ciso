@@ -39,25 +39,15 @@ The type for compiler versions.<br>
 </div>
 
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is <code class="code">t</code>'s string representation.<br>
-</div>
-
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Compiler.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string s</code> is the compiler version <code class="code">t</code> such that <code class="code">to_string t</code>
-    is <code class="code">s</code>.<br>
-</div>
-
-<pre><span id="VALdefaults"><span class="keyword">val</span> defaults</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> list</code></pre>
-<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Compiler.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for compiler versions.<br>
-</div>
-<br>
-<code class="code">to_string t</code> is <code class="code">t</code>'s string representation.<br>
-<br>
-<code class="code">of_string s</code> is the compiler version <code class="code">t</code> such that <code class="code">to_string t</code>
-    is <code class="code">s</code>.<br>
-<br>
+<pre><span id="VALdefaults"><span class="keyword">val</span> defaults</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> list</code></pre><div class="info ">
 <code class="code">defaults</code> is the list of compilers supported by default.<br>
+</div>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for values compiler versions.<br>
+</div>
+
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Compiler.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats compiler versions.<br>
+</div>
 </body></html>

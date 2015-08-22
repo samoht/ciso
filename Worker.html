@@ -19,8 +19,7 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Compiler" rel="Chapter" href="Compiler.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><link title="Worker Status" rel="Section" href="#1_WorkerStatus">
-<title>Worker</title>
+<link title="Store" rel="Chapter" href="Store.html"><title>Worker</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Compiler.html" title="Compiler">Previous</a>
@@ -52,6 +51,14 @@ The type for worker configration .<br>
 </div>
 
 
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Worker.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats workers.<br>
+</div>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Worker.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON coded for workers.<br>
+</div>
+
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Host.html#TYPEt">Host.t</a> -> <a href="Worker.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">create h</code> is the worker with host configuration <code class="code">h</code>.<br>
 </div>
@@ -66,16 +73,6 @@ The type for worker configration .<br>
 <code class="code">host t</code> is <code class="code">t</code>'s host configuration.<br>
 </div>
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Worker.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-</div>
-
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Worker.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string s</code> is the worker <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
-</div>
-<br>
-<h1 id="1_WorkerStatus">Worker Status</h1><br>
-
 <pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Idle | `Job of <a href="Job.html#TYPEid">Job.id</a> | `Task of <a href="Task.html#TYPEid">Task.id</a> ]</code> </pre>
 <div class="info ">
 The worker status. Can either be idle, or processing a build job,
@@ -83,12 +80,11 @@ The worker status. Can either be idle, or processing a build job,
 </div>
 
 
-<pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Worker.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
-<code class="code">string_of_status t</code> is the string representation of <code class="code">t</code>.<br>
+<pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Worker.html#TYPEstatus">status</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp_status</code> formats worker status.<br>
 </div>
 
-<pre><span id="VALstatus_of_string"><span class="keyword">val</span> status_of_string</span> : <code class="type">string -> <a href="Worker.html#TYPEstatus">status</a></code></pre><div class="info ">
-<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
-    t</code> is <code class="code">s</code>.<br>
+<pre><span id="VALjson_status"><span class="keyword">val</span> json_status</span> : <code class="type"><a href="Worker.html#TYPEstatus">status</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json_status</code> is the JSON codec for worker status.<br>
 </div>
 </body></html>

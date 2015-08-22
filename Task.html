@@ -19,9 +19,7 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Compiler" rel="Chapter" href="Compiler.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><link title="Task Status" rel="Section" href="#1_TaskStatus">
-<link title="Task Status" rel="Section" href="#1_TaskStatus">
-<title>Task</title>
+<link title="Store" rel="Chapter" href="Store.html"><title>Task</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Id.html" title="Id">Previous</a>
@@ -71,10 +69,13 @@ The type for task values.<br>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTrepository.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">string * string</code></code></td>
+<code><span id="TYPEELTrepository.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
 
 </tr></table>
 
+<div class="info ">
+The type for remote opam repositories.<br>
+</div>
 
 
 <pre><code><span id="TYPEpin"><span class="keyword">type</span> <code class="type"></code>pin</span> = </code></pre><table class="typetable">
@@ -82,7 +83,7 @@ The type for task values.<br>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTpin.Pin"><span class="constructor">Pin</span></span> <span class="keyword">of</span> <code class="type">string * string</code></code></td>
+<code><span id="TYPEELTpin.Pin"><span class="constructor">Pin</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
 
 </tr></table>
 
@@ -126,15 +127,13 @@ The type for pinned packages. The first argument is a package
 <br>
 </div>
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Task.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats tasks.<br>
 </div>
 
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Task.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Task.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for tasks.<br>
 </div>
-<br>
-<h1 id="1_TaskStatus">Task Status</h1><br>
 
 <pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `Pending | `Success ]</code> </pre>
 <div class="info ">
@@ -146,76 +145,7 @@ The type for task status.<br>
 <code class="code">pp_status</code> formats tasks <a href="Task.html#TYPEstatus"><code class="code"><span class="constructor">Task</span>.status</code></a>.<br>
 </div>
 
-<pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Task.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
-<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
+<pre><span id="VALjson_status"><span class="keyword">val</span> json_status</span> : <code class="type"><a href="Task.html#TYPEstatus">status</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json_status</code> is the JSON coded for task status.<br>
 </div>
-
-<pre><span id="VALstatus_of_string"><span class="keyword">val</span> status_of_string</span> : <code class="type">string -> <a href="Task.html#TYPEstatus">status</a></code></pre>
-<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEid">id</a></code></pre>
-<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Task.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for task identifiers. These identifiers are
-    deterministic, i.e. similar tasks will have the same
-    identifiers. This is done by hashing the concatenation of
-    <a href="Task.html#VALcreate"><code class="code"><span class="constructor">Task</span>.create</code></a> arguments (after normalisation) and calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
-    on the result.<br>
-</div>
-
-<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type"><a href="Task.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for task values.<br>
-</div>
-
-<pre><span id="VALrepository_of_sexp"><span class="keyword">val</span> repository_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPErepository">repository</a></code></pre><div class="info ">
-The type for remote opam repositories.<br>
-</div>
-
-<pre><span id="VALsexp_of_repository"><span class="keyword">val</span> sexp_of_repository</span> : <code class="type"><a href="Task.html#TYPErepository">repository</a> -> Sexplib.Sexp.t</code></pre>
-<pre><span id="VALpin_of_sexp"><span class="keyword">val</span> pin_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Task.html#TYPEpin">pin</a></code></pre><div class="info ">
-The type for pinned packages. The first argument is a package
-    name, the second one its pin target. It is either a version
-    string, or a Git repository. The target is similar to what would
-    be passed to <i>opam pin add &lt;name&gt; &lt;target&gt;</i><br>
-</div>
-
-<pre><span id="VALsexp_of_pin"><span class="keyword">val</span> sexp_of_pin</span> : <code class="type"><a href="Task.html#TYPEpin">pin</a> -> Sexplib.Sexp.t</code></pre><br>
-<code class="code">id t</code> is <code class="code">t</code>'s deterministic identifier. Is it obtaining by
-    hashing a stable representation of <code class="code">t</code>'s components.<br>
-<br>
-<code class="code">packages t</code>'s is the list of packages that <code class="code">t</code> wants to
-    install.<br>
-<br>
-<code class="code">create pkgs</code> is the task of building the packages <code class="code">pkgs</code> on all
-    possible compiler version and on all possible host
-    configurations. This task can somehow be attenuated by specifying
-    some optional arguments:
-<p>
-
-    <ul>
-<li><code class="code">repos</code> is the list of (remote) repositories the the workers
-       should use.</li>
-<li><code class="code">pins</code> is the list of pinned packages that the worker should
-       use.</li>
-<li><code class="code">compilers</code> restricts the list of compilers to test to only the
-       ones appearing in the list. An empty list means all the
-       supported compilers.</li>
-<li><code class="code">hosts</code> restricts the list of host kinds to test to only the
-       ones appearing in the list. An empty list means all the
-       supported hosts.</li>
-</ul>
-<br>
-<br>
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-<br>
-<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
-<br>
-<h1 id="1_TaskStatus">Task Status</h1><br>
-<br>
-The type for task status.<br>
-<br>
-<code class="code">pp_status</code> formats tasks <a href="Task.html#TYPEstatus"><code class="code"><span class="constructor">Task</span>.status</code></a>.<br>
-<br>
-<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
-<br>
-<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
-    t</code> is <code class="code">s</code>.<br>
 </body></html>

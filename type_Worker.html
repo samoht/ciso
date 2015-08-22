@@ -20,12 +20,12 @@
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Worker</span>&nbsp;]&nbsp;<span class="constructor">Id</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp&nbsp;:&nbsp;<span class="constructor">Worker</span>.t&nbsp;<span class="constructor">Fmt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json&nbsp;:&nbsp;<span class="constructor">Worker</span>.t&nbsp;<span class="constructor">Jsont</span>.codec<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Worker</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id&nbsp;:&nbsp;<span class="constructor">Worker</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Worker</span>.id<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;host&nbsp;:&nbsp;<span class="constructor">Worker</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Host</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Worker</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Worker</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;status&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Idle</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Job</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Job</span>.id&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Task</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Task</span>.id&nbsp;]<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;string_of_status&nbsp;:&nbsp;<span class="constructor">Worker</span>.status&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;status_of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Worker</span>.status<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp_status&nbsp;:&nbsp;<span class="constructor">Worker</span>.status&nbsp;<span class="constructor">Fmt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json_status&nbsp;:&nbsp;<span class="constructor">Worker</span>.status&nbsp;<span class="constructor">Jsont</span>.codec<br>
 <span class="keyword">end</span></code></body></html>

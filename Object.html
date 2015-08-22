@@ -109,13 +109,12 @@ The type for object values.<br>
 </div>
 
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representing <code class="code">t</code>.<br>
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> format objects.<br>
 </div>
 
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string s</code> is the object <code class="code">t</code> whose string representation is
-    <code class="code">s</code>.<br>
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Object.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for objects.<br>
 </div>
 
 <pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEid">id</a></code></pre><div class="info ">
@@ -140,41 +139,8 @@ The type for object values.<br>
     standard output of a job.<br>
 </div>
 
-<pre><span id="VALstderr"><span class="keyword">val</span> stderr</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre>
-<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Object.html#TYPEid">id</a></code></pre>
-<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Object.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for object identifiers. Object identifiers are
-    deterministic, i.e. two similar objects will have the same
-    identifiers. The notion of similiraty depends on the object
-    type.<br>
-</div>
-<br>
-The type for archive values.<br>
-<br>
-The type for object contents. Can either be an archive, or stdout
-    and stderr dumps.<br>
-<br>
-The type for object kinds.<br>
-<br>
-The type for object values.<br>
-<br>
-<code class="code">to_string t</code> is the string representing <code class="code">t</code>.<br>
-<br>
-<code class="code">of_string s</code> is the object <code class="code">t</code> whose string representation is
-    <code class="code">s</code>.<br>
-<br>
-<code class="code">id t</code> is <code class="code">t</code>'s id.<br>
-<br>
-<code class="code">contents t</code> is <code class="code">t</code>s contents.<br>
-<br>
-<code class="code">kind t</code> is <code class="code">t</code>'s kind.<br>
-<br>
-<code class="code">archive f c</code> is the archive containing the files <code class="code">f</code> and with raw
-    contents <code class="code">c</code>.<br>
-<br>
-<code class="code">stdout lines</code> is the object containing the <code class="code">lines</code> of the
-    standard output of a job.<br>
-<br>
+<pre><span id="VALstderr"><span class="keyword">val</span> stderr</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">stderr lines</code> is similar to <a href="Object.html#VALstdout"><code class="code"><span class="constructor">Object</span>.stdout</code></a> but for the standard
     errors.<br>
+</div>
 </body></html>

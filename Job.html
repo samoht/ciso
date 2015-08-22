@@ -70,12 +70,12 @@ The type for job values.<br>
     (optional) <code class="code">inputs</code> jobs.<br>
 </div>
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for jobs.<br>
 </div>
 
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">string -> <a href="Job.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type"><a href="Job.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
+<code class="code">pp</code> formats jobs.<br>
 </div>
 
 <pre><span id="VALid"><span class="keyword">val</span> id</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> <a href="Job.html#TYPEid">id</a></code></pre><div class="info ">
@@ -98,75 +98,24 @@ The type for job values.<br>
 <pre><span id="VALpackages"><span class="keyword">val</span> packages</span> : <code class="type"><a href="Job.html#TYPEt">t</a> -> (<a href="Package.html#TYPEt">Package.t</a> * <a href="Package.html#TYPEinfo">Package.info</a>) list</code></pre><div class="info ">
 <code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.<br>
 </div>
-<br>
-<br>
 
-<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure of string | `Pending | `Running | `Success ]</code> </pre>
+<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `Pending | `Running | `Success ]</code> </pre>
 <div class="info ">
 The type for job status.<br>
 </div>
 
 
+<pre><span id="VALjson_status"><span class="keyword">val</span> json_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json_status</code> is the JSON codec for job status.<br>
+</div>
+
 <pre><span id="VALpp_status"><span class="keyword">val</span> pp_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> Fmt.t</code></pre><div class="info ">
 <code class="code">pp_status</code> formats jobs <a href="Job.html#TYPEstatus"><code class="code"><span class="constructor">Job</span>.status</code></a>.<br>
 </div>
 
-<pre><span id="VALstring_of_status"><span class="keyword">val</span> string_of_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> -> string</code></pre><div class="info ">
-<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
-</div>
-
-<pre><span id="VALstatus_of_string"><span class="keyword">val</span> status_of_string</span> : <code class="type">string -> <a href="Job.html#TYPEstatus">status</a></code></pre><div class="info ">
-<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
-    t</code> is <code class="code">s</code>.<br>
-</div>
-
-<pre><span id="VALtask_status"><span class="keyword">val</span> task_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> list -> <a href="Task.html#TYPEstatus">Task.status</a></code></pre>
-<pre><span id="VALid_of_sexp"><span class="keyword">val</span> id_of_sexp</span> : <code class="type">Sexplib.Sexp.t -> <a href="Job.html#TYPEid">id</a></code></pre>
-<pre><span id="VALsexp_of_id"><span class="keyword">val</span> sexp_of_id</span> : <code class="type"><a href="Job.html#TYPEid">id</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for job identifiers. Job identifiers are deterministic,
-    i.e. similar jobs will have the same identifiers. As for
-    <a href="Task.html#VALid">tasks</a>, the identifier is built by calling <a href="Id.html#VALdigest"><code class="code"><span class="constructor">Id</span>.digest</code></a>
-    on the concatenation of <a href="Job.html#VALcreate"><code class="code"><span class="constructor">Job</span>.create</code></a> arguments (after
-    normalisation).<br>
-</div>
-<br>
-The type for job values.<br>
-<br>
-<code class="code">create h c pkgs</code> is the job of building the list of packages
-    <code class="code">pkgs</code> using the OCaml compiler <code class="code">c</code> on a worker having <code class="code">h</code> as host
-    configuration.
-<p>
-
-    The job will be able to access the outputs objects created by the
-    (optional) <code class="code">inputs</code> jobs.<br>
-<br>
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-<br>
-<code class="code">of_string s</code> is the value <code class="code">t</code> such that <code class="code">to_string t</code> is <code class="code">s</code>.<br>
-<br>
-<code class="code">id t</code> id <code class="code">t</code>'s deterministic identifier. It is obtained by hasing
-    a stable representation of <code class="code">t</code>'s components.<br>
-<br>
-<code class="code">compiler t</code> is <code class="code">t</code>'s compiler.<br>
-<br>
-<code class="code">host t</code> is <code class="code">t</code>'s host.<br>
-<br>
-<code class="code">input t</code> are <code class="code">t</code>'s job inputs.<br>
-<br>
-<code class="code">packages t</code> are the packages that <code class="code">t</code> has to build.<br>
-<br>
-<br>
-<br>
-The type for job status.<br>
-<br>
-<code class="code">pp_status</code> formats jobs <a href="Job.html#TYPEstatus"><code class="code"><span class="constructor">Job</span>.status</code></a>.<br>
-<br>
-<code class="code">string_of_result r</code> is the string representation of <code class="code">r</code>.<br>
-<br>
-<code class="code">status_of_string s</code> is the status <code class="code">t</code> such that <code class="code">string_of_status
-    t</code> is <code class="code">s</code>.<br>
-<br>
+<pre><span id="VALtask_status"><span class="keyword">val</span> task_status</span> : <code class="type"><a href="Job.html#TYPEstatus">status</a> list -> <a href="Task.html#TYPEstatus">Task.status</a></code></pre><div class="info ">
 <code class="code">task_status s</code> is the status summary of s. If all status are
     <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code> then it is a <code class="code"><span class="keywordsign">`</span><span class="constructor">Success</span></code>. If all status are <code class="code"><span class="keywordsign">`</span><span class="constructor">Failed</span></code>
     then it is also <code class="code"><span class="keywordsign">`</span><span class="constructor">Failed</span></code>. Otherwise it is <code class="code"><span class="keywordsign">`</span><span class="constructor">Pending</span></code>.<br>
+</div>
 </body></html>

@@ -49,6 +49,14 @@ The type for deterministic or random dentifiers.<br>
     <a href="http://tools.ietf.org/html/rfc4122">RFC 4122</a>.<br>
 </div>
 
+<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">of_string</code> is the identity function.<br>
+</div>
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<code class="code">to_string</code> is the identity function.<br>
+</div>
+
 <pre><span id="VALdigest"><span class="keyword">val</span> digest</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.<br>
 </div>
@@ -57,33 +65,11 @@ The type for deterministic or random dentifiers.<br>
 <code class="code">compare x y</code> compares the representation of two identifiers.<br>
 </div>
 
-<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-</div>
-
-<pre><span id="VALof_string"><span class="keyword">val</span> of_string</span> : <code class="type">'a -> string -> 'a <a href="Id.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">of_string k s</code> is the identifier <code class="code">t</code> of type <code class="code">k</code> such that
-    <code class="code">to_string t</code> is <code class="code">s</code>.<br>
-</div>
-
-<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> Fmt.t</code></pre>
-<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'a) -> Sexplib.Sexp.t -> 'a <a href="Id.html#TYPEt">t</a></code></pre>
-<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('a -> Sexplib.Sexp.t) -> 'a <a href="Id.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre><div class="info ">
-The type for deterministic or random dentifiers.<br>
-</div>
-<br>
-<code class="code">uuid k</code> is a a 128 bits universally unique identifiers (UUID)
-    version 4 (random based) according to
-    <a href="http://tools.ietf.org/html/rfc4122">RFC 4122</a>.<br>
-<br>
-<code class="code">digest k s</code> is <code class="code">s</code>'s SHA1 digest.<br>
-<br>
-<code class="code">compare x y</code> compares the representation of two identifiers.<br>
-<br>
-<code class="code">to_string t</code> is the string representation of <code class="code">t</code>.<br>
-<br>
-<code class="code">of_string k s</code> is the identifier <code class="code">t</code> of type <code class="code">k</code> such that
-    <code class="code">to_string t</code> is <code class="code">s</code>.<br>
-<br>
+<pre><span id="VALpp"><span class="keyword">val</span> pp</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> Fmt.t</code></pre><div class="info ">
 <code class="code">pp t</code> formats <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type">'a <a href="Id.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
+<code class="code">json</code> is the JSON codec for identifiers.<br>
+</div>
 </body></html>

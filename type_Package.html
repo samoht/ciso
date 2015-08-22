@@ -24,12 +24,12 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;?version:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Package</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json&nbsp;:&nbsp;<span class="constructor">Package</span>.t&nbsp;<span class="constructor">Jsont</span>.codec<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp&nbsp;:&nbsp;<span class="constructor">Package</span>.t&nbsp;<span class="constructor">Fmt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;info<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;info&nbsp;:&nbsp;opam:<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;url:<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.info<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;opam&nbsp;:&nbsp;<span class="constructor">Package</span>.info&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cstruct</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;url&nbsp;:&nbsp;<span class="constructor">Package</span>.info&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cstruct</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;t_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_t&nbsp;:&nbsp;<span class="constructor">Package</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;info_of_sexp&nbsp;:&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Package</span>.info<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;sexp_of_info&nbsp;:&nbsp;<span class="constructor">Package</span>.info&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sexplib</span>.<span class="constructor">Sexp</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp_info&nbsp;:&nbsp;<span class="constructor">Package</span>.info&nbsp;<span class="constructor">Fmt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json_info&nbsp;:&nbsp;<span class="constructor">Package</span>.info&nbsp;<span class="constructor">Jsont</span>.codec<br>
 <span class="keyword">end</span></code></body></html>
