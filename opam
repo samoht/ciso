@@ -27,8 +27,8 @@ depends: [
   "hex"
   "fmt"
   "jsont"
+  "opam-lib"
+  "ocamlgraph"
   "js_of_ocaml" # needed because of https://github.com/dbuenzli/jsont/issues/3
 #  "cmdliner"
-#  "opam-lib"
-#  "ocamlgraph"
 ]
