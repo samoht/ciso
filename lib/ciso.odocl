@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7e743519a726c493f82e74bae3dece54)
+# DO NOT EDIT (digest: 5fe49a1d363dbcbb0728c320fa4eee5d)
 Id
 Task
 Job
@@ -9,4 +9,5 @@ Host
 Switch
 Worker
 Store
+Scheduler
 # OASIS_STOP

@@ -11,7 +11,7 @@ Library ciso
   Path: lib
   InternalModules: Gol
   Modules:
-    Id, Task, Job, Object, Package, Host, Switch, Worker, Store
+    Id, Task, Job, Object, Package, Host, Switch, Worker, Store, Scheduler
   BuildDepends:
     irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
 
@@ -48,7 +48,6 @@ Library "ciso-master"
   Path: lib/master
   FindlibParent: ciso
   FindlibName: master
-  InternalModules: Scheduler
   Modules: Master
   BuildDepends: ciso, lwt
 
