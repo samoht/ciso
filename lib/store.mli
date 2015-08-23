@@ -44,9 +44,8 @@ val with_transaction:
     exponential back-off. Return [true] is the transaction is
     successful. *)
 
+(** The signature for objects kept in the store. *)
 module type S = sig
-
-  (** The general signature to add and find values in the store. *)
 
   type id
   (** Type type for stable identifier of values kept in the store. *)
@@ -70,9 +69,8 @@ module type S = sig
 
 end
 
+(** Persisting state for workers. *)
 module Worker: sig
-
-  (** {1 Persisting worker state} *)
 
   include S with type id := Worker.id and type value := Worker.t
 
@@ -113,9 +111,8 @@ module Worker: sig
 
 end
 
+(** Persisting state for tasks. *)
 module Task: sig
-
-  (** {1 Persisting Task State} *)
 
   include S with type id := Task.id and type value := Task.t
 
@@ -134,9 +131,8 @@ module Task: sig
 
 end
 
+(** Persisting state for jobs. *)
 module Job: sig
-
-  (** {1 Persisting Job State} *)
 
   include S with type id := Job.id and type value := Job.t
 
@@ -171,4 +167,5 @@ module Job: sig
 
 end
 
+(** Persisting state for objects. *)
 module Object: S with type id := Object.id and type value := Object.t
