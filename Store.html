@@ -71,8 +71,23 @@ The type for watch cancelling functions.<br>
     successful.<br>
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Store.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Store.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Store.Worker.html">Worker</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Worker.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Store.Task.html">Task</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Store.Job.html">Job</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Store.Object.html">Object</a>: <code class="type"><a href="Store.S.html">S</a></code><code class="type">  with type id := <a href="Object.html">Object</a>.id and type value := <a href="Object.html">Object</a>.t</code></pre></body></html>
+<pre><span class="keyword">module type</span> <a href="Store.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Store.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+The signature for objects kept in the store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Store.Worker.html">Worker</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Worker.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Persisting state for workers.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Store.Task.html">Task</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Persisting state for tasks.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Store.Job.html">Job</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Persisting state for jobs.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Store.Object.html">Object</a>: <code class="type"><a href="Store.S.html">S</a></code><code class="type">  with type id := <a href="Object.html">Object</a>.id and type value := <a href="Object.html">Object</a>.t</code></pre><div class="info">
+Persisting state for objects.
+</div>
+</body></html>
