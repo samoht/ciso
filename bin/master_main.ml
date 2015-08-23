@@ -18,28 +18,18 @@
 
 open Cmdliner
 
-let ip =
-  Arg.(value & opt string "127.0.0.1" & info ["ip"]
-         ~doc:"the ip address of the master")
+let () =
+  Irmin_unix.install_dir_polling_listener 0.2;
+  Fmt.(set_style_renderer stdout `Ansi_tty)
 
-let port =
-  Arg.(value & opt int 8080 & info ["port"]
-         ~doc:"the port number of the master")
+let root =
+  Arg.(value & opt (some string) None & info ["local"]
+         ~docv:"DIR" ~doc:"the path to the local Irmin store.")
 
-let fresh =
-  Arg.(value & flag & info ["fresh"; "f"]
-         ~doc:"start with a fresh new store")
-
-let uri =
-  Arg.(required & pos 0 (some string) None & info []
-         ~doc:"the address to contact the data store" ~docv:"URI")
+let main =
+  let master root = Lwt_main.run (Master.start ?root ()) in
+  Term.(pure master $ root),
+  Term.info ~doc:"CISO scheduler" "ciso-master"
 
 let () =
-  let master fresh uri ip port =
-    Lwt_main.run (Master.run ~fresh ~uri ~ip ~port)
-  in
-  let term =
-    Term.(pure master $ fresh $ uri $ ip $ port,
-          info ~doc:"start the master" "ciso-master")
-  in
-  match Term.eval term with `Error _ -> exit 1 | _ -> exit 0
+  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

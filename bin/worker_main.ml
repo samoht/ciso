@@ -18,22 +18,36 @@
 
 open Cmdliner
 
-let base =
-  Arg.(required & pos 0 (some string) None & info []
-         ~docv:"HOST" ~doc:"the uri string of master node")
+let () =
+  Irmin_unix.install_dir_polling_listener 0.2;
+  Fmt.(set_style_renderer stdout `Ansi_tty)
+
+let root =
+  Arg.(value & opt (some string) None & info ["local"]
+         ~docv:"DIR" ~doc:"the path to the local Irmin store.")
 
 let uri =
-  Arg.(required & pos 1 (some string) None & info []
-         ~docv:"URI" ~doc:"the uri string of data store")
+  Arg.(value & opt (some string) None & info ["global"]
+         ~docv:"URI" ~doc:"the URI of the global Irmin store.")
 
-let fresh =
-  Arg.(value & flag & info ["fresh"; "f"]
-         ~doc:"start with a fresh new local store")
+let with_default d f = function None -> d | Some x -> f x
+
+let main =
+  let worker root uri =
+    let root =
+      let default = Filename.(concat (get_temp_dir_name ()) "ciso-worker") in
+      with_default default (fun x -> x) root
+    in
+    let uri =
+      with_default (Uri.of_string "http://127.0.0.0:8080") Uri.of_string uri
+    in
+    Fmt.(pf stdout "%a: %s\n%a: %s\n%!"
+           (styled `Cyan string) "root" root
+           (styled `Cyan string) "uri " (Uri.to_string uri));
+    Lwt_main.run (Ciso_worker.run ~root uri)
+  in
+  Term.(pure worker $ root $ uri),
+  Term.info ~doc:"CISO worker" "ciso-worker"
 
 let () =
-  let worker base uri fresh = Lwt_main.run (Worker.run ~base ~uri ~fresh) in
-  let term =
-    Term.(pure worker $ base $ uri $ fresh,
-          info ~doc:"start a worker" "ciso-worker")
-  in
-  match Term.eval term with `Error _ -> exit 1 | _ -> exit 0
+  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0
