@@ -19,7 +19,8 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><title>Task</title>
+<link title="Store" rel="Chapter" href="Store.html"><link title="Task Status" rel="Section" href="#1_TaskStatus">
+<title>Task</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Id.html" title="Id">Previous</a>
@@ -131,8 +132,10 @@ The type for pinned packages. The first argument is a package
 <pre><span id="VALjson"><span class="keyword">val</span> json</span> : <code class="type"><a href="Task.html#TYPEt">t</a> Jsont.codec</code></pre><div class="info ">
 <code class="code">json</code> is the JSON codec for tasks.<br>
 </div>
+<br>
+<h1 id="1_TaskStatus">Task Status</h1><br>
 
-<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `Pending | `Success ]</code> </pre>
+<pre><span id="TYPEstatus"><span class="keyword">type</span> <code class="type"></code>status</span> = <code class="type">[ `Cancelled | `Failure | `New | `Pending | `Success ]</code> </pre>
 <div class="info ">
 The type for task status.<br>
 </div>

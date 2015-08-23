@@ -19,7 +19,8 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><title>Store.Job</title>
+<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting Job State" rel="Section" href="#1_PersistingJobState">
+<title>Store.Job</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Store.Task.html" title="Store.Task">Previous</a>
@@ -29,11 +30,17 @@
 <h1>Module <a href="type_Store.Job.html">Store.Job</a></h1>
 
 <pre><span class="keyword">module</span> Job: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_PersistingJobState">Persisting Job State</h1><br>
 
 <pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
 
 <pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Job.html#TYPEstatus">Job.status</a> Lwt.t</code></pre><div class="info ">
 <code class="code">status t job</code> is <code class="code">job</code>'s status in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALpending"><span class="keyword">val</span> pending</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">pending t j</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Pending</span></code>.<br>
 </div>
 
 <pre><span id="VALrunning"><span class="keyword">val</span> running</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -57,8 +64,8 @@
 <code class="code">outputs t job</code> are <code class="code">job</code>'s output objects.<br>
 </div>
 
-<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> list Lwt.t</code></pre><div class="info ">
-<code class="code">list t</code> is the list of all the jobs stored in <code class="code">t</code>.<br>
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEt">Job.t</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch t f</code> calls <code class="code">f</code> on every job added in the store.<br>
 </div>
 
 <pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Job.html#TYPEid">Job.id</a> -> <a href="Job.html#TYPEstatus">Job.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">

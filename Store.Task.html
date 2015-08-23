@@ -19,7 +19,8 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><title>Store.Task</title>
+<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting Task State" rel="Section" href="#1_PersistingTaskState">
+<title>Store.Task</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Store.Worker.html" title="Store.Worker">Previous</a>
@@ -29,6 +30,8 @@
 <h1>Module <a href="type_Store.Task.html">Store.Task</a></h1>
 
 <pre><span class="keyword">module</span> Task: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_PersistingTaskState">Persisting Task State</h1><br>
 
 <pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
 
@@ -38,6 +41,10 @@
 
 <pre><span id="VALjobs"><span class="keyword">val</span> jobs</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> <a href="Job.html#TYPEid">Job.id</a> list Lwt.t</code></pre><div class="info ">
 <code class="code">jobs t task</code> are <code class="code">task</code>'s jobs in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEt">Task.t</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch t f</code> calls <code class="code">f</code> on every task added in the store.<br>
 </div>
 
 <pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> <a href="Task.html#TYPEstatus">Task.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">

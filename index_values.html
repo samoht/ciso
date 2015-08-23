@@ -155,6 +155,11 @@ Detects the host configuration.
       identifier <code class="code">id</code> .
 </div>
 </td></tr>
+<tr><td><a href="Store.Worker.html#VALforget">forget</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">forget t</code> removes all metadata about the worker.
+</div>
+</td></tr>
 <tr><td align="left"><br>H</td></tr>
 <tr><td><a href="Worker.html#VALhost">host</a> [<a href="Worker.html">Worker</a>]</td>
 <td><div class="info">
@@ -276,9 +281,9 @@ Detects the host configuration.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
-<tr><td><a href="Store.Job.html#VALlist">list</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<tr><td><a href="Store.S.html#VALlist">list</a> [<a href="Store.S.html">Store.S</a>]</td>
 <td><div class="info">
-<code class="code">list t</code> is the list of all the jobs stored in <code class="code">t</code>.
+<code class="code">list t</code> is the list of all the values stored in <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Store.html#VALlocal">local</a> [<a href="Store.html">Store</a>]</td>
@@ -348,6 +353,11 @@ Create a local store handler, using Irmin's Git on-disk
 <td><div class="info">
 <code class="code">packages t</code>'s is the list of packages that <code class="code">t</code> wants to
     install.
+</div>
+</td></tr>
+<tr><td><a href="Store.Job.html#VALpending">pending</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">pending t j</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Pending</span></code>.
 </div>
 </td></tr>
 <tr><td><a href="Worker.html#VALpp">pp</a> [<a href="Worker.html">Worker</a>]</td>
@@ -516,6 +526,21 @@ Create a remote store handler, using Irmin's HTTP client.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>
+<tr><td><a href="Store.Job.html#VALwatch">watch</a> [<a href="Store.Job.html">Store.Job</a>]</td>
+<td><div class="info">
+<code class="code">watch t f</code> calls <code class="code">f</code> on every job added in the store.
+</div>
+</td></tr>
+<tr><td><a href="Store.Task.html#VALwatch">watch</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">watch t f</code> calls <code class="code">f</code> on every task added in the store.
+</div>
+</td></tr>
+<tr><td><a href="Store.Worker.html#VALwatch">watch</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
+<td><div class="info">
+<code class="code">watch t f</code> calls <code class="code">f</code> everytime a new worker is added.
+</div>
+</td></tr>
 <tr><td><a href="Store.Job.html#VALwatch_status">watch_status</a> [<a href="Store.Job.html">Store.Job</a>]</td>
 <td><div class="info">
 <code class="code">watch_status t j f</code> calls <code class="code">f</code> everytime <code class="code">j</code>'s status is

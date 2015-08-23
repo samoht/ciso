@@ -27,6 +27,8 @@
 <h1>Module <a href="type_Store.Object.html">Store.Object</a></h1>
 
 <pre><span class="keyword">module</span> Object: <code class="type"><a href="Store.S.html">S</a></code><code class="type">  with type id := <a href="Object.html">Object</a>.id and type value := <a href="Object.html">Object</a>.t</code></pre><hr width="100%">
+<br>
+The general signature to add and find values in the store.<br>
 
 <pre><span id="TYPEid"><span class="keyword">type</span> <code class="type"></code>id</span> </pre>
 <div class="info ">
@@ -52,5 +54,9 @@ The type for values kept in the store.<br>
 <pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.S.html#TYPEid">id</a> -> <a href="Store.S.html#TYPEvalue">value</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">find t id</code> is the value stored in <code class="code">t</code> with the stable
       identifier <code class="code">id</code> .<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.S.html#TYPEid">id</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">list t</code> is the list of all the values stored in <code class="code">t</code>.<br>
 </div>
 </body></html>

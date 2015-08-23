@@ -18,7 +18,8 @@
 <link title="Host" rel="Chapter" href="Host.html">
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
-<link title="Store" rel="Chapter" href="Store.html"><title>Store.Worker</title>
+<link title="Store" rel="Chapter" href="Store.html"><link title="Persisting worker state" rel="Section" href="#1_Persistingworkerstate">
+<title>Store.Worker</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Store.html" title="Store">Up</a>
@@ -27,8 +28,14 @@
 <h1>Module <a href="type_Store.Worker.html">Store.Worker</a></h1>
 
 <pre><span class="keyword">module</span> Worker: <code class="code"><span class="keyword">sig</span></code> <a href="Store.Worker.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_Persistingworkerstate">Persisting worker state</h1><br>
 
 <pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
+
+<pre><span id="VALforget"><span class="keyword">val</span> forget</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">forget t</code> removes all metadata about the worker.<br>
+</div>
 
 <pre><span id="VALtick"><span class="keyword">val</span> tick</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> float -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">tick t w f</code> updates the worker <code class="code">w</code>'s status with the timestamp
@@ -54,6 +61,10 @@
 
 <pre><span id="VALidle"><span class="keyword">val</span> idle</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">idle t w</code> registers that <code class="code">w</code> is idle.<br>
+</div>
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEt">Worker.t</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch t f</code> calls <code class="code">f</code> everytime a new worker is added.<br>
 </div>
 
 <pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
