@@ -64,15 +64,7 @@ The type for task values.<br>
 </div>
 
 
-<pre><code><span id="TYPErepo"><span class="keyword">type</span> <code class="type"></code>repo</span> = </code></pre><table class="typetable">
-<tr>
-<td align="left" valign="top" >
-<code><span class="keyword">|</span></code></td>
-<td align="left" valign="top" >
-<code><span id="TYPEELTrepo.Repository"><span class="constructor">Repository</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
-
-</tr></table>
-
+<pre><span id="TYPErepo"><span class="keyword">type</span> <code class="type"></code>repo</span> = <code class="type">string * Uri.t</code> </pre>
 <div class="info ">
 The type for remote opam repositories.<br>
 </div>
@@ -82,20 +74,13 @@ The type for remote opam repositories.<br>
 <code class="code">pp_repository</code> formats a repository.<br>
 </div>
 
-<pre><code><span id="TYPEpin"><span class="keyword">type</span> <code class="type"></code>pin</span> = </code></pre><table class="typetable">
-<tr>
-<td align="left" valign="top" >
-<code><span class="keyword">|</span></code></td>
-<td align="left" valign="top" >
-<code><span id="TYPEELTpin.Pin"><span class="constructor">Pin</span></span> <span class="keyword">of</span> <code class="type">(string * Uri.t)</code></code></td>
-
-</tr></table>
-
+<pre><span id="TYPEpin"><span class="keyword">type</span> <code class="type"></code>pin</span> = <code class="type">string * Uri.t option</code> </pre>
 <div class="info ">
 The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
-    be passed to <i>opam pin add &lt;name&gt; &lt;target&gt;</i><br>
+    be passed to <i>opam pin add &lt;name&gt; &lt;target&gt;</i>. If the target is
+    not specified, it means <i>--dev</i>.<br>
 </div>
 
 

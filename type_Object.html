@@ -20,18 +20,15 @@
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;id&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Object</span>&nbsp;]&nbsp;<span class="constructor">Id</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;archive&nbsp;=&nbsp;{&nbsp;files&nbsp;:&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Digest</span>.t)&nbsp;list;&nbsp;raw&nbsp;:&nbsp;<span class="constructor">Cstruct</span>.t;&nbsp;}<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;contents&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Archive</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Object</span>.archive<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Stdout</span>&nbsp;<span class="keyword">of</span>&nbsp;string&nbsp;list<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Stderr</span>&nbsp;<span class="keyword">of</span>&nbsp;string&nbsp;list<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;kind&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Archive</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Stderr</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Stdout</span>&nbsp;]<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;file&nbsp;=&nbsp;string&nbsp;*&nbsp;<span class="constructor">Cstruct</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;contents&nbsp;=&nbsp;<span class="constructor">Archive</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Object</span>.archive&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">File</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Object</span>.file<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;kind&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Archive</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">File</span>&nbsp;]<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;id&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.id<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;contents&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.contents<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;kind&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.kind<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;archive&nbsp;:&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Digest</span>.t)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;stdout&nbsp;:&nbsp;string&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;stderr&nbsp;:&nbsp;string&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;file&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cstruct</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;equal&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="constructor">Fmt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json&nbsp;:&nbsp;<span class="constructor">Object</span>.t&nbsp;<span class="constructor">Jsont</span>.codec<br>

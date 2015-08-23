@@ -144,6 +144,11 @@ Detects the host configuration.
 <code class="code">failure t id</code> set <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Failure</span></code>.
 </div>
 </td></tr>
+<tr><td><a href="Object.html#VALfile">file</a> [<a href="Object.html">Object</a>]</td>
+<td><div class="info">
+<code class="code">file f c</code> is the file <code class="code">f</code> whose contents is <code class="code">c</code>.
+</div>
+</td></tr>
 <tr><td><a href="Store.S.html#VALfind">find</a> [<a href="Store.S.html">Store.S</a>]</td>
 <td><div class="info">
 <code class="code">find t id</code> is the value stored in <code class="code">t</code> with the stable
@@ -457,18 +462,6 @@ Create a remote store handler, using Irmin's HTTP client.
 <tr><td><a href="Store.Worker.html#VALstatus">status</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
 <td><div class="info">
 <code class="code">job t w</code> is the worker <code class="code">w</code>'s current job.
-</div>
-</td></tr>
-<tr><td><a href="Object.html#VALstderr">stderr</a> [<a href="Object.html">Object</a>]</td>
-<td><div class="info">
-<code class="code">stderr lines</code> is similar to <a href="Object.html#VALstdout"><code class="code"><span class="constructor">Object</span>.stdout</code></a> but for the standard
-    errors.
-</div>
-</td></tr>
-<tr><td><a href="Object.html#VALstdout">stdout</a> [<a href="Object.html">Object</a>]</td>
-<td><div class="info">
-<code class="code">stdout lines</code> is the object containing a list of UTF-8 encoded
-    <code class="code">lines</code>, corresponding to a job's standard output.
 </div>
 </td></tr>
 <tr><td><a href="Store.Job.html#VALsuccess">success</a> [<a href="Store.Job.html">Store.Job</a>]</td>

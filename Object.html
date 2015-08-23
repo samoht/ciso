@@ -68,6 +68,12 @@ The type for archive values.<br>
 </div>
 
 
+<pre><span id="TYPEfile"><span class="keyword">type</span> <code class="type"></code>file</span> = <code class="type">string * Cstruct.t</code> </pre>
+<div class="info ">
+The type for UTF-8 encoded files.<br>
+</div>
+
+
 <pre><code><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = </code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
@@ -80,24 +86,17 @@ The type for archive values.<br>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTcontents.Stdout"><span class="constructor">Stdout</span></span> <span class="keyword">of</span> <code class="type">string list</code></code></td>
+<code><span id="TYPEELTcontents.File"><span class="constructor">File</span></span> <span class="keyword">of</span> <code class="type"><a href="Object.html#TYPEfile">file</a></code></code></td>
 
-</tr>
-<tr>
-<td align="left" valign="top" >
-<code><span class="keyword">|</span></code></td>
-<td align="left" valign="top" >
-<code><span id="TYPEELTcontents.Stderr"><span class="constructor">Stderr</span></span> <span class="keyword">of</span> <code class="type">string list</code></code></td>
-<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" ><div class="info ">
-The type for object contents. Can either be an archive, or stdout
-    and stderr dumps.<br>
-</div>
-</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 
+<div class="info ">
+The type for object contents. Can either be an UTF-8 encoded
+    <a href="Object.html#VALfile"><code class="code"><span class="constructor">Object</span>.file</code></a> or an <a href="Object.html#VALarchive"><code class="code"><span class="constructor">Object</span>.archive</code></a>.<br>
+</div>
 
 
-<pre><span id="TYPEkind"><span class="keyword">type</span> <code class="type"></code>kind</span> = <code class="type">[ `Archive | `Stderr | `Stdout ]</code> </pre>
+<pre><span id="TYPEkind"><span class="keyword">type</span> <code class="type"></code>kind</span> = <code class="type">[ `Archive | `File ]</code> </pre>
 <div class="info ">
 The type for object kinds.<br>
 </div>
@@ -126,14 +125,8 @@ The type for object values.<br>
     contents <code class="code">c</code>.<br>
 </div>
 
-<pre><span id="VALstdout"><span class="keyword">val</span> stdout</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">stdout lines</code> is the object containing a list of UTF-8 encoded
-    <code class="code">lines</code>, corresponding to a job's standard output. CISO will <b>    not</b> check that the lines have the correct encoding.<br>
-</div>
-
-<pre><span id="VALstderr"><span class="keyword">val</span> stderr</span> : <code class="type">string list -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
-<code class="code">stderr lines</code> is similar to <a href="Object.html#VALstdout"><code class="code"><span class="constructor">Object</span>.stdout</code></a> but for the standard
-    errors.<br>
+<pre><span id="VALfile"><span class="keyword">val</span> file</span> : <code class="type">string -> Cstruct.t -> <a href="Object.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">file f c</code> is the file <code class="code">f</code> whose contents is <code class="code">c</code>.<br>
 </div>
 
 <pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type"><a href="Object.html#TYPEt">t</a> -> <a href="Object.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
