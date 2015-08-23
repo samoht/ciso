@@ -39,12 +39,19 @@ module Code = Cohttp.Code
 module Client = Cohttp_lwt_unix.Client
 module Response = Cohttp_lwt_unix.Response
 
-module IdSet = struct
+
+module JSet = struct
   include Set.Make(struct
-      type t = [`Object] Id.t
+      type t = Job.id
       let compare = Id.compare
     end)
+  let of_list = List.fold_left (fun s e -> add e s) empty
 end
+
+module OSet = Set.Make(struct
+    type t = Object.id
+    let compare = Id.compare
+  end)
 
 module System = struct
 
@@ -333,12 +340,36 @@ let extract_object job obj =
     System.install_files ~src ~dst files >>= fun () ->
     System.clean_tmp "extract_object" (Filename.basename arch_path)
 
+(* FIXME: add caching *)
+let find_job_deps t j =
+  let rec aux todo deps =
+    if JSet.is_empty todo then Lwt.return (JSet.elements deps)
+    else
+      let id = JSet.choose todo in
+      let todo = JSet.remove id todo in
+      Store.Job.find t.local id >>= function
+      | None   -> aux todo deps
+      | Some j ->
+        let inputs = JSet.of_list (Job.inputs j) in
+        let todo = JSet.(union todo (diff inputs deps)) in
+        let deps = JSet.union inputs deps in
+        aux todo deps
+  in
+  aux JSet.(singleton j) JSet.empty
+
+let find_obj_deps t j =
+  find_job_deps t j >>= fun jobs ->
+  Lwt_list.fold_left_s (fun deps job ->
+      if j = job then Lwt.return deps
+      else
+        Store.Job.outputs t.local job >|= fun objs ->
+        List.fold_left (fun s e -> OSet.add e s) deps objs
+    ) OSet.empty jobs
+  >|= fun objs ->
+  OSet.elements objs
+
 let prepare t job  =
-  Lwt_list.fold_left_s (fun acc jid ->
-      Store.Job.outputs t.local jid >|= fun objs ->
-      objs @ acc
-    ) [] (Job.inputs job)
-  >>= fun objs ->
+  find_obj_deps t (Job.id job) >>= fun objs ->
   Opam.switch_to (Job.switch job) >>= fun () ->
   (* URGENT FIXME: installation order IS important *)
   Lwt_list.iter_p (fun oid ->
