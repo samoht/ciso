@@ -104,25 +104,24 @@ type status = [
   | `Success
   | `Failure
   | `Pending
+  | `Runnable
   | `Running
   | `Cancelled
 ]
 
-let json_status =
-  Jsont.enum [
-    "success", `Success; "failure", `Failure;
-    "pending", `Pending; "concelled", `Cancelled
-  ]
-
-let pp_status ppf t =
-  let s = match t with
+let to_string = function
   | `Success   -> "success"
   | `Failure   -> "failure"
   | `Pending   -> "pending"
+  | `Runnable  -> "runnnable"
   | `Running   -> "running"
   | `Cancelled -> "cancelled"
-  in
-  Fmt.string ppf s
+
+let status = [ `Success; `Failure; `Pending; `Runnable; `Running; `Cancelled; ]
+let pp_status = Fmt.of_to_string to_string
+
+let json_status =
+  Jsont.enum ~default:`Pending (List.map (fun x -> to_string x, x) status)
 
 let is_success = function `Success -> true | _ -> false
 let is_failure = function `Failure -> true | _ -> false

@@ -79,6 +79,7 @@ type status = [
   | `Success
   | `Failure
   | `Pending
+  | `Runnable
   | `Running
   | `Cancelled
 ]
