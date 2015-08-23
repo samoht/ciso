@@ -23,9 +23,8 @@
 
 *)
 
+(** The signature for schedulers. *)
 module type S = sig
-
-  (** The signature for schedulers. *)
 
   type t
   (** The type for schedulers. *)
@@ -35,12 +34,11 @@ module type S = sig
 
 end
 
+(** Task scheduler. *)
 module Task: sig
 
-(** Task scheduler.
-
-    The task scheduler watches task events and distribute solver jobs
-    to the workers. *)
+  (** The task scheduler watches task events and distribute solver
+      jobs to the workers. *)
 
   include S
 
@@ -52,10 +50,10 @@ module Task: sig
 
 end
 
+(** Job scheduler. *)
 module Job: sig
-  (** Job scheduler.
 
-      The job scheduler watches job events and distribute build jobs
+  (** The job scheduler watches job events and distribute build jobs
       to the workers. *)
 
   include S
