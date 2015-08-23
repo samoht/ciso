@@ -2,5 +2,6 @@ PKG lwt cmdliner nocrypto fmt jsont.jsonm
 PKG opam-lib opam-lib.client opam-lib.solver
 PKG irmin irmin.unix uuidm
 PKG alcotest
-S lib/ lib/** lib_test/
+S lib/ lib/master/ lib/worker/
+S lib_test/ bin/
 B _build/**
