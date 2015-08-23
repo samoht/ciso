@@ -1,0 +1,51 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Scheduler.Task.html">
+<link rel="next" href="Scheduler.Worker.html">
+<link rel="Up" href="Scheduler.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Id" rel="Chapter" href="Id.html">
+<link title="Task" rel="Chapter" href="Task.html">
+<link title="Job" rel="Chapter" href="Job.html">
+<link title="Object" rel="Chapter" href="Object.html">
+<link title="Package" rel="Chapter" href="Package.html">
+<link title="Host" rel="Chapter" href="Host.html">
+<link title="Switch" rel="Chapter" href="Switch.html">
+<link title="Worker" rel="Chapter" href="Worker.html">
+<link title="Store" rel="Chapter" href="Store.html">
+<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Scheduler.Job</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Scheduler.Task.html" title="Scheduler.Task">Previous</a>
+&nbsp;<a class="up" href="Scheduler.html" title="Scheduler">Up</a>
+&nbsp;<a class="post" href="Scheduler.Worker.html" title="Scheduler.Worker">Next</a>
+</div>
+<h1>Module <a href="type_Scheduler.Job.html">Scheduler.Job</a></h1>
+
+<pre><span class="keyword">module</span> Job: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+Job scheduler.
+<p>
+
+      The job scheduler watches job events and distribute build jobs
+      to the workers.<br>
+
+<pre><span class="keyword">include</span> <a href="Scheduler.S.html">Scheduler.S</a></pre>
+
+<pre><span id="VALpick"><span class="keyword">val</span> pick</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEid">Job.id</a> option</code></pre><div class="info ">
+<code class="code">pick t host</code> picks a job if it is runnable by the given
+      host.<br>
+</div>
+
+<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEid">Job.id</a> Lwt.t</code></pre><div class="info ">
+<code class="code">find_job t host</code> blocks until a job become runnable by the
+      given host.<br>
+</div>
+</body></html>
