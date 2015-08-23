@@ -20,4 +20,7 @@ let timestamp () =
   Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec
 
 let debug ~section fmt =
-  Printf.kprintf (Printf.eprintf "[%s %s]: %s\n%!" (timestamp ()) section) fmt
+  let header ppf () = Fmt.(pf ppf "[%s %s]" (timestamp ()) section) in
+  Fmt.kstrf (fun str ->
+      Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
+    ) fmt

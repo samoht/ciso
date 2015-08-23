@@ -19,5 +19,5 @@
 val timestamp: unit -> string
 (** Generate a [HH:MM:SS] timestamp. *)
 
-val debug: section:string -> ('a, unit, string, unit) format4 -> 'a
-(** Display a debug line on stderr. *)
+val debug: section:string -> ('a, Format.formatter, unit, unit) format4 -> 'a
+(** Display a debug line on stdout. *)
