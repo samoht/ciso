@@ -123,23 +123,22 @@ let create ?(repos=[]) ?(pins=[])
   { id; repos; pins; switches; hosts; packages }
 
 type status = [
+  | `New
+  | `Pending
   | `Success
   | `Failure
-  | `Pending
   | `Cancelled
 ]
 
-let pp_status fmt x =
-  let str = match x with
-    | `Success  -> "success"
-    | `Failure  -> "failure"
-    | `Pending  -> "pending"
-    | `Cancelled -> "canceled"
-  in
-  Fmt.string fmt str
+let to_string = function
+  | `New       -> "new"
+  | `Pending   -> "pending"
+  | `Success   -> "success"
+  | `Failure   -> "failure"
+  | `Cancelled -> "canceled"
+
+let status = [`New; `Pending; `Success; `Failure; `Cancelled ]
+let pp_status = Fmt.of_to_string to_string
 
 let json_status =
-  Jsont.enum [
-    "success", `Success; "failure", `Failure;
-    "pending", `Pending; "concelled", `Cancelled
-  ]
+  Jsont.enum ~default:`New (List.map (fun x -> to_string x, x) status)

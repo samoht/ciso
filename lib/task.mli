@@ -100,9 +100,10 @@ val json: t Jsont.codec
 (** {1 Task Status} *)
 
 type status = [
+  | `New
+  | `Pending
   | `Success
   | `Failure
-  | `Pending
   | `Cancelled
 ]
 (** The type for task status. *)
