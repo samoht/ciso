@@ -38,9 +38,9 @@ type archive = {
 type file = string * Cstruct.t
 (** The type for UTF-8 encoded files. *)
 
-type contents = Archive of archive | File of file
 (** The type for object contents. Can either be an UTF-8 encoded
     {!file} or an {!archive}. *)
+type contents = Archive of archive | File of file
 
 type kind = [ `Archive | `File ]
 (** The type for object kinds. *)
