@@ -20,6 +20,13 @@ open Lwt.Infix
 open Irmin_unix
 
 let debug fmt = Gol.debug ~section:"store" fmt
+let err fmt = Printf.ksprintf failwith ("Store: " ^^ fmt)
+let (/) dir file = List.append dir [file]
+
+module StringSet = struct
+  include Set.Make(String)
+  let of_list = List.fold_left (fun s e -> add e s) empty
+end
 
 module R = Irmin.Basic(Irmin_http.Make)(Irmin.Contents.String)
 module L = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
@@ -91,7 +98,9 @@ let to_str codec v =
   let e = Jsonm.encoder (`Buffer b) in
   let e = Jsont.encoder e codec v in
   match Jsont.encode e with
-  | `Ok      -> Buffer.contents b
+  | `Ok      ->
+    Buffer.add_char b '\n';
+    Buffer.contents b
   | `Partial -> assert false
 
 let of_str codec s =
@@ -117,6 +126,12 @@ module Store = struct
     | RV t -> RV.update t
     | LV t -> LV.update t
 
+  let remove = function
+    | R t  -> R.remove t
+    | L t  -> L.remove t
+    | RV t -> RV.remove t
+    | LV t -> LV.remove t
+
   let read = function
     | R t  -> R.read t
     | L t  -> L.read t
@@ -129,11 +144,13 @@ module Store = struct
     | RV t -> RV.read_exn t
     | LV t -> LV.read_exn t
 
-  let list = function
-    | R t  -> R.list t
-    | L t  -> L.list t
-    | RV t -> RV.list t
-    | LV t -> LV.list t
+  let last l = List.hd (List.rev l)
+
+  let list t k = match t with
+    | R t  -> R.list t k  >|= List.map last
+    | L t  -> L.list t k  >|= List.map last
+    | RV t -> RV.list t k >|= List.map last
+    | LV t -> LV.list t k >|= List.map last
 
   let don't_watch _k ?init:_ _f = Lwt.return (fun () -> Lwt.return_unit)
 
@@ -145,6 +162,46 @@ module Store = struct
       (* FIXME: fix this in Irmin *)
       don't_watch
 
+  (* FIXME: move that into Irmin *)
+
+  let rv t = RV.list t [] >|= List.map last
+  let lv t = LV.list t [] >|= List.map last
+  let list_of_view f (_, v) = f v
+
+  let list_diff f = function
+    | `Updated (x, y) ->
+      list_of_view f x >>= fun x ->
+      list_of_view f y >|= fun y ->
+      `Updated (x, y)
+    | `Added x   -> list_of_view f x >|= fun x -> `Added x
+    | `Removed x -> list_of_view f x >|= fun x -> `Removed x
+
+  let watch_key_rec t key f = match t with
+    | R t -> RV.watch_path t key (fun d -> list_diff rv d >>= f)
+    | L t -> LV.watch_path t key (fun d -> list_diff lv d >>=  f)
+    | RV _ | LV _ ->
+      (* cannot watch transactions *)
+      don't_watch t key
+
+  let watch t root f =
+    let process children =
+      Lwt_list.map_p (fun id ->
+          read t (root / id / "value") >|= function
+          | None    -> err "invalide job" id
+          | Some  j -> j
+        ) children >>=
+      Lwt_list.iter_p f
+    in
+    watch_key_rec t root (function
+        | `Added l   -> process l
+        | `Removed _ -> Lwt.return_unit
+        | `Updated (x, y) ->
+          let x = StringSet.of_list x in
+          let y = StringSet.of_list y in
+          let s = StringSet.diff y x in
+          process (StringSet.elements s)
+      )
+
 end
 
 module type S = sig
@@ -153,12 +210,12 @@ module type S = sig
   val add: t -> value -> unit Lwt.t
   val mem: t -> id -> bool Lwt.t
   val find: t -> id -> value option Lwt.t
+  val list: t -> id list Lwt.t
 end
 
 let pretty id = Fmt.to_to_string Id.pp id
 let mk t msg id = t (msg ^ " " ^ pretty id)
 let map_o f = function None -> None | Some x -> Some (f x)
-let (/) dir file = List.append dir [file]
 
 module XJob = struct
 
@@ -191,29 +248,22 @@ module XJob = struct
   let success = update_status `Success
   let running = update_status `Running
   let failure = update_status `Failure
+  let pending = update_status `Pending
 
   let status t id =
-    Store.read_exn (mk t "job status" id) (status_p id) >|=
-    of_str Job.json_status
+    Store.read (mk t "job status" id) (status_p id) >|= function
+    | None   -> `Pending
+    | Some s -> of_str Job.json_status s
 
   let add_output t id obj =
     Store.update (mk t "add job output" id) (output_p id obj) ""
 
   let outputs t id =
     Store.list (mk t "list job outputs" id) (outputs_p id) >|=
-    List.map (fun path ->
-        match List.rev path with
-        | []    -> assert false
-        | id::_ -> Id.of_string `Object id
-      )
+    List.map (Id.of_string `Object)
 
   let list t =
-    Store.list (t "list jobs") root >|=
-    List.map (fun path ->
-        match List.rev path with
-        | []    -> assert false
-        | id::_ -> Id.of_string `Job id
-      )
+    Store.list (t "list jobs") root >|= List.map (Id.of_string `Job)
 
   let watch_status t id f =
     Store.watch_key (mk t "watch job status" id) (status_p id) (function
@@ -221,14 +271,22 @@ module XJob = struct
         | `Added (_, s) -> f (of_str Job.json_status s)
         | `Removed _    -> f `Cancelled
       )
+
+  let watch t f =
+    Store.watch (t "watch jobs") root (fun v -> f (of_str Job.json v))
+
 end
 
 module XTask = struct
 
-  let path id = ["task"; Id.to_string id]
+  let root = ["task"]
+  let path id = root / Id.to_string id
   let value_p id = path id / "value"
   let status_p id = path id / "status"
   let jobs_p id = path id / "jobs"
+
+  let list t =
+    Store.list (t "list tasks") root >|= List.map (Id.of_string `Task)
 
   let mem t id = Store.mem (mk t "mem task" id) (value_p id)
 
@@ -247,12 +305,8 @@ module XTask = struct
     map_o (of_str Task.json)
 
   let jobs t id =
-    Store.list (mk t "list jobs" id) (jobs_p id) >|=
-    List.map (fun path ->
-        match List.rev path with
-        | []    -> assert false
-        | id::_ -> Id.of_string `Job id
-      )
+    Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
+    List.map (Id.of_string `Job)
 
   let update_status t id =
     jobs t id >>= fun jobs ->
@@ -272,12 +326,19 @@ module XTask = struct
         | `Removed _    -> f `Cancelled
       )
 
+  let watch t f =
+    Store.watch (t "watch taks") root (fun v -> f (of_str Task.json v))
+
 end
 
 module XObject = struct
 
-  let path id = ["object"; Id.to_string id]
+  let root = ["object"]
+  let path id = root / Id.to_string id
   let value_p id = path id / "value"
+
+  let list t =
+    Store.list (t "list objects") root >|= List.map (Id.of_string `Object)
 
   let mem t id = Store.mem (mk t "mem object" id) (value_p id)
 
@@ -299,10 +360,14 @@ end
 
 module XWorker = struct
 
-  let path id = ["worker"; Id.to_string id]
+  let root = ["worker"]
+  let path id = root / Id.to_string id
   let value_p id = path id / "value"
   let tick_p id = path id / "tick"
   let status_p id = path id / "status"
+
+  let list t =
+    Store.list (t "list workers") root >|= List.map (Id.of_string `Worker)
 
   let mem t id = Store.mem (mk t "mem worker" id) (value_p id)
 
@@ -319,6 +384,9 @@ module XWorker = struct
   let find t id =
     Store.read (mk t "retrieve worker" id) (value_p id) >|=
     map_o (of_str Worker.json)
+
+  let forget t id =
+    Store.remove (mk t "forget worker" id) (path id)
 
   let tick t id f =
     Store.update (mk t "tick worker" id) (tick_p id) (string_of_float f)
@@ -352,6 +420,9 @@ module XWorker = struct
         | `Added (_, s) -> f (of_str Worker.json_status s)
         | `Removed _    -> f `Idle
       )
+
+  let watch t f =
+    Store.watch (t "watch workers") root (fun v -> f (of_str Worker.json v))
 
 end
 

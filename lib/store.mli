@@ -65,6 +65,9 @@ module type S = sig
   (** [find t id] is the value stored in [t] with the stable
       identifier [id] . *)
 
+  val list: t -> id list Lwt.t
+  (** [list t] is the list of all the values stored in [t]. *)
+
 end
 
 module Worker: sig
@@ -72,6 +75,9 @@ module Worker: sig
   (** {1 Persisting worker state} *)
 
   include S with type id := Worker.id and type value := Worker.t
+
+  val forget: t -> Worker.id -> unit Lwt.t
+  (** [forget t] removes all metadata about the worker. *)
 
   val tick: t -> Worker.id -> float -> unit Lwt.t
   (** [tick t w f] updates the worker [w]'s status with the timestamp
@@ -93,6 +99,9 @@ module Worker: sig
 
   val idle: t -> Worker.id -> unit Lwt.t
   (** [idle t w] registers that [w] is idle. *)
+
+  val watch: t -> Worker.t callback -> cancel Lwt.t
+  (** [watch t f] calls [f] everytime a new worker is added. *)
 
   val watch_status: t -> Worker.id -> Worker.status callback -> cancel Lwt.t
   (** [watch_status t w f] calls [f] everytime [w]'s status is
@@ -116,6 +125,9 @@ module Task: sig
   val jobs: t -> Task.id -> Job.id list Lwt.t
   (** [jobs t task] are [task]'s jobs in [t]. *)
 
+  val watch: t -> Task.t callback -> cancel Lwt.t
+  (** [watch t f] calls [f] on every task added in the store. *)
+
   val watch_status: t -> Task.id -> Task.status callback -> cancel Lwt.t
   (** [watch_status t ta f] calls [f] everytime [ta]'s status is
       updated. *)
@@ -130,6 +142,9 @@ module Job: sig
 
   val status: t -> Job.id -> Job.status Lwt.t
   (** [status t job] is [job]'s status in [t]. *)
+
+  val pending: t -> Job.id -> unit Lwt.t
+  (** [pending t j] sets [id]'s status to [`Pending]. *)
 
   val running: t -> Job.id -> unit Lwt.t
   (** [runnning t id] sets [id]'s status to [`Running]. *)
@@ -147,8 +162,8 @@ module Job: sig
   val outputs: t -> Job.id -> Object.id list Lwt.t
   (** [outputs t job] are [job]'s output objects. *)
 
-  val list: t -> Job.id list Lwt.t
-  (** [list t] is the list of all the jobs stored in [t]. *)
+  val watch: t -> Job.t callback -> cancel Lwt.t
+  (** [watch t f] calls [f] on every job added in the store. *)
 
   val watch_status: t -> Job.id -> Job.status callback -> cancel Lwt.t
   (** [watch_status t j f] calls [f] everytime [j]'s status is
