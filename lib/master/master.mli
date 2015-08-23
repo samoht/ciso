@@ -16,5 +16,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val run: fresh:bool -> uri:string -> ip:string -> port:int -> unit Lwt.t
-(* FIXME: doc *)
+(** The master process.
+
+    The master is responsisble for:
+
+    {ul
+    {- Watchnig for new workers and checking that the current ones are
+      still responsive.}
+    {- Watching for new tasks and dispatch them to the workers to be
+       resolved.}
+    {- Watching for runnable jobs and dispatch them to the workers.}
+    }
+
+*)
+
+val start: ?root:string -> unit -> unit Lwt.t
+(** [start ?root ()] starts the master proces. *)

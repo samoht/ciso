@@ -16,47 +16,62 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Schedule jobs. *)
+(** Scheduler.
 
-val start: Store.t -> unit Lwt.t
-(** [start s] starts the in-memory scheduler by reading incomple jobs
-    (due to previous master failure) from the store [s]. *)
-
-val find_job: Monitor.t -> (Job.t * Object.id list) option
-(** [find_job m] finds a suitable job for the woker [m], based on its
-    host kind. Return the job and the transitive closure of objects
-    that it needs. *)
-
-(* FIXME: doc and API *)
-
-
-(* given a task id and return the pacakge name and version information *)
-val job_info: ?abbr:bool -> Job.id -> string
-
-(* given an object id and a worker token, add them in the logmap *)
-val publish_object:
-  Store.t -> [`Success | `Fail of string | `Delegate of Job.id] -> Job.id ->
-  unit Lwt.t
-
-(* add new jobs into jobs/tables*)
-(* FIXME: the object list is the transitive closure of objects. *)
-val update_tables: Store.t -> (Job.id * Job.t * Object.id list) list -> unit Lwt.t
-
-(* get related jobs of an id and the corresponding state *)
-val progress_info: Store.t -> Job.id -> string Lwt.t
-
-(*
-
-
-
-(* eliminate a worker's token when worker is down*)
-val invalidate_token: Store.token -> unit
-
-
-(******************************************************************************)
-
-(* given the pull request number from ocaml/opam-repository, resolve the task
-   and add tasks into task table *)
-(* val github_hook : Store.t -> int -> unit Lwt.t *)
+    The scheduler looks for task, job and worker events in the store
+    and distribute work to the workers.
 
 *)
+
+module type S = sig
+
+  (** The signature for schedulers. *)
+
+  type t
+  (** The type for schedulers. *)
+
+  val start: Store.t -> t Lwt.t
+  (** [start s] starts the event scheduler. *)
+
+end
+
+module Task: sig
+
+(** Task scheduler.
+
+    The task scheduler watches task events and distribute solver jobs
+    to the workers. *)
+
+  include S
+
+  val pick: t -> Task.t option
+  (** [pick t] picks a task if it is available. *)
+
+  val find: t -> Task.t Lwt.t
+  (** [find t] blocks until a task is available. *)
+
+end
+
+module Job: sig
+  (** Job scheduler.
+
+      The job scheduler watches job events and distribute build jobs
+      to the workers. *)
+
+  include S
+
+  val pick: t -> Host.t -> Job.id option
+  (** [pick t host] picks a job if it is runnable by the given
+      host. *)
+
+  val find: t -> Host.t -> Job.id Lwt.t
+  (** [find_job t host] blocks until a job become runnable by the
+      given host. *)
+
+end
+
+module Worker: S
+(** The worker scheduler watches worker events. *)
+
+val start: Store.t -> unit Lwt.t
+(** Start all the schedulers. *)
