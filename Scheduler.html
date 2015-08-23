@@ -36,9 +36,18 @@ Scheduler.
 </div>
 <hr width="100%">
 
-<pre><span class="keyword">module type</span> <a href="Scheduler.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Scheduler.Task.html">Task</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Scheduler.Job.html">Job</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module type</span> <a href="Scheduler.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+The signature for schedulers.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Scheduler.Task.html">Task</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Task scheduler.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Scheduler.Job.html">Job</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Job.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Job scheduler.
+</div>
+
 <pre><span class="keyword">module</span> <a href="Scheduler.Worker.html">Worker</a>: <code class="type"><a href="Scheduler.S.html">S</a></code><code class="type"> </code></pre><div class="info">
 The worker scheduler watches worker events.
 </div>
