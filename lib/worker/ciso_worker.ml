@@ -347,13 +347,11 @@ let find_job_deps t j =
     else
       let id = JSet.choose todo in
       let todo = JSet.remove id todo in
-      Store.Job.find t.local id >>= function
-      | None   -> aux todo deps
-      | Some j ->
-        let inputs = JSet.of_list (Job.inputs j) in
-        let todo = JSet.(union todo (diff inputs deps)) in
-        let deps = JSet.union inputs deps in
-        aux todo deps
+      Store.Job.get t.local id >>= fun job ->
+      let inputs = JSet.of_list (Job.inputs job) in
+      let todo = JSet.(union todo (diff inputs deps)) in
+      let deps = JSet.union inputs deps in
+      aux todo deps
   in
   aux JSet.(singleton j) JSet.empty
 
@@ -373,9 +371,8 @@ let prepare t job  =
   Opam.switch_to (Job.switch job) >>= fun () ->
   (* URGENT FIXME: installation order IS important *)
   Lwt_list.iter_p (fun oid ->
-      Store.Object.find t.local oid >>= function
-      | None   -> err "cannot find object %s" (Id.to_string oid)
-      | Some o -> extract_object job o
+      Store.Object.get t.local oid >>=
+      extract_object job
     ) objs
 
 let default_white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"]
@@ -531,10 +528,7 @@ let execution_loop t =
   Store.Worker.watch_status t.local (Worker.id t.w) (function
       | `Task _ -> failwith "TODO"
       | `Idle   -> Lwt_unix.sleep idle_sleep
-      | `Job id ->
-        Store.Job.find t.local id >>= function
-        | Some job -> process_job t job
-        | None     -> err "cannot find the job %s" (Id.to_string id)
+      | `Job id -> Store.Job.get t.local id >>= process_job t
     ) >>= fun _cancel ->
   let t, _ = Lwt.task () in
   t
