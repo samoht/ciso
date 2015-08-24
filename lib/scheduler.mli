@@ -35,6 +35,9 @@ module type S = sig
   val start: Store.t -> t Lwt.t
   (** [start s] starts the event scheduler. *)
 
+  val stop: t -> unit Lwt.t
+  (** [stop t] stops the scheduler [t]. *)
+
   val list: t -> value list
   (** [list t] lists the values which are being scheduled. *)
 

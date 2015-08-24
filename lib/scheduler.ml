@@ -20,7 +20,7 @@ open Lwt.Infix
 
 let debug fmt = Gol.debug ~section:"scheduler" fmt
 let err fmt = Printf.ksprintf failwith ("Scheduler: " ^^ fmt)
-let todo f = err "Scheduler: TODO %s" f
+let todo f = err "TODO %s" f
 
 module XTask = struct
 
@@ -30,11 +30,17 @@ module XTask = struct
     cond: unit Lwt_condition.t;
     store: Store.t;                                            (* local store *)
     mutable tasks: TSet.t;                                       (* new tasks *)
+    cancels: (Task.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable stop: unit -> unit Lwt.t;
   }
 
   let list t = TSet.elements t.tasks
 
-  let remove_task t task = t.tasks <- TSet.remove task t.tasks
+  let remove_task t task =
+    let id = Task.id task in
+    debug "remove taks %s" (Id.to_string id);
+    Hashtbl.remove t.cancels id;
+    t.tasks <- TSet.remove task t.tasks
 
   (* FIXME: need to watch the related jobs status updates to update
      the task status. *)
@@ -48,9 +54,12 @@ module XTask = struct
         | `Success
         | `Failure   -> remove_task t task; !cancel ()
       ) >|= fun c ->
+    assert (not (Hashtbl.mem t.cancels id));
+    Hashtbl.add t.cancels id c;
     cancel := c
 
   let add_task t task =
+    debug "add task %s" (Id.to_string @@ Task.id task);
     t.tasks <- TSet.add task t.tasks;
     watch_task_status t task >|= fun () ->
     Lwt_condition.broadcast t.cond ()
@@ -66,7 +75,9 @@ module XTask = struct
       ) TSet.empty ids
     >>= fun tasks ->
     let cond = Lwt_condition.create () in
-    let t = { cond; store; tasks } in
+    let stop () = Lwt.return_unit in
+    let cancels = Hashtbl.create 16 in
+    let t = { cond; store; tasks; stop; cancels; } in
     Lwt_list.iter_p (watch_task_status t) (TSet.elements tasks) >|= fun () ->
     t
 
@@ -88,8 +99,14 @@ module XTask = struct
   let start store =
     debug "starting the task scheduler";
     create store >>= fun t ->
-    watch_task t >|= fun _ ->
+    watch_task t >|= fun c ->
+    t.stop <- c;
     t
+
+  let stop t =
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ v l -> v :: l) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
 
@@ -100,6 +117,8 @@ module XJob = struct
     store : Store.t;
     jobs  : (Job.id, Job.t) Hashtbl.t;
     status: (Job.id, Job.status) Hashtbl.t;
+    cancels: (Job.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable stop: unit -> unit Lwt.t;
   }
 
   let list t = Hashtbl.fold (fun _ v l -> v :: l) t.jobs []
@@ -125,7 +144,6 @@ module XJob = struct
       Lwt_condition.wait t.cond >>= fun () ->
       debug "there's a new runnable job!";
       peek_s t host
-
 
   (* FIXME: use rev-deps to make it fast (a al TUP). *)
   let update_runnable t =
@@ -160,33 +178,41 @@ module XJob = struct
       Hashtbl.replace t.jobs id job;
       Hashtbl.replace t.status id status
 
-  let rec add_job t job =
-    debug "add job %s" (Id.to_string @@ Job.id job);
-    add_job_aux t job >>= fun () ->
-    watch_job_status t job >|= fun () ->
-    update_runnable t
-
-  and watch_job_status t j =
+  let watch_job_status t j =
     let id = Job.id j in
-    debug "watch job status %s" (Id.to_string id);
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Job.watch_status t.store id (function
-        | `Cancelled -> failwith "TODO"
-        | `Pending | `Running | `Runnable -> add_job t j
-        | `Success | `Failure -> remove_job t id; !cancel ()
+        | `Cancelled -> todo "job cancelled"
+        | `Pending
+        | `Running   (* we already watch it, so nothing to do *)
+        | `Runnable  -> Lwt.return_unit
+        | `Success
+        | `Failure   -> remove_job t id; !cancel ()
       ) >|= fun c ->
+    assert (not (Hashtbl.mem t.cancels id));
+    Hashtbl.add t.cancels id c;
     cancel := c
 
-  let watch_jobs t =
-    Store.Job.watch t.store (add_job t) >|= fun _cancel ->
-    ()
+  let add_job t job =
+    Store.Job.status t.store (Job.id job) >>= function
+    | `Cancelled -> todo "cancelled job"
+    | `Failure | `Success -> Lwt.return_unit
+    | `Pending | `Running | `Runnable  ->
+      debug "add job %s" (Id.to_string @@ Job.id job);
+      add_job_aux t job >>= fun () ->
+      watch_job_status t job >|= fun () ->
+      update_runnable t
+
+  let watch_jobs t = Store.Job.watch t.store (add_job t)
 
   let create store =
+    let stop () = Lwt.return_unit in
     let t =  {
-      store;
+      store; stop;
       cond    = Lwt_condition.create ();
       jobs     = Hashtbl.create 16;
       status   = Hashtbl.create 16;
+      cancels  = Hashtbl.create 16;
     } in
     Store.Job.list store >>=
     Lwt_list.map_p (Store.Job.get store) >>=
@@ -196,8 +222,14 @@ module XJob = struct
   let start store =
     debug "starting the job scheduler.";
     create store >>= fun t ->
-    watch_jobs t >|= fun () ->
+    watch_jobs t >|= fun cancel ->
+    t.stop <- cancel;
     t
+
+  let stop t =
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ c acc -> c :: acc) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
 
@@ -209,6 +241,7 @@ module XWorker = struct
     cond   : unit Lwt_condition.t;
     store  : Store.t;
     cancels: (Worker.id, (unit -> unit Lwt.t) list) Hashtbl.t;
+    mutable stop   : unit -> unit Lwt.t;
     mutable workers: WSet.t;
   }
 
@@ -227,9 +260,19 @@ module XWorker = struct
     | `Job id  -> Store.Job.pending t.store id
     | _ -> Lwt.return_unit
 
-  let rem_worker t w =
-    debug "remove worker %s" (Id.to_string @@ Worker.id w);
-    t.workers <- WSet.remove w t.workers
+  let cancel_worker t id =
+    try
+      let fs = Hashtbl.find t.cancels id in
+      Hashtbl.remove t.cancels id;
+      Lwt_list.iter_p (fun f -> f ()) fs
+    with Not_found ->
+      Lwt.return_unit
+
+  let remove_worker t w =
+    let id = Worker.id w in
+    debug "remove worker %s" (Id.to_string id);
+    t.workers <- WSet.remove w t.workers;
+    cancel_worker t id
 
   (* watch for worker ticks, clean-up the worker state if it's dead. *)
   let watch_woker_ticks t w =
@@ -245,8 +288,8 @@ module XWorker = struct
     add_to_cancel t id cancel;
     let forget () =
       debug "%s is dead!" (Id.to_string id);
-      rem_worker t w;
-      reset_job t id >>= fun () ->
+      remove_worker t w >>= fun () ->
+      reset_job t id    >>= fun () ->
       Store.Worker.forget t.store id >>= fun () ->
       Lwt_list.iter_p (fun f -> f ()) (cancels t id)
     in
@@ -269,12 +312,10 @@ module XWorker = struct
   let watch_worker_status t w =
     let id = Worker.id w in
     Store.Worker.watch_status t.store id (fun status ->
-        let () = match status with
-          | `Idle   -> add_worker t w
-          | `Job _
-          | `Task _ -> rem_worker t w
-        in
-        Lwt.return_unit
+        match status with
+        | `Idle   -> add_worker t w; Lwt.return_unit
+        | `Job _
+        | `Task _ -> remove_worker t w
       )
     >|= fun cancel ->
     add_to_cancel t id cancel
@@ -284,8 +325,10 @@ module XWorker = struct
     watch_worker_status t w
 
   let watch_workers t =
-    Store.Worker.watch t.store (add_worker_watches t) >|= fun _cancel ->
-    ()
+    Store.Worker.watch t.store (fun w ->
+        add_worker_watches t w >|= fun () ->
+        add_worker t w;
+      )
 
   let peek t =
     if WSet.cardinal t.workers = 0 then None
@@ -309,15 +352,22 @@ module XWorker = struct
         WSet.add w workers
       ) WSet.empty
     >>= fun workers ->
-    let t = { cond; store; cancels; workers } in
+    let stop () = Lwt.return_unit in
+    let t = { cond; store; cancels; workers; stop } in
     Lwt_list.iter_p (add_worker_watches t) (WSet.elements workers) >|= fun () ->
     t
 
   let start store =
     debug "starting the work scheduler";
     create store >>= fun t ->
-    watch_workers t >|= fun () ->
+    watch_workers t >|= fun cancel ->
+    t.stop <- cancel;
     t
+
+  let stop t =
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ l acc -> l @ acc) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
 
@@ -344,6 +394,7 @@ module type S = sig
   type t
   type value
   val start: Store.t -> t Lwt.t
+  val stop: t -> unit Lwt.t
   val list: t -> value list
   val peek: t -> value option
   val peek_s: t -> value Lwt.t
