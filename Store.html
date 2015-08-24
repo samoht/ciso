@@ -20,7 +20,8 @@
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html">
-<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Store</title>
+<link title="Scheduler" rel="Chapter" href="Scheduler.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Store</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Worker.html" title="Worker">Previous</a>
@@ -63,12 +64,12 @@ The type for watch cancelling functions.<br>
 </div>
 
 
-<pre><span id="VALwith_transaction"><span class="keyword">val</span> with_transaction</span> : <code class="type">?retry:int -> <a href="Store.html#TYPEt">t</a> -> string -> (<a href="Store.html#TYPEt">t</a> -> unit Lwt.t) -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwith_transaction"><span class="keyword">val</span> with_transaction</span> : <code class="type">?retry:int -> <a href="Store.html#TYPEt">t</a> -> string -> (<a href="Store.html#TYPEt">t</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">with_transaction t f</code> executes <code class="code">f t</code> in a transaction and commit
     the final result if the transaction is successful. Will retry
     multiple times in case of conflict (default is 5) with an
-    exponential back-off. Return <code class="code"><span class="keyword">true</span></code> is the transaction is
-    successful.<br>
+    exponential back-off. Raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the transaction
+    is still not successful after all the retries.<br>
 </div>
 
 <pre><span class="keyword">module type</span> <a href="Store.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Store.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">

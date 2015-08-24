@@ -16,7 +16,8 @@
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html">
-<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Index of values</title>
+<link title="Scheduler" rel="Chapter" href="Scheduler.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Index of values</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
@@ -91,6 +92,8 @@
     configurations.
 </div>
 </td></tr>
+<tr><td><a href="Version.html#VALcurrent">current</a> [<a href="Version.html">Version</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>D</td></tr>
 <tr><td><a href="Switch.html#VALdefaults">defaults</a> [<a href="Switch.html">Switch</a>]</td>
 <td><div class="info">
@@ -485,6 +488,11 @@ Create a local store handler, using Irmin's Git on-disk
 Create a remote store handler, using Irmin's HTTP client.
 </div>
 </td></tr>
+<tr><td><a href="Store.Task.html#VALreset">reset</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">reset t task</code> resets the status of <code class="code">t</code> to be <code class="code"><span class="keywordsign">`</span><span class="constructor">New</span></code>.
+</div>
+</td></tr>
 <tr><td><a href="Store.Job.html#VALrunning">running</a> [<a href="Store.Job.html">Store.Job</a>]</td>
 <td><div class="info">
 <code class="code">runnning t id</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Running</span></code>.
@@ -526,6 +534,11 @@ Start all the schedulers.
 <tr><td><a href="Store.Worker.html#VALstatus">status</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
 <td><div class="info">
 <code class="code">job t w</code> is the worker <code class="code">w</code>'s current job.
+</div>
+</td></tr>
+<tr><td><a href="Scheduler.S.html#VALstop">stop</a> [<a href="Scheduler.S.html">Scheduler.S</a>]</td>
+<td><div class="info">
+<code class="code">stop t</code> stops the scheduler <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Store.Job.html#VALsuccess">success</a> [<a href="Store.Job.html">Store.Job</a>]</td>

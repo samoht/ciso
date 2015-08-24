@@ -19,7 +19,8 @@
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html">
-<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Store.Worker</title>
+<link title="Scheduler" rel="Chapter" href="Scheduler.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Store.Worker</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Store.html" title="Store">Up</a>
@@ -45,9 +46,9 @@ Persisting state for workers.<br>
       worker referential.<br>
 </div>
 
-<pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">job t w</code> is the worker <code class="code">w</code>'s current job. <code class="code"><span class="constructor">None</span></code> means that the
-      worker is idle.<br>
+      worker is not alive anymore.<br>
 </div>
 
 <pre><span id="VALstart_job"><span class="keyword">val</span> start_job</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Job.html#TYPEid">Job.id</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -64,13 +65,19 @@ Persisting state for workers.<br>
 <code class="code">idle t w</code> registers that <code class="code">w</code> is idle.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEt">Worker.t</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="TYPEdiff"><span class="keyword">type</span> <code class="type"></code>diff</span> = <code class="type">[ `Added of <a href="Worker.html#TYPEt">Worker.t</a> | `Removed of <a href="Worker.html#TYPEid">Worker.id</a> ]</code> </pre>
+<div class="info ">
+The type for worker diffs.<br>
+</div>
+
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.Worker.html#TYPEdiff">diff</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
 <code class="code">watch t f</code> calls <code class="code">f</code> everytime a new worker is added.<br>
 </div>
 
-<pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwatch_status"><span class="keyword">val</span> watch_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -><br>       <a href="Worker.html#TYPEid">Worker.id</a> -> <a href="Worker.html#TYPEstatus">Worker.status</a> option <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">
 <code class="code">watch_status t w f</code> calls <code class="code">f</code> everytime <code class="code">w</code>'s status is
-      updated.<br>
+      updated. <code class="code"><span class="constructor">None</span></code> means that the worker is not alive anymore.<br>
 </div>
 
 <pre><span id="VALwatch_ticks"><span class="keyword">val</span> watch_ticks</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Worker.html#TYPEid">Worker.id</a> -> float <a href="Store.html#TYPEcallback">Store.callback</a> -> <a href="Store.html#TYPEcancel">Store.cancel</a> Lwt.t</code></pre><div class="info ">

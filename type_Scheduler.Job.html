@@ -15,12 +15,14 @@
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html">
-<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Scheduler.Job</title>
+<link title="Scheduler" rel="Chapter" href="Scheduler.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Scheduler.Job</title>
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;start&nbsp;:&nbsp;<span class="constructor">Store</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;stop&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;list&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;peek&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t&nbsp;option<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;peek_s&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Host</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Job</span>.t&nbsp;<span class="constructor">Lwt</span>.t<br>

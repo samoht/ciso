@@ -20,7 +20,8 @@
 <link title="Switch" rel="Chapter" href="Switch.html">
 <link title="Worker" rel="Chapter" href="Worker.html">
 <link title="Store" rel="Chapter" href="Store.html">
-<link title="Scheduler" rel="Chapter" href="Scheduler.html"><title>Store.Task</title>
+<link title="Scheduler" rel="Chapter" href="Scheduler.html">
+<link title="Version" rel="Chapter" href="Version.html"><title>Store.Task</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Store.Worker.html" title="Store.Worker">Previous</a>
@@ -39,6 +40,10 @@ Persisting state for tasks.<br>
 <pre><span id="VALupdate_status"><span class="keyword">val</span> update_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">update_status t id</code> updates <code class="code">id</code>'s status by looking at the
       status of its jobs.<br>
+</div>
+
+<pre><span id="VALreset"><span class="keyword">val</span> reset</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">reset t task</code> resets the status of <code class="code">t</code> to be <code class="code"><span class="keywordsign">`</span><span class="constructor">New</span></code>.<br>
 </div>
 
 <pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> <a href="Task.html#TYPEstatus">Task.status</a> Lwt.t</code></pre><div class="info ">
