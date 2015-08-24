@@ -112,8 +112,8 @@ module XTask = struct
     Store.Task.list store >>=
     Lwt_list.map_p (Store.Task.get store) >>=
     Lwt_list.iter_p (add_task t) >>= fun () ->
-    watch_task t >|= fun c ->
-    t.stop <- c;
+    watch_task t >|= fun cancel ->
+    t.stop <- cancel;
     t
 
   let stop t =
