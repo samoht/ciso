@@ -56,9 +56,19 @@ let remote ?(uri = Uri.of_string "http://127.0.0.1:8888") () =
   R.create config task >|= fun t ->
   fun x -> R (t x)
 
+let err_invalid_version v =
+  err "invalid /version: got %s, expecting %s." v Version.current
+
+let check_version t =
+  L.read (t "read version") ["version"] >>= function
+  | None   -> L.update (t "init") ["version"] Version.current
+  | Some v ->
+    if v <> Version.current then err_invalid_version v else Lwt.return_unit
+
 let local ?root () =
   let config = Irmin_git.config ?root ~bare:true () in
-  L.create config task >|= fun t ->
+  L.create config task >>= fun t ->
+  check_version t >|= fun () ->
   fun x -> L (t x)
 
 let rv t = fun _ -> (RV t)
