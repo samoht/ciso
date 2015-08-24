@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        ocaml-ci
-Version:     0.0.0
+Version:     0.1.0
 Synopsis:    distributed integration engine for opam packages
 Authors:     Qi Li, David Sheets, Thomas Gazagnaire
 License:     ISC
@@ -11,7 +11,8 @@ Library ciso
   Path: lib
   InternalModules: Gol
   Modules:
-    Id, Task, Job, Object, Package, Host, Switch, Worker, Store, Scheduler
+    Id, Task, Job, Object, Package, Host, Switch, Worker, Store, Scheduler,
+    Version
   BuildDepends:
     irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
 

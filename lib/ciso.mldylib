@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e8560470bf4698856c10e1ef000a882a)
+# DO NOT EDIT (digest: 31f27d506b6cfb9ecf41c2f017cf2111)
 Id
 Task
 Job
@@ -10,5 +10,6 @@ Switch
 Worker
 Store
 Scheduler
+Version
 Gol
 # OASIS_STOP
