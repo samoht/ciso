@@ -16,7 +16,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The worker API. *)
+(** Task workers.
 
-(* FIXME *)
-val run: ?root:string -> Uri.t -> unit Lwt.t
+    A task worker translate tasks into a graph of jobs to run, for the
+    various host ocnfigurations and compiler switches.
+
+*)
+
+type t
+(** The type for task workers. *)
+
+val start: ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+(** [start ~opam_root s] starts a task worker process using the given
+    OPAM root to store OPAM state. It uses [s] to synchronise with the
+    scheduler and to store built objects. It also uses [s] to notify
+    to the scheduler that it is alive.
+
+    {ul
+    {- [tick] specifies how often the worker write into the store to
+       notify that it is alive (default is every 5s).}
+    {- If [cache] is set (default is false), the {b highly
+       experimental} caching feature is enable: every job will be cut
+       into atomic actions (containing only one package to install)
+       and the already built objects are used as a cache.}
+    }
+
+*)
+
+val stop: t -> unit Lwt.t
+(** [stop t] stops the task worker. *)

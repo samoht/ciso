@@ -16,14 +16,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Common_worker
+type t
 
-(* open Lwt.Infix *)
-(* let debug fmt = Gol.debug ~section:"task-worker" fmt *)
-let err fmt = Printf.ksprintf Lwt.fail_with ("Task_worker: " ^^ fmt)
+val opam_root: t -> string
+val store: t -> Store.t
+val cache: t -> bool
+val worker: t -> Worker.t
 
-let start = start (fun _t -> function
-    | `Idle
-    | `Job _  -> Lwt.return_unit
-    | `Task _ -> err "TODO"
-  )
+val start:
+  (t -> Worker.status -> unit Lwt.t) ->
+  ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+
+val stop: t -> unit Lwt.t

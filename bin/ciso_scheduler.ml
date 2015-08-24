@@ -17,19 +17,18 @@
  *)
 
 open Cmdliner
-
-let () =
-  Irmin_unix.install_dir_polling_listener 0.2;
-  Fmt.(set_style_renderer stdout `Ansi_tty)
-
-let root =
-  Arg.(value & opt (some string) None & info ["local"]
-         ~docv:"DIR" ~doc:"the path to the local Irmin store.")
+open Lwt.Infix
+include Ciso_common
 
 let main =
-  let master root = Lwt_main.run (Master.start ?root ()) in
-  Term.(pure master $ root),
-  Term.info ~doc:"CISO scheduler" "ciso-master"
+  let master t =
+    Lwt_main.run begin
+      t >>= fun { store; _ } ->
+      Scheduler.start store >>= block
+    end
+  in
+  Term.(pure master $ t),
+  Term.info ~version:Version.current ~doc:"Run the CISO scheduler" "ciso-master"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

@@ -17,37 +17,28 @@
  *)
 
 open Cmdliner
+open Lwt.Infix
+include Ciso_common
 
-let () =
-  Irmin_unix.install_dir_polling_listener 0.2;
-  Fmt.(set_style_renderer stdout `Ansi_tty)
-
-let root =
-  Arg.(value & opt (some string) None & info ["local"]
-         ~docv:"DIR" ~doc:"the path to the local Irmin store.")
-
-let uri =
-  Arg.(value & opt (some string) None & info ["global"]
-         ~docv:"URI" ~doc:"the URI of the global Irmin store.")
+let task =
+  let doc = "Start a task worker." in
+  Arg.(value & flag & info ["task"] ~doc)
 
 let with_default d f = function None -> d | Some x -> f x
 
+let start { store; opam_root } = function
+  | true  -> Task_worker.start ~opam_root store ~cache:false >>= block
+  | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
+
 let main =
-  let worker root uri =
-    let root =
-      let default = Filename.(concat (get_temp_dir_name ()) "ciso-worker") in
-      with_default default (fun x -> x) root
-    in
-    let uri =
-      with_default (Uri.of_string "http://127.0.0.0:8080") Uri.of_string uri
-    in
-    Fmt.(pf stdout "%a: %s\n%a: %s\n%!"
-           (styled `Cyan string) "root" root
-           (styled `Cyan string) "uri " (Uri.to_string uri));
-    Lwt_main.run (Ciso_worker.run ~root uri)
+  let worker t task =
+    Lwt_main.run begin
+      t >>= fun t ->
+      start t task
+    end
   in
-  Term.(pure worker $ root $ uri),
-  Term.info ~doc:"CISO worker" "ciso-worker"
+  Term.(pure worker $ t $ task),
+  Term.info ~version:Version.current ~doc:"Start a CISO worker" "ciso-worker"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

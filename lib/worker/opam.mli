@@ -18,6 +18,13 @@
 
 (** Interaction with OPAM *)
 
+type t
+(** The type for OPAM state. *)
+
+val create: root:string -> Switch.t -> t
+(** [create ~root s] create an OPAM state using [root] as OPAM's root
+    and [s] as the current switch. *)
+
 type plan
 (** The type for OPAM's build plan. *)
 
@@ -27,52 +34,46 @@ val host: plan -> Host.t
 val switch: plan -> Switch.t
 (** [switch p] is the compiler switchs of workers executing [p]. *)
 
-val plans: ?hosts:Host.t list -> ?switches:Switch.t list -> Task.t -> plan list
+val plans: ?hosts:Host.t list -> ?switches:Switch.t list ->
+  t -> Task.t -> plan list
 (** [plans t] is the list of plans, for all the supported hosts and
     switches. If [hosts] is not set, use {!Host.defaults}. If
     [switches] is not set, use {!Switch.default}. *)
 
-val jobs: Task.t -> Job.t list
+val jobs: t -> Task.t -> Job.t list
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
 
 (** {1 OPAM files} *)
 
-val read_installed: Switch.t -> Package.t list
-(** [read_installed s] is the list of installed packages on the switch
-    [s] or [[]] if the switch does not exist. *)
+val read_installed: t -> Package.t list
+(** [read_installed t] is the list of installed packages in on the
+    current switch or [[]] if the switch does not exist. *)
 
-val write_installed: Switch.t -> Package.t list -> unit
-(** [write_installed pkgs] update the OPAM state to state that the
-    package [pkgs] are installed. *)
+val write_installed: t -> Package.t list -> unit
+(** [write_installed t pkgs] update [t]'s metadata so that the packages
+    [pkgs] are considered to be installed. *)
 
-val write_pinned: Switch.t -> Task.pin list -> unit
-(** [write_pinned] write the list of pinned packages. *)
+val write_pinned: t -> Task.pin list -> unit
+(** [write_pinned t pkgs] update [t]'s metadata so that the packages
+    [pkgs] are pinned. *)
 
 (** {1 OPAM commands} *)
 
-val root: unit -> string
-(** [root ()] is {i opam config var root}. *)
+val install: t -> Package.t list -> unit Lwt.t
+(** [install t pkgs] is {i opam install [pkgs]}. *)
 
-val install: Package.t list -> unit Lwt.t
-(** [install pkgs] is {i opam install [pkgs]}. *)
+val remove: t -> Package.t list -> unit Lwt.t
+(** [remove t pkgs] is {i opam remove [pkgs]}. *)
 
-val remove: Package.t list -> unit Lwt.t
-(** [remove pkgs] is {i opam remove [pkgs]}. *)
+val switch_to: t -> Switch.t -> unit Lwt.t
+(** [switch_to t s] is {i opam switch [s]}. *)
 
-val switch_to: Switch.t -> unit Lwt.t
-(** [switch_to s] is {i opam switch [s]}. *)
-
-val update: unit -> unit Lwt.t
-(** [update ()] is {i opam update}. *)
+val update: t -> unit Lwt.t
+(** [update t] is {i opam update}. *)
 
 (* FIXME: review the doc *)
 
-(* [get_var v]
-   as the command line `opam config var v`, to retrieve the variable `prefix`,
-   most code copied from opamConfigCommand.ml*)
-val get_var: string -> string
-
-val clean_repos: unit -> unit
-val add_repos: Task.repo list -> unit Lwt.t
-
-val add_pins: Task.pin list -> unit Lwt.t
+val get_var: t -> string -> string
+val clean_repos: t -> unit
+val add_repos: t -> Task.repo list -> unit Lwt.t
+val add_pins: t -> Task.pin list -> unit Lwt.t

@@ -16,19 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The master process.
+type t = {
+  store: Store.t;
+  opam_root: string;
+}
 
-    The master is responsisble for:
+val t: t Lwt.t Cmdliner.Term.t
 
-    {ul
-    {- Watchnig for new workers and checking that the current ones are
-      still responsive.}
-    {- Watching for new tasks and dispatch them to the workers to be
-       resolved.}
-    {- Watching for runnable jobs and dispatch them to the workers.}
-    }
-
-*)
-
-val start: ?root:string -> unit -> unit Lwt.t
-(** [start ?root ()] starts the master proces. *)
+val block: 'a -> unit Lwt.t

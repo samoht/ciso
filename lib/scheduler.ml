@@ -46,7 +46,8 @@ module XTask = struct
 
   let set_new t task =
     t.new_tasks <- TSet.add task t.new_tasks;
-    t.pending_tasks <- TSet.remove task t.pending_tasks
+    t.pending_tasks <- TSet.remove task t.pending_tasks;
+    Lwt_condition.broadcast t.cond ()
 
   let set_pending t task =
     t.new_tasks <- TSet.remove task t.new_tasks;
@@ -79,8 +80,7 @@ module XTask = struct
       | `Pending | `New as s ->
         debug "add task %s" (Id.to_string id);
         if s = `New then set_new t task else set_pending t task;
-        watch_task_status t task >|= fun () ->
-        Lwt_condition.broadcast t.cond ()
+        watch_task_status t task
     )
 
   let empty store =
@@ -419,7 +419,11 @@ let start store =
   in
   let rec loop () =
     XWorker.peek_s w >>= fun w ->
-    Lwt.join [schedule w; loop ()]
+    Lwt.pick [
+      Lwt_unix.sleep 1.;
+      schedule w
+    ] >>= fun () ->
+    loop ()
   in
   Lwt.async loop
 

@@ -41,28 +41,33 @@ Library "ciso-worker"
   Path: lib/worker
   FindlibParent: ciso
   FindlibName: worker
-  InternalModules: Opam
-  Modules: Ciso_worker
+  InternalModules: Opam, Common_worker
+  Modules: Task_worker, Job_worker
   BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt
-
-Library "ciso-master"
-  Path: lib/master
-  FindlibParent: ciso
-  FindlibName: master
-  Modules: Master
-  BuildDepends: ciso, lwt
 
 Executable "ciso-worker"
   Path: bin
-  MainIs: worker_main.ml
+  MainIs: ciso_worker.ml
   CompiledObject: best
   BuildDepends: ciso.worker, cmdliner
 
-Executable "ciso-master"
+Executable "ciso-scheduler"
   Path: bin
-  MainIs: master_main.ml
+  MainIs: ciso_scheduler.ml
   CompiledObject: best
-  BuildDepends: ciso.master, cmdliner
+  BuildDepends: ciso, cmdliner
+
+Executable "ciso-add"
+  Path: bin
+  MainIs: ciso_add.ml
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner
+
+Executable "ciso-store"
+  Path: bin
+  MainIs: ciso_store.ml
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner
 
 Library "ciso-github"
   Build: false
@@ -71,11 +76,3 @@ Library "ciso-github"
   FindlibName: github
   Modules: Github_pr
   BuildDepends: ciso, ciso.worker, github.unix, lwt
-
-Executable "ciso-store"
-  Build: false
-  Path: bin
-  MainIs: store_main.ml
-  Custom: true
-  CompiledObject: best
-  BuildDepends: ciso, cmdliner

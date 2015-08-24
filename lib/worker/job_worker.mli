@@ -16,14 +16,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Common_worker
+(** Job worker.
 
-(* open Lwt.Infix *)
-(* let debug fmt = Gol.debug ~section:"task-worker" fmt *)
-let err fmt = Printf.ksprintf Lwt.fail_with ("Task_worker: " ^^ fmt)
+    A worker has a fixed host configuration. It builds OPAM packages
+    and store the resultsc.
 
-let start = start (fun _t -> function
-    | `Idle
-    | `Job _  -> Lwt.return_unit
-    | `Task _ -> err "TODO"
-  )
+*)
+
+type t
+(** The type for job workers. *)
+
+val start: ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+(** [starts ~opam_root store] starts a job worker. *)
+
+val stop: t -> unit Lwt.t
+(** [stop t] stops the job worker. *)

@@ -1,5 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 39740a2c8ba93c11d649603c12e288dc)
-Ciso_worker
+# DO NOT EDIT (digest: d2bca9fba1767638774d103253a678cf)
+Task_worker
+Job_worker
 Opam
+Common_worker
 # OASIS_STOP
