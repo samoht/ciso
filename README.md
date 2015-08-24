@@ -11,7 +11,8 @@ Ciso is not yet properly released so you need to pin some dev packages to
 compile and install the project:
 
 ```shell
-opam pin add opam-lib --dev
+opam pin add opam-lib --dev -n
+opam pin add irmin --dev -n
 opam pin add fmt https://github.com/dbuenzli/fmt.git -n
 opam pin add jsonm https://github.com/dbuenzli/jsonm.git -n
 opam pin add jsont https://github.com/dbuenzli/jsont.git -n
