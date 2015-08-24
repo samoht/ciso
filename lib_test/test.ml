@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let () =
+  Irmin_unix.install_dir_polling_listener 0.2;
+  Fmt.(set_style_renderer stdout `Ansi_tty)
+
 let package_t: Package.t Alcotest.testable = (module Package)
 let task_t: Task.t Alcotest.testable = (module Task)
 let host_t: Host.t Alcotest.testable = (module Host)
@@ -147,17 +151,60 @@ let simple_object () =
       Alcotest.(check object_t) id o (json Object.json o)
     ) objects
 
+let store () =
+  let _ = Sys.command "rm -rf /tmp/ciso-tests" in
+  Store.local ~root:"/tmp/ciso-tests" ()
+
+open Lwt.Infix
+let run f =
+  try Lwt_main.run (f ()) with e ->
+    Fmt.(pf stdout "%a %s" (styled `Red string) "ERROR" (Printexc.to_string e))
+
+let basic_tasks () =
+  let test () =
+    store () >>= fun s ->
+    Scheduler.Task.start s >>= fun t ->
+    Alcotest.(check @@ list task_t) "0 tasks" [] (Scheduler.Task.list t);
+    Lwt.return_unit
+  in
+  run test
+
+let basic_jobs () =
+  let test () =
+    store () >>= fun s ->
+    Scheduler.Job.start s >>= fun t ->
+    Alcotest.(check @@ list job_t) "0 jobs" [] (Scheduler.Job.list t);
+    Lwt.return_unit
+  in
+  run test
+
+let basic_workers () =
+  let test () =
+    store () >>= fun s ->
+    Scheduler.Worker.start s >>= fun t ->
+    Alcotest.(check @@ list worker_t) "0 workers" [] (Scheduler.Worker.list t);
+    Lwt.return_unit
+  in
+  run test
+
 let simple = [
-  "package", `Quick, simple_package;
-  "task"   , `Quick, simple_task;
-  "host"   , `Quick, simple_host;
-  "switch" , `Quick, simple_switch;
-  "worker" , `Quick, simple_worker;
-  "job"    , `Quick, simple_job;
-  "object" , `Quick, simple_object;
+  "package"  , `Quick, simple_package;
+  "task"     , `Quick, simple_task;
+  "host"     , `Quick, simple_host;
+  "switch"   , `Quick, simple_switch;
+  "worker"   , `Quick, simple_worker;
+  "job"      , `Quick, simple_job;
+  "object"   , `Quick, simple_object;
+]
+
+let scheduler = [
+  "basic tasks"  , `Quick, basic_tasks;
+  "basic jobs"   , `Quick, basic_jobs;
+  "basic workers", `Quick, basic_workers;
 ]
 
 let () =
   Alcotest.run "ciso" [
-    "simple", simple
+    "simple"   , simple;
+    "scheduler", scheduler;
   ]
