@@ -29,47 +29,55 @@ module type S = sig
   type t
   (** The type for schedulers. *)
 
+  type value
+  (** The type of values which are scheduled. *)
+
   val start: Store.t -> t Lwt.t
   (** [start s] starts the event scheduler. *)
 
-end
+  val list: t -> value list
+  (** [list t] lists the values which are being scheduled. *)
 
-(** Task scheduler. *)
-module Task: sig
+  val peek: t -> value option
+  (** [peel t] picks a value if it is available. *)
 
-  (** The task scheduler watches task events and distribute solver
-      jobs to the workers. *)
-
-  include S
-
-  val pick: t -> Task.t option
-  (** [pick t] picks a task if it is available. *)
-
-  val find: t -> Task.t Lwt.t
-  (** [find t] blocks until a task is available. *)
+  val peek_s: t -> value Lwt.t
+  (** [peek_s t] blocks until a value is available. *)
 
 end
+
+(** Task scheduler.
+
+    Tasks can only be added. When a new task is submitted by the
+    users, the task scheduler start managing it. A task can later be
+    cancelled. *)
+module Task: S with type value := Task.t
 
 (** Job scheduler. *)
 module Job: sig
+  (** Jobs can only be added. Jobs are added by workers resolving new
+      tasks (which then become pending). The job scheduler manages new
+      jobs and check which ones are runnable. It also manage user
+      cancellation. *)
 
-  (** The job scheduler watches job events and distribute build jobs
-      to the workers. *)
+  include S with type value := Job.t
 
-  include S
+  val peek: t -> Host.t -> Job.t option
+  (** [peek t host] picks a job if it is runnable on the given host
+      configuration. *)
 
-  val pick: t -> Host.t -> Job.id option
-  (** [pick t host] picks a job if it is runnable by the given
-      host. *)
-
-  val find: t -> Host.t -> Job.id Lwt.t
-  (** [find_job t host] blocks until a job become runnable by the
-      given host. *)
+  val peek_s: t -> Host.t -> Job.t Lwt.t
+  (** [peek_s t host] blocks until a job become runnable on the given
+      host configuration. *)
 
 end
 
-module Worker: S
-(** The worker scheduler watches worker events. *)
+(** Worker scheduler.
+
+    Workers can be added and can become inactive. The worker scheduler
+    manage new workers, keep track of idle workers and remove inactive
+    workers. *)
+module Worker: S with type value := Worker.t
 
 val start: Store.t -> unit Lwt.t
 (** Start all the schedulers. *)

@@ -20,41 +20,30 @@ open Lwt.Infix
 
 let debug fmt = Gol.debug ~section:"scheduler" fmt
 let err fmt = Printf.ksprintf failwith ("Scheduler: " ^^ fmt)
+let todo f = err "Scheduler: TODO %s" f
 
 module XTask = struct
 
-  let err_invalid_task id = err "invalid task %s" (Id.to_string id)
+  module TSet = Set.Make(Task)
 
   type t = {
     cond: unit Lwt_condition.t;
     store: Store.t;                                            (* local store *)
-    mutable tasks: Task.t list;                                  (* new tasks *)
+    mutable tasks: TSet.t;                                       (* new tasks *)
   }
 
-  let create store =
-    Store.Task.list store >>= fun ids ->
-    Lwt_list.fold_left_s (fun tasks id ->
-        Store.Task.find store id >>= function
-        | None    -> err_invalid_task id
-        | Some ta ->
-          Store.Task.status store id >|= function
-          | `New -> ta :: tasks
-          | `Cancelled -> failwith "TODO"
-          | `Pending | `Success | `Failure -> tasks
-      ) [] ids
-    >|= fun tasks ->
-    let cond = Lwt_condition.create () in
-    { cond; store; tasks }
+  let list t = TSet.elements t.tasks
 
-  let remove_task t task =
-    t.tasks <- List.filter (fun t -> not (Task.equal task t)) t.tasks
+  let remove_task t task = t.tasks <- TSet.remove task t.tasks
 
+  (* FIXME: need to watch the related jobs status updates to update
+     the task status. *)
   let watch_task_status t task =
     let id = Task.id task in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Task.watch_status t.store id (function
-        | `Cancelled -> failwith "TODO"
-        | `New       -> Lwt.return_unit
+        | `New       -> assert (TSet.mem task t.tasks); Lwt.return_unit
+        | `Cancelled -> todo "Task.cancel"
         | `Pending
         | `Success
         | `Failure   -> remove_task t task; !cancel ()
@@ -62,19 +51,33 @@ module XTask = struct
     cancel := c
 
   let add_task t task =
-    t.tasks <- task :: t.tasks;
+    t.tasks <- TSet.add task t.tasks;
     watch_task_status t task >|= fun () ->
     Lwt_condition.broadcast t.cond ()
 
-  let rec find t =
-    match t.tasks with
-    | []   -> Lwt_condition.wait t.cond >>= fun () -> find t
-    | h::_ -> Lwt.return h
+  let create store =
+    Store.Task.list store >>= fun ids ->
+    Lwt_list.fold_left_s (fun tasks id ->
+        Store.Task.get store id >>= fun ta ->
+        Store.Task.status store id >|= function
+        | `New       -> TSet.add ta tasks
+        | `Cancelled -> todo "Task.cancel"
+        | `Pending | `Success | `Failure -> tasks
+      ) TSet.empty ids
+    >>= fun tasks ->
+    let cond = Lwt_condition.create () in
+    let t = { cond; store; tasks } in
+    Lwt_list.iter_p (watch_task_status t) (TSet.elements tasks) >|= fun () ->
+    t
 
-  let pick t =
-    match t.tasks with
-    | []   -> None
-    | h::_ -> Some h
+  let peek t =
+    if TSet.cardinal t.tasks = 0 then None
+    else Some (TSet.choose t.tasks)
+
+  let rec peek_s t =
+    match peek t with
+    | None   -> Lwt_condition.wait t.cond >>= fun () -> peek_s t
+    | Some h -> Lwt.return h
 
   let watch_task t = Store.Task.watch t.store (add_task t)
 
@@ -95,28 +98,24 @@ module XJob = struct
     status: (Job.id, Job.status) Hashtbl.t;
   }
 
-  let create store =
-    { store;
-      cond    = Lwt_condition.create ();
-      jobs     = Hashtbl.create 16;
-      status   = Hashtbl.create 16; }
+  let list t = Hashtbl.fold (fun _ v l -> v :: l) t.jobs []
 
   let runnables t host =
     Hashtbl.fold (fun id j acc ->
         if Hashtbl.find t.status id = `Runnable && Host.equal (Job.host j) host
-        then id :: acc
+        then j :: acc
         else acc
       ) t.jobs []
 
-  let rec find t host =
+  let rec peek_s t host =
     let runnables = runnables t host in
     match runnables with
     | []       ->
       Lwt_condition.wait t.cond >>= fun () ->
-      find t host
+      peek_s t host
     | jid :: _ -> Lwt.return jid
 
-  let pick t host =
+  let peek t host =
     match runnables t host with
     | []   -> None
     | h::_ -> Some h
@@ -130,9 +129,10 @@ module XJob = struct
         | `Pending ->
           let inputs = Job.inputs job in
           if List.for_all (fun j -> status j = `Success) inputs then (
+            debug "%s is now runnable" (Id.to_string id);
             Hashtbl.replace t.status id `Runnable;
             (* FIXME: could broadcast only to the workers with the right
-               host *)
+               host configuration *)
             Lwt_condition.broadcast t.cond ()
           )
         | _ -> ()
@@ -142,21 +142,21 @@ module XJob = struct
     Hashtbl.remove t.jobs id;
     Hashtbl.remove t.status id
 
-  let rec add_job t job =
+  let add_job_aux t job =
     let id = Job.id job in
-    debug "add job %s" (Id.to_string id);
-    let add_one () =
-      Store.Job.mem t.store id >>= function
-      | false ->
-        Store.Job.add t.store job >|= fun () ->
-        Hashtbl.add t.jobs id job;
-        Hashtbl.add t.status id `Pending
-      | true ->
-        Store.Job.status t.store id >|= fun status ->
-        Hashtbl.replace t.jobs id job;
-        Hashtbl.replace t.status id status
-    in
-    add_one () >>= fun () ->
+    Store.Job.mem t.store id >>= function
+    | false ->
+      Store.Job.add t.store job >|= fun () ->
+      Hashtbl.add t.jobs id job;
+      Hashtbl.add t.status id `Pending
+    | true ->
+      Store.Job.status t.store id >|= fun status ->
+      Hashtbl.replace t.jobs id job;
+      Hashtbl.replace t.status id status
+
+  let rec add_job t job =
+    debug "add job %s" (Id.to_string @@ Job.id job);
+    add_job_aux t job >>= fun () ->
     watch_job_status t job >|= fun () ->
     update_runnable t
 
@@ -175,17 +175,21 @@ module XJob = struct
     Store.Job.watch t.store (add_job t) >|= fun _cancel ->
     ()
 
+  let create store =
+    let t =  {
+      store;
+      cond    = Lwt_condition.create ();
+      jobs     = Hashtbl.create 16;
+      status   = Hashtbl.create 16;
+    } in
+    Store.Job.list store >>=
+    Lwt_list.map_p (Store.Job.get store) >>=
+    Lwt_list.iter_p (add_job t) >|= fun () ->
+    t
+
   let start store =
     debug "starting the job scheduler.";
-    let t = create store in
-    Store.Job.list t.store >>=
-    Lwt_list.map_p (fun id ->
-        Store.Job.find t.store id >|= function
-        | None   -> err "invalid job" id
-        | Some j -> j
-      )
-    >>=
-    Lwt_list.iter_p (add_job t) >>= fun () ->
+    create store >>= fun t ->
     watch_jobs t >|= fun () ->
     t
 
@@ -193,15 +197,16 @@ end
 
 module XWorker = struct
 
+  module WSet = Set.Make(Worker)
+
   type t = {
-    jobs   : XJob.t;
-    tasks  : XTask.t;
+    cond   : unit Lwt_condition.t;
     store  : Store.t;
     cancels: (Worker.id, (unit -> unit Lwt.t) list) Hashtbl.t;
+    mutable workers: WSet.t;
   }
 
-  let create jobs tasks store =
-    { jobs; tasks; store; cancels = Hashtbl.create 12; }
+  let list t = WSet.elements t.workers
 
   let cancels t id = try Hashtbl.find t.cancels id with Not_found -> []
 
@@ -215,6 +220,10 @@ module XWorker = struct
     Store.Worker.status t.store id >>= function
     | `Job id  -> Store.Job.pending t.store id
     | _ -> Lwt.return_unit
+
+  let rem_worker t w =
+    debug "remove worker %s" (Id.to_string @@ Worker.id w);
+    t.workers <- WSet.remove w t.workers
 
   (* watch for worker ticks, clean-up the worker state if it's dead. *)
   let watch_woker_ticks t w =
@@ -230,6 +239,7 @@ module XWorker = struct
     add_to_cancel t id cancel;
     let forget () =
       debug "%s is dead!" (Id.to_string id);
+      rem_worker t w;
       reset_job t id >>= fun () ->
       Store.Worker.forget t.store id >>= fun () ->
       Lwt_list.iter_p (fun f -> f ()) (cancels t id)
@@ -245,49 +255,88 @@ module XWorker = struct
     in
     Lwt.async loop
 
+  let add_worker t w =
+    debug "add worker %s" (Id.to_string @@ Worker.id w);
+    t.workers <- WSet.add w t.workers;
+    Lwt_condition.broadcast t.cond ()
+
   let watch_worker_status t w =
     let id = Worker.id w in
-    let host = Worker.host w in
-    Store.Worker.watch_status t.store id (function
-        | `Idle -> begin
-            debug "%s id idle, finding it a new job!" (Id.to_string id);
-            match XTask.pick t.tasks with
-            | None ->
-              XJob.find t.jobs host >>= fun jid ->
-              Store.Worker.start_job t.store id jid
-            | Some task ->
-              Store.Worker.start_task t.store id (Task.id task)
-          end
-        | _ -> Lwt.return_unit
+    Store.Worker.watch_status t.store id (fun status ->
+        let () = match status with
+          | `Idle   -> add_worker t w
+          | `Job _
+          | `Task _ -> rem_worker t w
+        in
+        Lwt.return_unit
       )
     >|= fun cancel ->
     add_to_cancel t id cancel
 
+  let add_worker_watches t w =
+    watch_woker_ticks t w >>= fun () ->
+    watch_worker_status t w
+
   let watch_workers t =
-    Store.Worker.watch t.store (fun w ->
-        watch_woker_ticks t w >>= fun () ->
-        watch_worker_status t w
-      ) >|=
-    fun _cancel ->
+    Store.Worker.watch t.store (add_worker_watches t) >|= fun _cancel ->
     ()
+
+  let peek t =
+    if WSet.cardinal t.workers = 0 then None
+    else Some (WSet.choose t.workers)
+
+  let rec peek_s t =
+    match peek t with
+    | None   -> Lwt_condition.wait t.cond >>= fun () -> peek_s t
+    | Some t -> Lwt.return t
+
+  let create store =
+    let cond = Lwt_condition.create () in
+    let cancels = Hashtbl.create 12 in
+    Store.Worker.list store >>=
+    Lwt_list.fold_left_s (fun workers id ->
+        Store.Worker.get store id >|= fun w ->
+        WSet.add w workers
+      ) WSet.empty
+    >>= fun workers ->
+    let t = { cond; store; cancels; workers } in
+    Lwt_list.iter_p (add_worker_watches t) (WSet.elements workers) >|= fun () ->
+    t
 
   let start store =
     debug "starting the work scheduler";
-    XTask.start store >>= fun t ->
-    XJob.start store  >>= fun j ->
-    let t = create j t store in
+    create store >>= fun t ->
     watch_workers t >|= fun () ->
     t
 
 end
 
 let start store =
-  XWorker.start store >|= fun _t ->
-  ()
+  XJob.start store    >>= fun j ->
+  XTask.start store   >>= fun t ->
+  XWorker.start store >|= fun w ->
+  let peek_job host = XJob.peek_s j host >|= fun j -> `Job j in
+  let peek_task () = XTask.peek_s t >|= fun t -> `Task t in
+  let schedule w =
+    let host = Worker.host w in
+    let wid = Worker.id w in
+    Lwt.pick [peek_job host; peek_task ()] >>= function
+    | `Job j  -> Store.Worker.start_job store wid (Job.id j)
+    | `Task t -> Store.Worker.start_task store wid (Task.id t)
+  in
+  let rec loop () =
+    XWorker.peek_s w >>= fun w ->
+    Lwt.join [schedule w; loop ()]
+  in
+  Lwt.async loop
 
 module type S = sig
   type t
+  type value
   val start: Store.t -> t Lwt.t
+  val list: t -> value list
+  val peek: t -> value option
+  val peek_s: t -> value Lwt.t
 end
 
 module Job = XJob
