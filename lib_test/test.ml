@@ -207,6 +207,7 @@ let basic_tasks () =
     Alcotest.(check @@ list task_t) "0 tasks" [] (Scheduler.Task.list t);
     Store.Task.add s t1 >>= fun () ->
     sleep () >>= fun () ->
+
     Alcotest.(check @@ list task_t) "1 task" [t1] (Scheduler.Task.list t);
     Scheduler.Task.stop t >>= fun () ->
 
@@ -215,6 +216,7 @@ let basic_tasks () =
     Store.Task.status s (Task.id t1) >>= fun s ->
     Alcotest.(check task_status_t) "status" `New s;
     Scheduler.Task.stop t
+
   in
   run test
 
@@ -238,6 +240,7 @@ let basic_jobs () =
     Alcotest.(check @@ list job_t) "0 jobs" [] (Scheduler.Job.list t);
     Lwt_list.iter_p (Store.Job.add s) jobs >>= fun () ->
     sleep () >>= fun () ->
+
     Alcotest.(check @@ jobs_t) "jobs" jobs (Scheduler.Job.list t);
     check_roots t;
     Scheduler.Job.stop t >>= fun () ->
@@ -270,6 +273,7 @@ let basic_workers () =
     Lwt_list.iter_s (fun w -> Store.Worker.forget s (Worker.id w)) workers
     >>= fun () ->
     sleep () >>= fun () ->
+
     Alcotest.(check @@ list worker_t) "0 workers again"
       [] (Scheduler.Worker.list t);
     Scheduler.Worker.stop t
