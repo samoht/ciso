@@ -60,9 +60,9 @@ module type S = sig
   (** [mem t id] is true if a value with the stable identifer [id] is
       stored in [t]. *)
 
-  val find: t -> id -> value option Lwt.t
-  (** [find t id] is the value stored in [t] with the stable
-      identifier [id] . *)
+  val get: t -> id -> value Lwt.t
+  (** [get t id] is the value stored in [t] with the stable identifier
+      [id]. Raise [Invalid_argument] if [id] is invalid. *)
 
   val list: t -> id list Lwt.t
   (** [list t] is the list of all the values stored in [t]. *)
@@ -115,6 +115,10 @@ end
 module Task: sig
 
   include S with type id := Task.id and type value := Task.t
+
+  val update_status: t -> Task.id -> unit Lwt.t
+  (** [update_status t id] updates [id]'s status by looking at the
+      status of its jobs. *)
 
   val status: t -> Task.id -> Task.status Lwt.t
   (** [status t task] is [task]'s status in [t]. *)

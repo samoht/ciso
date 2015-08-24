@@ -209,13 +209,12 @@ module type S = sig
   type value
   val add: t -> value -> unit Lwt.t
   val mem: t -> id -> bool Lwt.t
-  val find: t -> id -> value option Lwt.t
+  val get: t -> id -> value Lwt.t
   val list: t -> id list Lwt.t
 end
 
 let pretty id = Fmt.to_to_string Id.pp id
 let mk t msg id = t (msg ^ " " ^ pretty id)
-let map_o f = function None -> None | Some x -> Some (f x)
 
 module XJob = struct
 
@@ -238,8 +237,8 @@ module XJob = struct
       >|= fun () ->
       debug "add: job %s published!" (pretty id)
 
-  let find t id =
-    Store.read (mk t "find job" id) (value_p id) >|= map_o (of_str Job.json)
+  let get t id =
+    Store.read_exn (mk t "find job" id) (value_p id) >|= of_str Job.json
 
   let update_status status t id =
     let status = to_str Job.json_status status in
@@ -300,9 +299,9 @@ module XTask = struct
       >|= fun () ->
       debug "add: task %s published!" (pretty id)
 
-  let find t id =
-    Store.read (mk t "find task" id) (value_p id) >|=
-    map_o (of_str Task.json)
+  let get t id =
+    Store.read_exn (mk t "find task" id) (value_p id) >|=
+    of_str Task.json
 
   let jobs t id =
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
@@ -352,9 +351,9 @@ module XObject = struct
       Store.update (mk t "publish object" id) (value_p id) obj >|= fun () ->
       debug "add: object %s published!" (pretty id)
 
-  let find t id =
-    Store.read (mk t "retrieve object" id) (value_p id) >|=
-    map_o (of_str Object.json)
+  let get t id =
+    Store.read_exn (mk t "retrieve object" id) (value_p id) >|=
+    of_str Object.json
 
 end
 
@@ -381,9 +380,9 @@ module XWorker = struct
       Store.update (mk t "publish worker" id) (value_p id) w >|= fun () ->
       debug "add: worker %s published!" (pretty id)
 
-  let find t id =
-    Store.read (mk t "retrieve worker" id) (value_p id) >|=
-    map_o (of_str Worker.json)
+  let get t id =
+    Store.read_exn (mk t "retrieve worker" id) (value_p id) >|=
+    of_str Worker.json
 
   let forget t id =
     Store.remove (mk t "forget worker" id) (path id)
