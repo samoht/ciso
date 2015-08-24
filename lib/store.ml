@@ -228,7 +228,7 @@ let mk t msg id = t (msg ^ " " ^ pretty id)
 
 module XJob = struct
 
-  let root = ["job"]
+  let root = ["jobs"]
   let path id = root / Id.to_string id
   let value_p id = path id / "value"
   let status_p id = path id / "status"
@@ -288,7 +288,7 @@ end
 
 module XTask = struct
 
-  let root = ["task"]
+  let root = ["tasks"]
   let path id = root / Id.to_string id
   let value_p id = path id / "value"
   let status_p id = path id / "status"
@@ -342,7 +342,7 @@ end
 
 module XObject = struct
 
-  let root = ["object"]
+  let root = ["objects"]
   let path id = root / Id.to_string id
   let value_p id = path id / "value"
 
@@ -369,7 +369,7 @@ end
 
 module XWorker = struct
 
-  let root = ["worker"]
+  let root = ["workers"]
   let path id = root / Id.to_string id
   let value_p id = path id / "value"
   let tick_p id = path id / "tick"
