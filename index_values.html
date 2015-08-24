@@ -42,6 +42,21 @@
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Worker.html#VALcompare">compare</a> [<a href="Worker.html">Worker</a>]</td>
+<td><div class="info">
+<code class="code">compare</code> compares workers.
+</div>
+</td></tr>
+<tr><td><a href="Job.html#VALcompare">compare</a> [<a href="Job.html">Job</a>]</td>
+<td><div class="info">
+<code class="code">compare</code> compares jobs.
+</div>
+</td></tr>
+<tr><td><a href="Task.html#VALcompare">compare</a> [<a href="Task.html">Task</a>]</td>
+<td><div class="info">
+<code class="code">compare</code> compares tasks.
+</div>
+</td></tr>
 <tr><td><a href="Id.html#VALcompare">compare</a> [<a href="Id.html">Id</a>]</td>
 <td><div class="info">
 <code class="code">compare</code> is the comparison for identifiers.
@@ -150,26 +165,16 @@ Detects the host configuration.
 <code class="code">file f c</code> is the file <code class="code">f</code> whose contents is <code class="code">c</code>.
 </div>
 </td></tr>
-<tr><td><a href="Scheduler.Job.html#VALfind">find</a> [<a href="Scheduler.Job.html">Scheduler.Job</a>]</td>
-<td><div class="info">
-<code class="code">find_job t host</code> blocks until a job become runnable by the
-      given host.
-</div>
-</td></tr>
-<tr><td><a href="Scheduler.Task.html#VALfind">find</a> [<a href="Scheduler.Task.html">Scheduler.Task</a>]</td>
-<td><div class="info">
-<code class="code">find t</code> blocks until a task is available.
-</div>
-</td></tr>
-<tr><td><a href="Store.S.html#VALfind">find</a> [<a href="Store.S.html">Store.S</a>]</td>
-<td><div class="info">
-<code class="code">find t id</code> is the value stored in <code class="code">t</code> with the stable
-      identifier <code class="code">id</code> .
-</div>
-</td></tr>
 <tr><td><a href="Store.Worker.html#VALforget">forget</a> [<a href="Store.Worker.html">Store.Worker</a>]</td>
 <td><div class="info">
 <code class="code">forget t</code> removes all metadata about the worker.
+</div>
+</td></tr>
+<tr><td align="left"><br>G</td></tr>
+<tr><td><a href="Store.S.html#VALget">get</a> [<a href="Store.S.html">Store.S</a>]</td>
+<td><div class="info">
+<code class="code">get t id</code> is the value stored in <code class="code">t</code> with the stable identifier
+      <code class="code">id</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
@@ -293,6 +298,11 @@ Detects the host configuration.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Scheduler.S.html#VALlist">list</a> [<a href="Scheduler.S.html">Scheduler.S</a>]</td>
+<td><div class="info">
+<code class="code">list t</code> lists the values which are being scheduled.
+</div>
+</td></tr>
 <tr><td><a href="Store.S.html#VALlist">list</a> [<a href="Store.S.html">Store.S</a>]</td>
 <td><div class="info">
 <code class="code">list t</code> is the list of all the values stored in <code class="code">t</code>.
@@ -367,20 +377,31 @@ Create a local store handler, using Irmin's Git on-disk
     install.
 </div>
 </td></tr>
+<tr><td><a href="Scheduler.Job.html#VALpeek">peek</a> [<a href="Scheduler.Job.html">Scheduler.Job</a>]</td>
+<td><div class="info">
+<code class="code">peek t host</code> picks a job if it is runnable on the given host
+      configuration.
+</div>
+</td></tr>
+<tr><td><a href="Scheduler.S.html#VALpeek">peek</a> [<a href="Scheduler.S.html">Scheduler.S</a>]</td>
+<td><div class="info">
+<code class="code">peel t</code> picks a value if it is available.
+</div>
+</td></tr>
+<tr><td><a href="Scheduler.Job.html#VALpeek_s">peek_s</a> [<a href="Scheduler.Job.html">Scheduler.Job</a>]</td>
+<td><div class="info">
+<code class="code">peek_s t host</code> blocks until a job become runnable on the given
+      host configuration.
+</div>
+</td></tr>
+<tr><td><a href="Scheduler.S.html#VALpeek_s">peek_s</a> [<a href="Scheduler.S.html">Scheduler.S</a>]</td>
+<td><div class="info">
+<code class="code">peek_s t</code> blocks until a value is available.
+</div>
+</td></tr>
 <tr><td><a href="Store.Job.html#VALpending">pending</a> [<a href="Store.Job.html">Store.Job</a>]</td>
 <td><div class="info">
 <code class="code">pending t j</code> sets <code class="code">id</code>'s status to <code class="code"><span class="keywordsign">`</span><span class="constructor">Pending</span></code>.
-</div>
-</td></tr>
-<tr><td><a href="Scheduler.Job.html#VALpick">pick</a> [<a href="Scheduler.Job.html">Scheduler.Job</a>]</td>
-<td><div class="info">
-<code class="code">pick t host</code> picks a job if it is runnable by the given
-      host.
-</div>
-</td></tr>
-<tr><td><a href="Scheduler.Task.html#VALpick">pick</a> [<a href="Scheduler.Task.html">Scheduler.Task</a>]</td>
-<td><div class="info">
-<code class="code">pick t</code> picks a task if it is available.
 </div>
 </td></tr>
 <tr><td><a href="Worker.html#VALpp">pp</a> [<a href="Worker.html">Worker</a>]</td>
@@ -546,6 +567,12 @@ Start all the schedulers.
 </div>
 </td></tr>
 <tr><td align="left"><br>U</td></tr>
+<tr><td><a href="Store.Task.html#VALupdate_status">update_status</a> [<a href="Store.Task.html">Store.Task</a>]</td>
+<td><div class="info">
+<code class="code">update_status t id</code> updates <code class="code">id</code>'s status by looking at the
+      status of its jobs.
+</div>
+</td></tr>
 <tr><td><a href="Package.html#VALurl">url</a> [<a href="Package.html">Package</a>]</td>
 <td><div class="info">
 <code class="code">url i</code> is the contents of <code class="code">i</code>'s url file.

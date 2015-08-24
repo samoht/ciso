@@ -36,6 +36,11 @@ Persisting state for tasks.<br>
 
 <pre><span class="keyword">include</span> <a href="Store.S.html">Store.S</a></pre>
 
+<pre><span id="VALupdate_status"><span class="keyword">val</span> update_status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">update_status t id</code> updates <code class="code">id</code>'s status by looking at the
+      status of its jobs.<br>
+</div>
+
 <pre><span id="VALstatus"><span class="keyword">val</span> status</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Task.html#TYPEid">Task.id</a> -> <a href="Task.html#TYPEstatus">Task.status</a> Lwt.t</code></pre><div class="info ">
 <code class="code">status t task</code> is <code class="code">task</code>'s status in <code class="code">t</code>.<br>
 </div>

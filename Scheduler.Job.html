@@ -34,18 +34,20 @@ Job scheduler.<br>
 </div>
 <hr width="100%">
 <br>
-The job scheduler watches job events and distribute build jobs
-      to the workers.<br>
+Jobs can only be added. Jobs are added by workers resolving new
+      tasks (which then become pending). The job scheduler manages new
+      jobs and check which ones are runnable. It also manage user
+      cancellation.<br>
 
 <pre><span class="keyword">include</span> <a href="Scheduler.S.html">Scheduler.S</a></pre>
 
-<pre><span id="VALpick"><span class="keyword">val</span> pick</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEid">Job.id</a> option</code></pre><div class="info ">
-<code class="code">pick t host</code> picks a job if it is runnable by the given
-      host.<br>
+<pre><span id="VALpeek"><span class="keyword">val</span> peek</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEt">Job.t</a> option</code></pre><div class="info ">
+<code class="code">peek t host</code> picks a job if it is runnable on the given host
+      configuration.<br>
 </div>
 
-<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEid">Job.id</a> Lwt.t</code></pre><div class="info ">
-<code class="code">find_job t host</code> blocks until a job become runnable by the
-      given host.<br>
+<pre><span id="VALpeek_s"><span class="keyword">val</span> peek_s</span> : <code class="type">t -> <a href="Host.html#TYPEt">Host.t</a> -> <a href="Job.html#TYPEt">Job.t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">peek_s t host</code> blocks until a job become runnable on the given
+      host configuration.<br>
 </div>
 </body></html>

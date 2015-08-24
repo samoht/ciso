@@ -27,21 +27,41 @@
 </div>
 <h1>Module <a href="type_Scheduler.Task.html">Scheduler.Task</a></h1>
 
-<pre><span class="keyword">module</span> Task: <code class="code"><span class="keyword">sig</span></code> <a href="Scheduler.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
-Task scheduler.<br>
+<pre><span class="keyword">module</span> Task: <code class="type"><a href="Scheduler.S.html">S</a></code><code class="type">  with type value := <a href="Task.html">Task</a>.t</code></pre><div class="info module top">
+Task scheduler.
+<p>
+
+    Tasks can only be added. When a new task is submitted by the
+    users, the task scheduler start managing it. A task can later be
+    cancelled.<br>
 </div>
 <hr width="100%">
-<br>
-The task scheduler watches task events and distribute solver
-      jobs to the workers.<br>
 
-<pre><span class="keyword">include</span> <a href="Scheduler.S.html">Scheduler.S</a></pre>
-
-<pre><span id="VALpick"><span class="keyword">val</span> pick</span> : <code class="type">t -> <a href="Task.html#TYPEt">Task.t</a> option</code></pre><div class="info ">
-<code class="code">pick t</code> picks a task if it is available.<br>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for schedulers.<br>
 </div>
 
-<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type">t -> <a href="Task.html#TYPEt">Task.t</a> Lwt.t</code></pre><div class="info ">
-<code class="code">find t</code> blocks until a task is available.<br>
+
+<pre><span id="TYPEvalue"><span class="keyword">type</span> <code class="type"></code>value</span> </pre>
+<div class="info ">
+The type of values which are scheduled.<br>
+</div>
+
+
+<pre><span id="VALstart"><span class="keyword">val</span> start</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Scheduler.S.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+<code class="code">start s</code> starts the event scheduler.<br>
+</div>
+
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Scheduler.S.html#TYPEt">t</a> -> <a href="Scheduler.S.html#TYPEvalue">value</a> list</code></pre><div class="info ">
+<code class="code">list t</code> lists the values which are being scheduled.<br>
+</div>
+
+<pre><span id="VALpeek"><span class="keyword">val</span> peek</span> : <code class="type"><a href="Scheduler.S.html#TYPEt">t</a> -> <a href="Scheduler.S.html#TYPEvalue">value</a> option</code></pre><div class="info ">
+<code class="code">peel t</code> picks a value if it is available.<br>
+</div>
+
+<pre><span id="VALpeek_s"><span class="keyword">val</span> peek_s</span> : <code class="type"><a href="Scheduler.S.html#TYPEt">t</a> -> <a href="Scheduler.S.html#TYPEvalue">value</a> Lwt.t</code></pre><div class="info ">
+<code class="code">peek_s t</code> blocks until a value is available.<br>
 </div>
 </body></html>

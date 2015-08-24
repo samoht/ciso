@@ -51,9 +51,9 @@ The type for values kept in the store.<br>
       stored in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.S.html#TYPEid">id</a> -> <a href="Store.S.html#TYPEvalue">value</a> option Lwt.t</code></pre><div class="info ">
-<code class="code">find t id</code> is the value stored in <code class="code">t</code> with the stable
-      identifier <code class="code">id</code> .<br>
+<pre><span id="VALget"><span class="keyword">val</span> get</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.S.html#TYPEid">id</a> -> <a href="Store.S.html#TYPEvalue">value</a> Lwt.t</code></pre><div class="info ">
+<code class="code">get t id</code> is the value stored in <code class="code">t</code> with the stable identifier
+      <code class="code">id</code>. Raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">id</code> is invalid.<br>
 </div>
 
 <pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Store.html#TYPEt">Store.t</a> -> <a href="Store.S.html#TYPEid">id</a> list Lwt.t</code></pre><div class="info ">
