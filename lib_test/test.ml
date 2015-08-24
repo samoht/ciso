@@ -14,9 +14,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let ts = 0.01
+
 let () =
-  Irmin_unix.install_dir_polling_listener 0.2;
+  Irmin_unix.install_dir_polling_listener ts;
   Fmt.(set_style_renderer stdout `Ansi_tty)
+
+let sleep () = Lwt_unix.sleep (ts *. 2.)
+
+(* FIXME: add in alcotest *)
+let bool_t: bool Alcotest.testable =
+  (module struct type t = bool let equal = (=) let pp = Fmt.bool end)
+
+let set (type a) (a: a Alcotest.testable) compare: a list Alcotest.testable =
+  let module A = (val a) in
+  let module L = (val Alcotest.list a) in
+  (module struct
+    type t = A.t list
+    let equal x y = L.equal (List.sort compare x) (List.sort compare y)
+    let pp = L.pp
+  end)
+
 
 let package_t: Package.t Alcotest.testable = (module Package)
 let task_t: Task.t Alcotest.testable = (module Task)
@@ -25,6 +43,9 @@ let worker_t: Worker.t Alcotest.testable = (module Worker)
 let switch_t: Switch.t Alcotest.testable = (module Switch)
 let job_t: Job.t Alcotest.testable = (module Job)
 let object_t: Object.t Alcotest.testable = (module Object)
+
+let jobs_t = set job_t Job.compare
+let workers_t = set worker_t Worker.compare
 
 let random_cstruct n =
   let t  = Unix.gettimeofday () in
@@ -93,14 +114,16 @@ let simple_switch () =
       Alcotest.(check switch_t) name c (json Switch.json c)
     ) Switch.defaults
 
+let workers = List.map Worker.create hosts
+
 let simple_worker () =
   List.iter (fun w ->
       let name = Id.to_string (Worker.id w) in
       Fmt.pf Fmt.stdout "%a\n%!" Worker.pp w;
       Alcotest.(check worker_t) name w (json Worker.json w)
-    ) (List.map Worker.create hosts)
+    ) workers
 
-let jobs =
+let roots, jobs =
   let info opam url =
     Package.info ~opam:(Cstruct.of_string opam) ~url:(Cstruct.of_string url)
   in
@@ -109,11 +132,17 @@ let jobs =
     (p2, info "build: [make test]" "url: git://example.com");
   ] in
   List.fold_left (fun acc h ->
-      List.fold_left (fun acc c ->
-          let inputs = List.map Job.id acc in
-          Job.create ~inputs h c pkgs :: acc
+      List.fold_left (fun (roots, jobs) c ->
+          let inputs =
+            List.filter (fun j -> Job.host j = h) jobs
+            |> List.map Job.id
+          in
+          let job = Job.create ~inputs h c pkgs in
+          let jobs = job :: jobs in
+          let roots = if inputs = [] then job :: roots else roots in
+          roots, jobs
         ) acc Switch.defaults
-    ) [] hosts
+    ) ([], []) hosts
 
 let simple_job () =
   List.iter (fun j ->
@@ -156,16 +185,28 @@ let store () =
   Store.local ~root:"/tmp/ciso-tests" ()
 
 open Lwt.Infix
+
 let run f =
-  try Lwt_main.run (f ()) with e ->
-    Fmt.(pf stdout "%a %s" (styled `Red string) "ERROR" (Printexc.to_string e))
+  let err e =
+    Fmt.(pf stdout "%a %s%!" (styled `Red string) "ERROR" (Printexc.to_string e));
+    Fmt.(pf stderr "%!");
+    flush stdout;
+    flush stderr;
+    raise e
+  in
+  Lwt.async_exception_hook := err;
+  let protect f () = try f () with e -> Lwt.fail e in
+  Lwt_main.run (Lwt.catch (protect f) err)
 
 let basic_tasks () =
   let test () =
     store () >>= fun s ->
     Scheduler.Task.start s >>= fun t ->
     Alcotest.(check @@ list task_t) "0 tasks" [] (Scheduler.Task.list t);
-    Lwt.return_unit
+    Store.Task.add s t1 >>= fun () ->
+    sleep () >>= fun () ->
+    Alcotest.(check @@ list task_t) "1 task" [t1] (Scheduler.Task.list t);
+    Scheduler.Task.stop t
   in
   run test
 
@@ -174,7 +215,19 @@ let basic_jobs () =
     store () >>= fun s ->
     Scheduler.Job.start s >>= fun t ->
     Alcotest.(check @@ list job_t) "0 jobs" [] (Scheduler.Job.list t);
-    Lwt.return_unit
+    Lwt_list.iter_p (Store.Job.add s) jobs >>= fun () ->
+    sleep () >>= fun () ->
+    Alcotest.(check @@ jobs_t) "jobs" jobs (Scheduler.Job.list t);
+    List.iter (fun h ->
+        let root =
+          try List.find (fun j -> Host.equal h (Job.host j)) roots
+          with Not_found ->
+            Alcotest.fail (Fmt.strf "no root for host %a" Host.pp h)
+        in
+        Alcotest.(check @@ option job_t) "root"
+          (Some root) (Scheduler.Job.peek t h)
+      ) hosts;
+    Scheduler.Job.stop t
   in
   run test
 
@@ -183,7 +236,15 @@ let basic_workers () =
     store () >>= fun s ->
     Scheduler.Worker.start s >>= fun t ->
     Alcotest.(check @@ list worker_t) "0 workers" [] (Scheduler.Worker.list t);
-    Lwt.return_unit
+    Lwt_list.iter_p (Store.Worker.add s) workers >>= fun () ->
+    sleep () >>= fun () ->
+    Alcotest.(check @@ workers_t) "workers" workers (Scheduler.Worker.list t);
+    let w = match Scheduler.Worker.peek t with
+      | None   -> Alcotest.fail "worker peek"
+      | Some w -> w
+    in
+    Alcotest.(check bool_t) "worker" true (List.mem w workers);
+    Scheduler.Worker.stop t
   in
   run test
 
