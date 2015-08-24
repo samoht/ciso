@@ -45,6 +45,9 @@ val host: t -> Host.t
 val equal: t -> t -> bool
 (** [equal] is the equality for workers. *)
 
+val compare: t -> t -> int
+(** [compare] compares workers. *)
+
 val pp: t Fmt.t
 (** [pp] formats workers. *)
 
