@@ -37,12 +37,12 @@ type cancel = unit callback
 (** The type for watch cancelling functions. *)
 
 val with_transaction:
-  ?retry:int -> t -> string ->  (t -> unit Lwt.t) -> bool Lwt.t
+  ?retry:int -> t -> string ->  (t -> unit Lwt.t) -> unit Lwt.t
 (** [with_transaction t f] executes [f t] in a transaction and commit
     the final result if the transaction is successful. Will retry
     multiple times in case of conflict (default is 5) with an
-    exponential back-off. Return [true] is the transaction is
-    successful. *)
+    exponential back-off. Raise [Invalid_argument] if the transaction
+    is still not successful after all the retries. *)
 
 (** The signature for objects kept in the store. *)
 module type S = sig

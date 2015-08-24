@@ -412,9 +412,7 @@ let process_job ?(white_list=default_white_list) t job =
       match result with
       | `Success -> Store.Job.success t (Job.id job)
       | `Failure -> Store.Job.success t (Job.id job)
-    ) >>= function
-  | false -> err "cannot commit the job" (* FIXME: ? *)
-  | true  -> Lwt.return_unit
+    )
 
 (*
   Lwt.catch (fun () ->

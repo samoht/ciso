@@ -75,33 +75,44 @@ let rv t = fun _ -> (RV t)
 let lv t = fun _ -> (LV t)
 
 (* FIXME: should be in Irmin *)
-let rec retry ?(n=5) f =
-  if n <= 1 then
-    f () >|= function
-    | `Ok ()      -> true
-    | `Conflict _ -> false
-  else
-    f () >>= function
-    | `Ok ()      -> Lwt.return_true
-    | `Conflict _ -> retry ~n:(n-1) f
+let retry ?(n=5) f =
+  let rec aux i =
+    if i >= n then
+      f () >|= function
+      | `Ok ()      -> true
+      | `Conflict _ -> false
+    else
+      f () >>= function
+      | `Ok ()      -> Lwt.return_true
+      | `Conflict _ ->
+        Lwt_unix.sleep (float i /. 10.) >>= fun () ->
+        aux (i+1)
+  in
+  aux 1
+
+let err_cannot_commit_transaction () = err "Cannot commit the transaction"
 
 let with_transaction ?retry:n t msg f =
-  match t msg with
-  | R t ->
-    retry ?n (fun () ->
-        RV.of_path t [] >>= fun v ->
-        f (rv v) >>= fun () ->
-        RV.merge_path t [] v
-      )
-  | L t ->
-    retry ?n (fun () ->
-        LV.of_path t [] >>= fun v ->
-        f (lv v) >>= fun () ->
-        LV.merge_path t [] v
-      )
-  | RV _ | LV _ ->
-    (* no nested transactions *)
-    Lwt.return_false
+  let aux () = match t msg with
+    | R t ->
+      retry ?n (fun () ->
+          RV.of_path t [] >>= fun v ->
+          f (rv v) >>= fun () ->
+          RV.merge_path t [] v
+        )
+    | L t ->
+      retry ?n (fun () ->
+          LV.of_path t [] >>= fun v ->
+          f (lv v) >>= fun () ->
+          LV.merge_path t [] v
+        )
+    | RV _ | LV _ ->
+      (* no nested transactions *)
+      Lwt.return_false
+  in
+  aux () >>= function
+  | true  -> Lwt.return_unit
+  | false -> err_cannot_commit_transaction ()
 
 let to_str codec v =
   let b = Buffer.create 64 in
@@ -224,7 +235,8 @@ module type S = sig
 end
 
 let pretty id = Fmt.to_to_string Id.pp id
-let mk t msg id = t (msg ^ " " ^ pretty id)
+let fmt msg id = msg ^ " " ^ pretty id
+let mk t msg id = t (fmt msg id)
 
 module XJob = struct
 
@@ -243,7 +255,10 @@ module XJob = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      Store.update (mk t "add job" id) (value_p id) (to_str Job.json job)
+      with_transaction t (fmt "add job" id) (fun t ->
+          Store.update (t "") (value_p id) (to_str Job.json job) >>= fun () ->
+          Store.update (t "") (status_p id) (to_str Job.json_status `Pending)
+        )
       >|= fun () ->
       debug "add: job %s published!" (pretty id)
 
