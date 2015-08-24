@@ -21,9 +21,10 @@
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;system&nbsp;:&nbsp;<span class="constructor">Switch</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;defaults&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_string&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Switch</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_string&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;defaults&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;equal&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;json&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="constructor">Jsont</span>.codec<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;pp&nbsp;:&nbsp;<span class="constructor">Switch</span>.t&nbsp;<span class="constructor">Fmt</span>.t<br>
