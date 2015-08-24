@@ -1,49 +1,71 @@
-open Common_types
+(*
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
+ * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+(** Workers.
+
+    The workers process build {{!Job}jobs} to produce build
+    {{!Object}objects}. A worker has a fixed {{!Host}host}
+    configuration: an architecture, an operating system and a
+    distribution.
+
+*)
+
+type id = [`Worker] Id.t
+(** The type for worker identifiers. *)
+
 type t
-type store
+(** The type for worker configration .*)
 
-(** [worker_register master_uri build_store]:
-    when started, register itself, when get the id from master,
-    build a local store based on the id by build_store *)
-val worker_register: Uri.t -> (string -> store Lwt.t) -> t Lwt.t
+val create: Host.t -> t
+(** [create h] is the worker with host configuration [h]. *)
 
-(** [worker_heartbeat master_uri worker]:
-    sends heartbeat to master, the heartbeat contains the worker status: work
-    or idle, if idle and the master has assigned a new task A to it,
-    the task A produces object a, the function returns a thread holds
-    Some (A.id, a.id) *)
-val worker_heartbeat: Uri.t -> t -> (id * description) option Lwt.t
+val id: t -> id
+(** [id t] is [t]'s identifier. It is a 128 bits universally unique
+    identifiers (UUID) version 4 (random based) according to
+    {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
 
-(** [worker_publish master_uri worker object]:
-    if produces a new object or get a copy from other workers,
-    publish it to master in the object tables *)
-val worker_publish: Uri.t -> t -> [`Success | `Fail of string | `Delegate of id]
-                    -> id -> Object.t -> unit Lwt.t
+val host: t -> Host.t
+(** [host t] is [t]'s host configuration. *)
 
-(** [worker_spawn master_uri worker job_lst]:
-    when a job fetched can be resolved,
-    worker post the resolved jobs to master *)
-val worker_spawn: Uri.t -> t -> (id * Task.job * (id list)) list -> unit Lwt.t
+val equal: t -> t -> bool
+(** [equal] is the equality for workers. *)
 
-(** [worker_request_object master_uri worker obj_id]:
-    before task execution, the worker will gather all the dependencies by this
-    function. If the object of obj_id isn't found locally,
-    the worker will consult master about the location of the object,
-    retrieve it from other workers, save it locally,
-    publish it to master that a copy of this object has been made,
-    then return the thread *)
-val worker_request_object: Uri.t -> t -> id -> Object.t Lwt.t
+val compare: t -> t -> int
+(** [compare] compares workers. *)
 
+val pp: t Fmt.t
+(** [pp] formats workers. *)
 
-(******************************************************************************)
+val json: t Jsont.codec
+(** [json] is the JSON coded for workers. *)
 
-(** [execution_loop master_uri worker cond]:
-    infinite loop to execute tasks, the conditional variable this function waits
-    for is task_id and obj_id *)
-val execution_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+(** {1 Worker Status} *)
 
-(** [heartbeat_loop master_uri worker cond]:
-    infinite loop to send out heartbeats to master,
-    under the idle state, if gets the response of Some (task_id, obj_id),
-    the function will send a signl to the conditional variable cond *)
-val heartbeat_loop: Uri.t -> t -> (id * description) Lwt_condition.t -> 'a Lwt.t
+type status = [
+  | `Idle
+  | `Job of Job.id
+  | `Task of Task.id
+]
+(** The worker status. Can either be idle, or processing a build job,
+    or converting a task into a sequence of jobs. *)
+
+val pp_status: status Fmt.t
+(** [pp_status] formats worker status. *)
+
+val json_status: status Jsont.codec
+(** [json_status] is the JSON codec for worker status. *)

@@ -1,210 +1,271 @@
 (*
- * Copyright (c) 2013 David Sheets <sheets@alum.mit.edu>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- *)
-
-open Sexplib.Std
-
-type linux =
-  | Suse
-  | RedHat
-  | Fedora
-  | Slackware
-  | Debian
-  | Gentoo
-  | Ubuntu
-with sexp
-
-type os =
-  | Darwin
-  | Linux of linux option
-  | FreeBSD
-  | OpenBSD
-  | NetBSD
-  | DragonFly
-  | Cygwin
-  | Win32
-  | Unix
-  | Other of string
-with sexp
-
-type arm =
-  | V5tel
-  | V6l
-with sexp
-
-type arch =
-  | X86_64
-  | I386
-  | I686
-  | Arm of arm
-  | PPC64
-  | Powerpc
-  | Unknown
-with sexp
-
-(*
-type opam =
-  | Opam_1_0_0
-with sexp
-
-type ocaml =
-  | OCaml_3_12_1
-  | OCaml_4_00_1
-with sexp
+  From opam-depext:
+   - https://github.com/ocaml/opam-depext
+   - tip: fc183489fb9ee2265b6d969fcab846d38bceb937
 *)
 
-type t = {
-  os : os;
-  arch : arch;
-(*  opam : opam list;
-  ocaml : ocaml list; *)
-} with sexp
+let debug = ref false
 
-(*type isa_exts*)
-(* TODO: differences? compatibilities? worth it? *)
+let lines_of_channel ic =
+  let rec aux acc =
+    let line = try Some (input_line ic) with End_of_file -> None in
+    match line with
+    | Some s -> aux (s::acc)
+    | None -> acc
+  in
+  List.rev (aux [])
 
-let string_of_os = function
-  | Linux None             -> "Linux"
-  | Linux (Some Suse)      -> "SUSE Linux"
-  | Linux (Some RedHat)    -> "Red Hat Linux"
-  | Linux (Some Fedora)    -> "Fedora Linux"
-  | Linux (Some Slackware) -> "Slackware Linux"
-  | Linux (Some Debian)    -> "Debian Linux"
-  | Linux (Some Gentoo)    -> "Gentoo Linux"
-  | Linux (Some Ubuntu)    -> "Ubuntu Linux"
-  | Darwin -> "Darwin"
-  | FreeBSD -> "FreeBSD"
-  | OpenBSD -> "OpenBSD"
-  | NetBSD -> "NetBSD"
-  | DragonFly -> "DragonFly"
-  | Cygwin -> "Cygwin"
-  | Win32 -> "Win32"
-  | Unix -> "Unix"
-  | Other s -> s
+let lines_of_command c =
+  if !debug then Printf.eprintf "+ %s\n%!" c;
+  let ic = Unix.open_process_in c in
+  let lines = lines_of_channel ic in
+  close_in ic;
+  lines
 
-let os_of_string_opt = function
-  | Some "Darwin" -> Darwin
-  | Some "Linux" -> Linux None
-  | Some "FreeBSD" -> FreeBSD
-  | Some "OpenBSD" -> OpenBSD
-  | Some "NetBSD" -> NetBSD
-  | Some "DragonFly" -> DragonFly
-  | Some "Cygwin" -> Cygwin
-  | Some "Win32" -> Win32
-  | Some "Unix" -> Unix
-  | Some other -> Other other
-  | None -> Other ""
+let lines_of_file f =
+  let ic = open_in f in
+  let lines = lines_of_channel ic in
+  close_in ic;
+  lines
+
+let command_output c =
+  match lines_of_command c with
+  | [s] -> s
+  | _ -> failwith (Printf.sprintf "Command %S failed" c)
+
+let string_split char str =
+  let rec aux pos =
+    try
+      let i = String.index_from str pos char in
+      String.sub str pos (i - pos) :: aux (succ i)
+    with Not_found | Invalid_argument _ ->
+        let l = String.length str in
+        [ String.sub str pos (l - pos) ]
+  in
+  aux 0
+
+let has_command c =
+  let cmd = Printf.sprintf "command -v %s >/dev/null" c in
+  try Sys.command cmd = 0 with Sys_error _ -> false
+
+(* system detection *)
+
+let guess_arch () =
+  match command_output "uname -m" with
+  | "x86_64" -> `X86_64
+  | "x86" | "i386" | "i586" | "i686" -> `X86
+  | "armv7l" -> `Arm7
+  | "PPC" | "PowerPC" -> `PPC
+  | s -> `Other s
+
+let guess_os () = match Sys.os_type with
+  | "Unix" ->
+    (match command_output "uname -s" with
+     | "Darwin"    -> `Darwin
+     | "Linux"     -> `Linux
+     | "FreeBSD"   -> `FreeBSD
+     | "OpenBSD"   -> `OpenBSD
+     | "NetBSD"    -> `NetBSD
+     | "DragonFly" -> `DragonFly
+     | _           -> `Unix)
+  | "Win32"  -> `Win32
+  | "Cygwin" -> `Cygwin
+  | s        -> `Other s
+
+let guess_distrib = function
+  | `Darwin ->
+    if has_command "brew" then Some `Homebrew
+    else if has_command "port" then Some `Macports
+    else None
+  | `Linux ->
+    (try
+       let name =
+         if has_command "lsb_release" then
+           command_output "lsb_release -i -s"
+         else
+         let release_file =
+           List.find Sys.file_exists
+             ["/etc/redhat-release"; "/etc/centos-release";
+              "/etc/gentoo-release"; "/etc/issue"; "/etc/os-release"]
+         in
+         List.hd (string_split ' ' (List.hd (lines_of_file release_file)))
+       in
+       match String.lowercase name with
+       | "debian" -> Some `Debian
+       | "ubuntu" -> Some `Ubuntu
+       | "centos" -> Some `Centos
+       | "fedora" -> Some `Fedora
+       | "mageia" -> Some `Mageia
+       | "gentoo" -> Some `Gentoo
+       | "archlinux" -> Some `Archlinux
+       | s -> Some (`Other s)
+     with Not_found | Failure _ -> None)
+  | _ -> None
+
+type arch = [
+  | `X86_64
+  | `X86
+  | `Arm7
+  | `PPC
+  | `Other of string
+]
 
 let string_of_arch = function
-  | X86_64 -> "x86_64"
-  | I386 -> "i386"
-  | I686 -> "i686"
-  | Arm V5tel -> "armv5tel"
-  | Arm V6l -> "armv6l"
-  | PPC64 -> "ppc64"
-  | Powerpc -> "powerpc"
-  | Unknown -> "unknown"
+  | `X86_64 -> "x86_64"
+  | `X86 -> "x86"
+  | `Arm7 -> "armv7"
+  | `PPC -> "ppc"
+  | `Other s -> String.lowercase s
 
-let arch_of_string_opt = function
-  | Some "x86_64" -> X86_64
-  | Some "amd64" -> X86_64
-  | Some "i386" -> I386
-  | Some "i686" -> I686
-  | Some "armv5tel" -> Arm V5tel
-  | Some "armv6l" -> Arm V6l
-  | Some "ppc64" -> PPC64
-  | Some "powerpc" -> Powerpc
-  | Some "macppc" -> Powerpc
-  | Some _ | None -> Unknown
+let arch_of_string = function
+  | "x86_64" -> `Ok `X86_64
+  | "x86" -> `Ok `X86
+  | "armv7" -> `Ok `Arm7
+  | "ppc" -> `Ok `PPC
+  | s -> `Ok (`Other (String.lowercase s))
 
-let to_string { os; arch } =
-  Printf.sprintf "%s (%s)" (string_of_os os) (string_of_arch arch)
+type os = [
+  | `Darwin
+  | `Linux
+  | `Unix
+  | `FreeBSD
+  | `OpenBSD
+  | `NetBSD
+  | `DragonFly
+  | `Win32
+  | `Cygwin
+  | `Other of string
+]
 
-(* copied from OpamMisc :-/ *)
-let with_process_in cmd f =
-  let ic = Unix.open_process_in cmd in
-  try
-    let r = f ic in
-    ignore (Unix.close_process_in ic) ; r
-  with exn ->
-    ignore (Unix.close_process_in ic) ; raise exn
+let string_of_os = function
+  | `Darwin -> "osx"
+  | `Linux -> "linux"
+  | `Unix -> "unix"
+  | `FreeBSD -> "freebsd"
+  | `OpenBSD -> "openbsd"
+  | `NetBSD -> "netbsd"
+  | `DragonFly -> "dragonfly"
+  | `Win32 -> "win32"
+  | `Cygwin -> "cygwin"
+  | `Other s -> String.lowercase s
 
-let ltws = Re.(compile (seq [
-  bos ; rep space ; group (non_greedy (rep any)) ; rep space ; eos
-]))
-let strip s = Re.(get (exec ltws s) 1)
+let os_of_string = function
+  | "osx" -> `Ok `Darwin
+  | "linux" -> `Ok `Linux
+  | "unix" -> `Ok `Unix
+  | "freebsd" -> `Ok `FreeBSD
+  | "openbsd" -> `Ok `OpenBSD
+  | "netbsd" -> `Ok `NetBSD
+  | "dragonfly" -> `Ok `DragonFly
+  | "win32" -> `Ok `Win32
+  | "cygwin" -> `Ok `Cygwin
+  | s -> `Ok (`Other (String.lowercase s))
 
-let uname_m () =
-  try with_process_in "uname -m"
-        (fun ic -> Some (strip (input_line ic)))
-  with _ -> None
+type distr = [
+  | `Homebrew
+  | `Macports
+  | `Debian
+  | `Ubuntu
+  | `Centos
+  | `Fedora
+  | `Mageia
+  | `Archlinux
+  | `Gentoo
+  | `Other of string
+]
 
-let uname_s () =
-  try with_process_in "uname -s"
-        (fun ic -> Some (strip (input_line ic)))
-  with _ -> None
+let string_of_distr = function
+  | `Homebrew -> "homebrew"
+  | `Macports -> "macports"
+  | `Debian -> "debian"
+  | `Ubuntu -> "ubuntu"
+  | `Centos -> "centos"
+  | `Fedora -> "fedora"
+  | `Mageia -> "mageia"
+  | `Archlinux -> "archlinux"
+  | `Gentoo -> "gentoo"
+  | `Other s -> String.lowercase s
 
-let archref = ref None
-let osref = ref None
-(*let ocamlref = ref None
-let opamref = ref None
-*)
-let arch () = match !archref with
-  | None ->
-      let arch = match Sys.os_type with
-        | "Unix" -> arch_of_string_opt (uname_m ())
-        | _ -> Unknown
-      in
-      archref := Some arch;
-      arch
-  | Some arch -> arch
+let distr_of_string = function
+  | "homebrew" -> `Ok `Homebrew
+  | "macports" -> `Ok `Macports
+  | "debian" -> `Ok `Debian
+  | "ubuntu" -> `Ok `Ubuntu
+  | "centos" -> `Ok `Centos
+  | "fedora" -> `Ok `Fedora
+  | "mageia" -> `Ok `Mageia
+  | "archlinux" -> `Ok `Archlinux
+  | "gentoo" -> `Ok `Gentoo
+  | s -> `Ok (`Other (String.lowercase s))
 
-let os () = match !osref with
-  | None ->
-      let os = match Sys.os_type with
-        | "Unix"   -> os_of_string_opt (uname_s ())
-        | "Win32"  -> Win32
-        | "Cygwin" -> Cygwin
-        | s        -> Other s
-      in
-      osref := Some os;
-      os
-  | Some os -> os
-(*
-let ocaml () = match !ocamlref with
-  | None ->
-      let ocaml =
+(* end of copy-pate *)
 
-      in
-      ocamlref = Some ocaml;
-      ocaml
-  | Some ocaml -> ocaml
-
-let opam () = match !opamref with
-  | None ->
-      let opam =
-
-      in
-      opamref = Some opam;
-      opam
-  | Some opam -> opam
-*)
-let detect () = {
-  os = os ();
-  arch = arch ();
-(*  ocaml = ocaml ();
-  opam = opam (); *)
+type t = {
+  arch: arch;
+  os: os;
+  distr: distr option;
 }
+
+let os t = t.os
+
+let create arch os distr = { arch; os; distr }
+
+let detect () =
+  let os = guess_os () in
+  create (guess_arch ()) os (guess_distrib os)
+
+let pp_arch ppf x = Fmt.string ppf (string_of_arch x)
+let pp_os ppf x = Fmt.string ppf (string_of_os x)
+let pp_distr ppf x = Fmt.string ppf (string_of_distr x)
+
+let pp ppf t =
+  Fmt.pf ppf
+    "@[<v>\
+     arch:  %a@;\
+     os:    %a@;\
+     distr: %a@]"
+    pp_arch t.arch
+    pp_os t.os
+    (Fmt.option pp_distr) t.distr
+
+let json_arch = Jsont.view (arch_of_string, string_of_arch) Jsont.string
+let json_os = Jsont.view (os_of_string, string_of_os) Jsont.string
+let json_distr = Jsont.view (distr_of_string, string_of_distr) Jsont.string
+
+let json =
+  let o = Jsont.objc ~kind:"host" () in
+  let arch = Jsont.(mem o "arch" json_arch) in
+  let os = Jsont.(mem o "os" json_os) in
+  let distr = Jsont.(mem_opt o "distr" json_distr) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    let get f = Jsont.get f o in
+    `Ok { arch = get arch; os = get os; distr = get distr; }
+  in
+  let enc t =
+    Jsont.(new_obj c [memv arch t.arch; memv os t.os; memv distr t.distr])
+  in
+  Jsont.view (dec, enc) c
+
+
+let defaults =
+  List.map (fun (a, o, s) -> create a o s)
+    [
+      (`X86, `Linux , Some `Ubuntu);
+      (`X86, `Linux , Some `Debian);
+      (`X86, `Darwin, Some `Homebrew);
+    ]
+
+let equal_other x y = match x, y with
+  | `Other x, `Other y -> String.(compare (lowercase x) (lowercase y)) = 0
+  | x, y -> x = y
+
+let equal_option eq x y = match x, y with
+  | None  , None   -> true
+  | Some x, Some y -> eq x y
+  | _ -> false
+
+let equal x y =
+  equal_other x.arch y.arch
+  && equal_other x.os y.os
+  && equal_option equal_other x.distr y.distr

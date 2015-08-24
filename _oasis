@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        ocaml-ci
-Version:     0.0.0
+Version:     0.1.0
 Synopsis:    distributed integration engine for opam packages
 Authors:     Qi Li, David Sheets, Thomas Gazagnaire
 License:     ISC
@@ -9,26 +9,73 @@ BuildTools:  ocamlbuild
 
 Library ciso
   Path: lib
-  Modules: Store, Object, Task, Message, Host, Common_types
-  BuildDepends: sexplib.syntax, sexplib, irmin.unix
+  InternalModules: Gol
+  Modules:
+    Id, Task, Job, Object, Package, Host, Switch, Worker, Store, Scheduler,
+    Version
+  BuildDepends:
+    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
 
-Executable "ciso-store"
-  Path: lib
-  MainIs: store_server.ml
-  Custom: true
-  CompiledObject: best
-  BuildDepends: cmdliner, irmin.unix, ciso
+Document ciso
+  Title:                CISO docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib
+  XOCamlbuildLibraries: ciso
+
+Executable test_ciso
+  Build$:           flag(tests)
+  Path:             lib_test
+  MainIs:           test.ml
+  CompiledObject:   best
+  Install:          false
+  BuildDepends:     alcotest, ciso
+
+Test test_ciso
+  Run$:             flag(tests)
+  Command:          $test_ciso -q
+  WorkingDirectory: lib_test/
+
+Library "ciso-worker"
+  Path: lib/worker
+  FindlibParent: ciso
+  FindlibName: worker
+  InternalModules: Opam
+  Modules: Ciso_worker
+  BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt
+
+Library "ciso-master"
+  Path: lib/master
+  FindlibParent: ciso
+  FindlibName: master
+  Modules: Master
+  BuildDepends: ciso, lwt
 
 Executable "ciso-worker"
-  Path: lib
-  MainIs: worker.ml
+  Path: bin
+  MainIs: worker_main.ml
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, irmin.unix, re.str,
-                opam-lib.client, ocamlgraph, ciso
+  BuildDepends: ciso.worker, cmdliner
 
 Executable "ciso-master"
-  Path: lib
-  MainIs: master.ml
+  Path: bin
+  MainIs: master_main.ml
   CompiledObject: best
-  BuildDepends: lwt, cohttp.lwt, cmdliner, uri, github.unix, nocrypto,
-                irmin.unix, opam-lib.client, opium, ciso
+  BuildDepends: ciso.master, cmdliner
+
+Library "ciso-github"
+  Build: false
+  Path: lib/github
+  FindlibParent: ciso
+  FindlibName: github
+  Modules: Github_pr
+  BuildDepends: ciso, ciso.worker, github.unix, lwt
+
+Executable "ciso-store"
+  Build: false
+  Path: bin
+  MainIs: store_main.ml
+  Custom: true
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner

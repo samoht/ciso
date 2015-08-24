@@ -16,43 +16,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+(** Compiler switches. *)
 
 type t
-(** The type for host configuration. *)
+(** The type for compiler switches. *)
 
-val detect: unit -> t
-(** Detects the host configuration. *)
+val of_string: string -> t
+(** [of_string] is the identity function. *)
 
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
+val to_string: t -> string
+(** [to_string] is the identity function. *)
 
 val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
+(** [defaults] is the list of default switches. *)
 
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
-]
-(** The type for OS configuration. *)
+val equal: t -> t -> bool
+(** [equal] is the equality for compiler switches. *)
 
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
+val json: t Jsont.codec
+(** [json] is the JSON codec for values compiler switches. *)
 
-val os: t -> os
-(** [os t] is [t]'s OS. *)
+val pp: t Fmt.t
+(** [pp] formats compiler switches. *)

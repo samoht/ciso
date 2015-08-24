@@ -16,43 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
-
+type pr
 type t
-(** The type for host configuration. *)
 
-val detect: unit -> t
-(** Detects the host configuration. *)
-
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
-
-val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
-
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
-]
-(** The type for OS configuration. *)
-
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
-
-val os: t -> os
-(** [os t] is [t]'s OS. *)
+val make_gh_task: name:string -> ?version:string -> pr -> t
+val make_pull: int -> string -> string -> string -> pr

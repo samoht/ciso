@@ -16,43 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+type t = string
 
-type t
-(** The type for host configuration. *)
+let equal x y = String.compare x y = 0
+let pp = Fmt.string
+let json = Jsont.string
+let to_string x = x
+let of_string x = x
 
-val detect: unit -> t
-(** Detects the host configuration. *)
-
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
-
-val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
-
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
+let defaults = [
+  "3.12.1";
+  "4.00.1";
+  "4.01.0";
+  "4.02.3";
 ]
-(** The type for OS configuration. *)
-
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
-
-val os: t -> os
-(** [os t] is [t]'s OS. *)

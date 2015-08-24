@@ -1,7 +1,7 @@
-PKG lwt cmdliner nocrypto
-PKG cohttp conduit.lwt-unix github
+PKG lwt cmdliner nocrypto fmt jsont.jsonm
 PKG opam-lib opam-lib.client opam-lib.solver
-PKG irmin irmin.unix
-PKG opium
-S lib
-B _build/lib
+PKG irmin irmin.unix uuidm
+PKG alcotest
+S lib/ lib/master/ lib/worker/
+S lib_test/ bin/
+B _build/**

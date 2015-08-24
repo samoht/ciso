@@ -1,313 +1,438 @@
+(*
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
+ * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
 open Lwt.Infix
-open Common_types
 
-type job_tbl = (id, Task.job) Hashtbl.t
-type deps_tbl = (id, id list) Hashtbl.t
+let debug fmt = Gol.debug ~section:"scheduler" fmt
+let err fmt = Printf.ksprintf failwith ("Scheduler: " ^^ fmt)
+let todo f = err "TODO %s" f
 
-type hook_tbl = (id, id) Hashtbl.t
+module XTask = struct
 
-type state = [`Pending | `Runnable | `Completed | `Dispatched of worker_token]
-type state_tbl = (id, state) Hashtbl.t
+  module TSet = Set.Make(Task)
 
-type fail_tbl = (id, int) Hashtbl.t
+  type t = {
+    cond: unit Lwt_condition.t;
+    store: Store.t;                                            (* local store *)
+    mutable new_tasks: TSet.t;                                   (* new tasks *)
+    mutable pending_tasks: TSet.t;                           (* pending tasks *)
+    cancels: (Task.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable stop: unit -> unit Lwt.t;
+  }
 
-let j_tbl : job_tbl = Hashtbl.create 16
-let d_tbl : deps_tbl = Hashtbl.create 16
-let h_tbl : hook_tbl = Hashtbl.create 16
-let s_tbl : state_tbl = Hashtbl.create 16
+  let list t = TSet.(elements (union t.new_tasks t.pending_tasks))
 
-let fail_limit = 2
-let f_tbl : fail_tbl = Hashtbl.create 16
+  let remove_task t task =
+    let id = Task.id task in
+    debug "remove taks %s" (Id.to_string id);
+    Hashtbl.remove t.cancels id;
+    t.new_tasks <- TSet.remove task t.new_tasks;
+    t.pending_tasks <- TSet.remove task t.pending_tasks
 
-let sub_abbr str = String.sub str 0 5
+  let set_new t task =
+    t.new_tasks <- TSet.add task t.new_tasks;
+    t.pending_tasks <- TSet.remove task t.pending_tasks
 
-let log subject func ~info =
-  let title = Printf.sprintf "%s@%s" subject func in
-  if info = "" then Printf.eprintf "[%s]\n%!" title
-  else Printf.eprintf "\t[%s]: %s\n%!" title info
+  let set_pending t task =
+    t.new_tasks <- TSet.remove task t.new_tasks;
+    t.pending_tasks <- TSet.add task t.pending_tasks
 
-let task_info ?(abbr = true) id =
-  try
-    let job = Hashtbl.find j_tbl id in
-    let name, version = Task.(task_of_job job |> info_of_task) in
-    (if abbr then String.sub id 0 5
-     else id ) ^ ":" ^ name ^ (match version with None -> "" | Some v -> "." ^ v)
-  with
-  | Not_found ->
-    let ids =
-      Hashtbl.fold (fun id _ acc -> id :: acc) j_tbl []
-      |> String.concat "\n"
+  (* FIXME: need to watch the related jobs status updates to update
+     the task status. *)
+  let watch_task_status t task =
+    let id = Task.id task in
+    let cancel = ref (fun () -> Lwt.return_unit) in
+    Store.Task.watch_status t.store id (function
+        | `Pending   -> set_pending t task; Lwt.return_unit
+        | `New       -> set_new t task; Lwt.return_unit
+        | `Cancelled -> todo "Task.cancel"
+        | `Success
+        | `Failure   -> remove_task t task; !cancel ()
+      ) >|= fun c ->
+    assert (not (Hashtbl.mem t.cancels id));
+    Hashtbl.add t.cancels id c;
+    cancel := c
+
+  let add_task t task =
+    if TSet.mem task t.new_tasks || TSet.mem task t.pending_tasks then
+      Lwt.return_unit
+    else (
+      let id = Task.id task in
+      Store.Task.status t.store id >>= function
+      | `Cancelled -> todo "cancelled tasks"
+      | `Success | `Failure -> Lwt.return_unit
+      | `Pending | `New as s ->
+        debug "add task %s" (Id.to_string id);
+        if s = `New then set_new t task else set_pending t task;
+        watch_task_status t task >|= fun () ->
+        Lwt_condition.broadcast t.cond ()
+    )
+
+  let empty store =
+    let cond = Lwt_condition.create () in
+    let stop () = Lwt.return_unit in
+    let cancels = Hashtbl.create 16 in
+    let new_tasks = TSet.empty in
+    let pending_tasks = TSet.empty in
+    { cond; store; new_tasks; pending_tasks; stop; cancels; }
+
+  let peek t =
+    if TSet.cardinal t.new_tasks = 0 then None
+    else Some (TSet.choose t.new_tasks)
+
+  let rec peek_s t =
+    match peek t with
+    | None   ->
+      debug "waiting for a new task to appear ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new task!";
+      peek_s t
+    | Some h -> Lwt.return h
+
+  let watch_task t = Store.Task.watch t.store (add_task t)
+
+  let start store =
+    debug "starting the task scheduler";
+    let t = empty store in
+    Store.Task.list store >>=
+    Lwt_list.map_p (Store.Task.get store) >>=
+    Lwt_list.iter_p (add_task t) >>= fun () ->
+    watch_task t >|= fun cancel ->
+    t.stop <- cancel;
+    t
+
+  let stop t =
+    debug "stopping the task scheduler";
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ v l -> v :: l) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
+
+end
+
+module XJob = struct
+
+  type t = {
+    cond  : unit Lwt_condition.t;
+    store : Store.t;
+    jobs  : (Job.id, Job.t) Hashtbl.t;
+    status: (Job.id, Job.status) Hashtbl.t;
+    cancels: (Job.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable stop: unit -> unit Lwt.t;
+  }
+
+  let list t = Hashtbl.fold (fun _ v l -> v :: l) t.jobs []
+
+  let status t j = try Hashtbl.find t.status j with Not_found -> `Pending
+
+  let runnables t host =
+    Hashtbl.fold (fun id j acc ->
+        if status t id = `Runnable && Host.equal (Job.host j) host
+        then j :: acc
+        else acc
+      ) t.jobs []
+
+  let peek t host = match runnables t host with
+    | []   -> None
+    | h::_ -> Some h
+
+  let rec peek_s t host =
+    match peek t host with
+    | Some jid -> Lwt.return jid
+    | None     ->
+      debug "waiting for a runnable job to appear ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new runnable job!";
+      peek_s t host
+
+  (* FIXME: use rev-deps to make it fast (a al TUP). *)
+  let update_runnable t =
+    let jobs = Hashtbl.fold (fun k v acc -> (k, v) :: acc) t.jobs [] in
+    List.iter (fun (id, job) ->
+        match status t id with
+        | `Pending ->
+          let inputs = Job.inputs job in
+          if List.for_all (fun j -> status t j = `Success) inputs then (
+            debug "%s is now runnable" (Id.to_string id);
+            Hashtbl.replace t.status id `Runnable;
+            (* FIXME: could broadcast only to the workers with the right
+               host configuration *)
+            Lwt_condition.broadcast t.cond ()
+          )
+        | _ -> ()
+      ) jobs
+
+  let remove_job t id =
+    Hashtbl.remove t.jobs id;
+    Hashtbl.remove t.status id
+
+  let add_job_aux t job =
+    let id = Job.id job in
+    Store.Job.mem t.store id >>= function
+    | false ->
+      Store.Job.add t.store job >|= fun () ->
+      Hashtbl.add t.jobs id job;
+      Hashtbl.add t.status id `Pending
+    | true ->
+      Store.Job.status t.store id >|= fun status ->
+      Hashtbl.replace t.jobs id job;
+      Hashtbl.replace t.status id status
+
+  let watch_job_status t j =
+    let id = Job.id j in
+    let cancel = ref (fun () -> Lwt.return_unit) in
+    Store.Job.watch_status t.store id (function
+        | `Cancelled -> todo "job cancelled"
+        | `Pending
+        | `Running   (* we already watch it, so nothing to do *)
+        | `Runnable  -> Lwt.return_unit
+        | `Success
+        | `Failure   -> remove_job t id; !cancel ()
+      ) >|= fun c ->
+    assert (not (Hashtbl.mem t.cancels id));
+    Hashtbl.add t.cancels id c;
+    cancel := c
+
+  let add_job t job =
+    if Hashtbl.mem t.jobs (Job.id job) then Lwt.return_unit
+    else (
+      Store.Job.status t.store (Job.id job) >>= function
+      | `Cancelled -> todo "cancelled job"
+      | `Failure | `Success -> Lwt.return_unit
+      | `Pending | `Running | `Runnable  ->
+        debug "add job %s" (Id.to_string @@ Job.id job);
+        add_job_aux t job >>= fun () ->
+        watch_job_status t job >|= fun () ->
+        update_runnable t
+    )
+
+  let watch_jobs t = Store.Job.watch t.store (add_job t)
+
+  let empty store =
+    let stop () = Lwt.return_unit in
+    { store; stop;
+      cond    = Lwt_condition.create ();
+      jobs     = Hashtbl.create 16;
+      status   = Hashtbl.create 16;
+      cancels  = Hashtbl.create 16; }
+
+  let start store =
+    debug "starting the job scheduler.";
+    let t = empty store in
+    Store.Job.list store >>=
+    Lwt_list.map_p (Store.Job.get store) >>=
+    Lwt_list.iter_p (add_job t) >>= fun () ->
+    watch_jobs t >|= fun cancel ->
+    t.stop <- cancel;
+    t
+
+  let stop t =
+    debug "stoping the job scheduler";
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ c acc -> c :: acc) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
+
+end
+
+module XWorker = struct
+
+  module WSet = Set.Make(Worker)
+
+  type t = {
+    cond   : unit Lwt_condition.t;
+    store  : Store.t;
+    cancels: (Worker.id, (unit -> unit Lwt.t) list) Hashtbl.t;
+    mutable stop   : unit -> unit Lwt.t;    (* stop the main scheduler watch. *)
+    mutable workers     : WSet.t;                         (* all the workers. *)
+    mutable idle_workers: WSet.t;                            (* idle workers. *)
+  }
+
+  let list t = WSet.elements t.workers
+
+  let cancels t id = try Hashtbl.find t.cancels id with Not_found -> []
+
+  let add_to_cancel t id f =
+    let cs = cancels t id in
+    Hashtbl.replace t.cancels id (f :: cs)
+
+  (* reset the job a dead worker was working on. This will trigger the
+     job scheduler to distribute it to someone else. *)
+  let reset_job t id =
+    Store.Worker.status t.store id >>= function
+    | Some (`Job id)  -> Store.Job.pending t.store id
+    | Some (`Task id) -> Store.Task.reset t.store id
+    | _ -> Lwt.return_unit
+
+  let cancel_worker t id =
+    let fs = cancels t id in
+    Hashtbl.remove t.cancels id;
+    Lwt_list.iter_p (fun f -> f ()) fs
+
+  let remove_worker t id =
+    let has_id w = Id.equal id (Worker.id w) in
+    let not_ f x = not (f x) in
+    if not (WSet.exists has_id t.workers) then Lwt.return_unit
+    else (
+      debug "remove worker %s" (Id.to_string id);
+      t.workers <- WSet.filter (not_ has_id) t.workers;
+      t.idle_workers <- WSet.filter (not_ has_id) t.idle_workers;
+      cancel_worker t id >>= fun () ->
+      reset_job t id
+    )
+
+  (* watch for worker ticks, clean-up the worker state if it's dead. *)
+  let watch_woker_ticks t w =
+    let id = Worker.id w in
+    let now () = Unix.time () in
+    let last_tick = ref (now ()) in
+    let is_dead = 10. in
+    Store.Worker.watch_ticks t.store id (fun _tick ->
+        last_tick := now ();
+        Lwt.return_unit
+      )
+    >|= fun cancel ->
+    add_to_cancel t id cancel;
+    let forget () =
+      debug "%s is dead!" (Id.to_string id);
+      remove_worker t id >>= fun () ->
+      Store.Worker.forget t.store id
     in
-    Printf.sprintf "Object %s not in the ids: [\n%s]" id ids
-  | e -> raise e
-
-let rec get_runnables ?host ?compiler () =
-  let env_match (c, h) = function
-    | None, None -> true
-    | Some h', None -> h' = h
-    | None, Some c' -> c' = c
-    | Some h', Some c' -> h' = h && c' = c
-  in
-  Hashtbl.fold (fun id j acc ->
-      if `Runnable = Hashtbl.find s_tbl id
-         && env_match (Task.env_of_job j) (host, compiler)
-      then id :: acc
-      else acc) j_tbl []
-  |> fun lst ->
-  if compiler <> None && lst = [] then get_runnables ?host ()
-  else lst
-
-let count_runnables () =
-  let r = get_runnables () in
-  List.length r, Hashtbl.length j_tbl
-
-let invalidate_token wtoken =
-  Hashtbl.iter (fun id s ->
-      if s = (`Dispatched wtoken)
-      then Hashtbl.replace s_tbl id `Runnable
-    ) s_tbl;
-  let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "invalidate" ~info
-
-let find_job wtoken =
-  let host, compiler = Monitor.worker_env wtoken in
-  let runnables = get_runnables ~host ?compiler () in
-  if runnables = [] then None
-  else (
-    let id, _ = List.fold_left (fun (i, max_r) tid ->
-        let deps = Hashtbl.find d_tbl tid in
-        let r = Monitor.job_rank wtoken deps in
-        if r > max_r then tid, r else i, max_r
-      ) ("", (-1)) runnables
-    in
-    Hashtbl.replace s_tbl id (`Dispatched wtoken);
-    log "scheduler" "find_job" ~info:(" -> " ^ (task_info id));
-    let job = Hashtbl.find j_tbl id in
-    let deps = Hashtbl.find d_tbl id in
-    let desp =
-      Task.make_job_entry job deps
-      |> Task.sexp_of_job_entry
-      |> Sexplib.Sexp.to_string
-    in
-    let c, _ = Task.env_of_job job in
-    Some (id, c, desp)
-  )
-
-let publish_object_hook id =
-  if not (Hashtbl.mem h_tbl id) then Lwt.return ()
-  else begin
-      let ids = Hashtbl.find_all h_tbl id in
-      let tups =
-        List.rev_map (fun i -> i,
-          try Hashtbl.find j_tbl i with Not_found ->
-            let info = "Not_found J_TBL " ^ (sub_abbr i) in
-            log "scheduler" "publish_hook" ~info;
-            raise Not_found) ids
-      in
-      Lwt_list.fold_left_s (fun cache (i, job) ->
-        let state =
-          try Hashtbl.find s_tbl i with Not_found ->
-            let info = "Not_found S_TBL " ^ (sub_abbr i) in
-            log "scheduler" "publish_hook" ~info;
-            raise Not_found
-        in
-        if state <> `Pending then Lwt.return cache
-        else (
-          let inputs = Task.inputs_of_job job in
-          let cached, store =
-            List.partition (fun input -> List.mem_assoc input cache) inputs
-          in
-          if List.exists (fun input -> false = List.assoc input cache) cached
-          then Lwt.return cache else
-            Lwt_list.rev_map_s (fun input -> Store.query_object input) store
-            >>= fun store_results ->
-            let store_tups = List.combine store (List.rev store_results) in
-            Lwt_list.fold_left_s (fun acc tup ->
-                Lwt.return (tup :: acc)) cache store_tups
-            >>= fun new_cache ->
-            if List.for_all (fun re -> re = true) store_results then
-              Hashtbl.replace s_tbl i `Runnable;
-            Lwt.return new_cache
-        )) [] tups
-      >>= fun _ -> Lwt.return ()
-    end
-
-let publish_object _wtoken result id =
-  (* FIXME: wtoken is not used!! *)
-  (match result with
-   | `Delegate _ | `Success ->
-      Hashtbl.replace s_tbl id `Completed;
-      publish_object_hook id
-   | `Fail _ ->
-      let cnt = try Hashtbl.find f_tbl id with Not_found -> 0 in
-      let n_cnt = succ cnt in
-      if n_cnt >= fail_limit then
-        (log "scheduler" "publish" ~info:"Fail -> FAIL";
-         Hashtbl.replace s_tbl id `Completed)
+    let rec loop () =
+      if now () -. !last_tick > is_dead then forget ()
       else
-        (log "schduer" "publish" ~info:"Fail -> RETRY";
-         Hashtbl.replace f_tbl id n_cnt;
-         Hashtbl.replace s_tbl id `Runnable);
-      Lwt.return_unit) >>= fun () ->
-  log "scheduler" "publish" ~info:"publish hook completed";
-  let info_lst = List.rev_map (task_info ~abbr:true) (get_runnables ()) in
-  let info = Printf.sprintf "{%s}" (String.concat " ; " info_lst) in
-  log "scheduler" "publish" ~info;
-  Lwt.return_unit
+        Store.Worker.mem t.store id >>= function
+        | false -> forget ()
+        | true ->
+          Lwt_unix.sleep is_dead >>= fun () ->
+          loop ()
+    in
+    Lwt.async loop
 
-let user = "ocaml"
-let repo = "opam-repository"
-let token = ref None
+  let add_idle_worker t w =
+    if not (WSet.mem w t.workers) then (
+      debug "%s is idle!" (Id.to_string @@ Worker.id w);
+      t.idle_workers <- WSet.add w t.idle_workers;
+      Lwt_condition.broadcast t.cond ()
+    )
 
-let init_gh_token name =
-  Github_cookie_jar.init ()
-  >>= fun jar -> Github_cookie_jar.get jar ~name
-  >>= function
-    | Some auth -> Lwt.return (Github.Token.of_auth auth)
-    | None -> Lwt.fail (failwith "None auth")
+  let remove_idle_worket t w =
+    debug "%s is not idle!" (Id.to_string @@ Worker.id w);
+    t.idle_workers <- WSet.remove w t.idle_workers
 
-(* /packages/<pkg>/<pkg.version>/{opam, url, descr, files/.., etc} *)
-let packages_of_pull token num =
-  let open Github.Monad in
-  Github.Pull.files ~token ~user ~repo ~num () |> Github.Stream.to_list
-  >|= fun files ->
-  List.fold_left (fun acc file ->
-      let parts = Array.of_list
-          (Str.split (Str.regexp "/") file.Github_t.file_filename) in
-      let pkg = try
-          if parts.(0) = "packages" && parts.(3) <> "descr"
-          then parts.(2) else ""
-        with _ -> "" in
-      if pkg <> "" && not (List.mem pkg acc) then pkg :: acc else acc)
-    [] files
+  let watch_worker_status t w =
+    let id = Worker.id w in
+    Store.Worker.watch_status t.store id (fun status ->
+        match status with
+        | Some `Idle     -> add_idle_worker t w; Lwt.return_unit
+        | Some (`Job _)
+        | Some (`Task _) -> remove_idle_worket t w; Lwt.return_unit
+        | None           -> remove_worker t id
+      )
+    >|= fun cancel ->
+    add_to_cancel t id cancel
 
-let pull_info token num =
-  let open Github_t in
-  let open Github.Monad in
-  Github.Pull.get ~token ~user ~repo ~num ()
-  >|= fun pull_resp ->
-  let pull = Github.Response.value pull_resp in
-  let base = pull.pull_base and head = pull.pull_head in
-  let base_repo =
-    match base.branch_repo with
-    | Some repo -> repo | None -> failwith "pr_info" in
-  Task.make_pull
-    num base_repo.repository_clone_url base.branch_sha head.branch_sha
+  let add_worker t w =
+    if WSet.mem w t.workers then Lwt.return_unit
+    else (
+      let id = Worker.id w in
+      debug "add worker %s" (Id.to_string id);
+      t.workers <- WSet.add w t.workers;
+      watch_woker_ticks t w   >>= fun () ->
+      watch_worker_status t w >>= fun () ->
+      Store.Worker.status t.store id >>= function
+      | Some `Idle -> add_idle_worker t w; Lwt.return_unit
+      | None       -> remove_worker t id
+      | _          -> Lwt.return_unit
+    )
 
-let update_tables jobs =
-  Lwt_list.filter_p (fun (id, _, _) ->
-      Store.query_object id >>= fun in_store ->
-      Lwt.return (not (in_store || Hashtbl.mem j_tbl id))) jobs
-  >>=fun new_jobs ->
-  (* cache contains the results of Store.query_object, it can answer
-     whether a previously queried dep is in the data store or not *)
-  Lwt_list.fold_left_s (fun cache (id, j, deps) ->
-      Store.log_job id (j, deps) >>= fun () ->
-      Hashtbl.replace j_tbl id j;
-      Hashtbl.replace d_tbl id deps;
+  let watch_workers t =
+    Store.Worker.watch t.store (function
+        | `Removed id -> remove_worker t id
+        | `Added   w  -> add_worker t w
+      )
 
-      let _cached, to_lookup =
-        List.partition (fun d -> List.mem_assoc d cache) deps
-      in
-      Lwt_list.rev_map_s (fun d -> Store.query_object d) to_lookup
-      >>= fun lookup_results ->
-      let new_cache = List.combine to_lookup (List.rev lookup_results) in
-      let cache = List.rev_append new_cache cache in
+  let peek t =
+    if WSet.cardinal t.workers = 0 then None
+    else Some (WSet.choose t.workers)
 
-      let in_store d = List.assoc d cache in
-      (if List.for_all (fun d -> in_store d) deps then
-         Hashtbl.replace s_tbl id `Runnable
-       else begin
-         let hooks = List.filter (fun i -> not (in_store i))
-             (Task.inputs_of_job j) in
-         List.iter (fun h -> Hashtbl.add h_tbl h id) hooks;
-         Hashtbl.replace s_tbl id `Pending; end);
-      Lwt.return cache) [] new_jobs
-  >>= fun _ ->
-  let run, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" run sum in
-  log "scheduler" "update" ~info;
-  Lwt.return_unit
+  let rec peek_s t =
+    match peek t with
+    | Some t -> Lwt.return t
+    | None   ->
+      debug "waiting for an idle worker ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new idle worker!";
+      peek_s t
 
-let bootstrap () =
-  log "scheduler" "bootstrap" ~info:"read unfinished jobs";
-  Store.retrieve_jobs ()
-  >>= update_tables >>= fun () ->
-  let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "bootstrap" ~info;
-  Lwt.return_unit
+  let empty store =
+    let cond = Lwt_condition.create () in
+    let cancels = Hashtbl.create 12 in
+    let idle_workers = WSet.empty in
+    let workers = WSet.empty in
+    let stop () = Lwt.return_unit in
+    { cond; store; cancels; idle_workers; workers; stop }
 
-let state_of_id id =
-  if Hashtbl.mem s_tbl id then
-    Lwt.return (Hashtbl.find s_tbl id)
-  else
-    Store.query_object id >>= fun in_store ->
-    if in_store then Lwt.return `Completed
-    else Lwt.fail (raise Not_found)
+  let start store =
+    debug "starting the work scheduler";
+    let t = empty store in
+    Store.Worker.list store >>=
+    Lwt_list.map_s (Store.Worker.get store) >>=
+    Lwt_list.iter_p (add_worker t) >>= fun () ->
+    watch_workers t >|= fun cancel ->
+    t.stop <- cancel;
+    t
 
-let progress_of_id id =
-  (if Hashtbl.mem d_tbl id then Lwt.return (Hashtbl.find d_tbl id)
-   else Store.retrieve_job id >>= fun (_, deps) -> Lwt.return deps)
-  >>= fun deps ->
-  Lwt_list.rev_map_s (fun d -> state_of_id d >>= fun s -> Lwt.return (d, s)) deps
-  >>= fun dep_states ->
-  state_of_id id >>= fun s ->
-  Lwt.return ((id, s) :: dep_states)
+  let stop t =
+    debug "stoping the work scheduler";
+    t.stop () >>= fun () ->
+    let cancels = Hashtbl.fold (fun _ l acc -> l @ acc) t.cancels [] in
+    Lwt_list.iter_p (fun f -> f ()) cancels
 
-let get_progress id =
-  state_of_id id >>= fun s ->
-  if s <> `Completed then progress_of_id id
-  else
-    Store.retrieve_object id >>= fun obj ->
-    match Object.result_of_t obj with
-    | `Delegate del ->
-      progress_of_id del >>= fun delegates ->
-      let delegate_state = List.assoc del delegates in
-      let state = if delegate_state <> `Completed then `Pending
-        else `Completed in
-      Lwt.return ((id, state) :: delegates)
-    | `Success | `Fail _ -> progress_of_id id
+end
 
-let string_of_state = function
-  | `Completed -> "Completed"
-  | `Pending -> "Pending"
-  | `Runnable -> "Runnalbe"
-  | `Dispatched _ -> "Dispatched"
+let start store =
+  XJob.start store    >>= fun j ->
+  XTask.start store   >>= fun t ->
+  XWorker.start store >|= fun w ->
+  let peek_job host = XJob.peek_s j host >|= fun j -> `Job j in
+  let peek_task () = XTask.peek_s t >|= fun t -> `Task t in
+  let schedule w =
+    let host = Worker.host w in
+    let wid = Worker.id w in
+    Lwt.pick [peek_job host; peek_task ()] >>= function
+    | `Job j  -> Store.Worker.start_job store wid (Job.id j)
+    | `Task t -> Store.Worker.start_task store wid (Task.id t)
+  in
+  let rec loop () =
+    XWorker.peek_s w >>= fun w ->
+    Lwt.join [schedule w; loop ()]
+  in
+  Lwt.async loop
 
-let progress_info id =
-  get_progress id >>= fun progress ->
-  List.rev_map (fun (_id, s) ->
-      let format =
-        if _id = id then Printf.sprintf " -> %s %s"
-        else Printf.sprintf "    %s %s"
-      in
-      format (task_info ~abbr:false _id) (string_of_state s)) progress
-  |> List.rev
-  |> fun str_lst ->
-  Lwt.return (Printf.sprintf "%s\n" (String.concat "\n" str_lst))
+module type S = sig
+  type t
+  type value
+  val start: Store.t -> t Lwt.t
+  val stop: t -> unit Lwt.t
+  val list: t -> value list
+  val peek: t -> value option
+  val peek_s: t -> value Lwt.t
+end
 
-let resolve_and_add ?pull pkg =
-  let action_graph = Ci_opam.resolve [pkg] in
-  let jobs = Ci_opam.jobs_of_graph ?pull action_graph in
-  update_tables jobs >|= fun () ->
-  let r, sum = count_runnables () in
-  let info = Printf.sprintf "%d/%d jobs" r sum in
-  log "scheduler" "resolve" ~info
-
-let github_hook num =
-  (match !token with
-   | Some t -> Lwt.return t
-   | None -> begin
-       init_gh_token "scry"
-       >>= fun t ->
-       token := Some t;
-       Lwt.return t
-     end)
-  >>= fun token -> Github.Monad.run (pull_info token num)
-  >>= fun pull -> Github.Monad.run (packages_of_pull token num)
-  >>= fun pkgs -> Lwt_list.iter_s (resolve_and_add ~pull) pkgs
-
-let user_demand ~pkg =
-  resolve_and_add pkg
+module Job = XJob
+module Worker = XWorker
+module Task = XTask

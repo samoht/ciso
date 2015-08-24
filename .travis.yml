@@ -2,11 +2,10 @@ language: c
 sudo: required
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
 script: bash -ex .travis-opam.sh
-global:
-  env:
-  - PIN=opam-lib:https://github.com/samoht/opam.git
+env:
+  global:
+    - PINS="opam-lib:https://github.com/ocaml/opam.git fmt:https://github.com/dbuenzli/fmt.git jsont:https://github.com/dbuenzli/jsont.git jsonm:https://github.com/dbuenzli/jsonm.git irmin"
+    - PACKAGE=ciso
   matrix:
-  - OCAML_VERSION=3.12
-  - OCAML_VERSION=4.00
-  - OCAML_VERSION=4.01
-  - OCAML_VERSION=4.02
+    - OCAML_VERSION=4.01
+    - OCAML_VERSION=4.02

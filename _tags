@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1273ed104e82845ba9a7623650cf8f49)
+# DO NOT EDIT (digest: 6609999a51688d9858b25852615fab56)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,52 +16,126 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Library ciso
 "lib/ciso.cmxs": use_ciso
-# Executable ciso-store
-<lib/store_server.{native,byte}>: pkg_cmdliner
-<lib/store_server.{native,byte}>: pkg_irmin.unix
-<lib/store_server.{native,byte}>: pkg_sexplib
-<lib/store_server.{native,byte}>: pkg_sexplib.syntax
-<lib/store_server.{native,byte}>: use_ciso
-<lib/store_server.{native,byte}>: custom
-# Executable ciso-worker
-<lib/worker.{native,byte}>: pkg_cmdliner
-<lib/worker.{native,byte}>: pkg_cohttp.lwt
-<lib/worker.{native,byte}>: pkg_irmin.unix
-<lib/worker.{native,byte}>: pkg_lwt
-<lib/worker.{native,byte}>: pkg_ocamlgraph
-<lib/worker.{native,byte}>: pkg_opam-lib.client
-<lib/worker.{native,byte}>: pkg_re.str
-<lib/worker.{native,byte}>: pkg_sexplib
-<lib/worker.{native,byte}>: pkg_sexplib.syntax
-<lib/worker.{native,byte}>: pkg_uri
-<lib/worker.{native,byte}>: use_ciso
-<lib/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/*.ml{,i,y}>: pkg_re.str
-# Executable ciso-master
-<lib/master.{native,byte}>: pkg_cmdliner
-<lib/master.{native,byte}>: pkg_cohttp.lwt
-<lib/master.{native,byte}>: pkg_github.unix
-<lib/master.{native,byte}>: pkg_irmin.unix
-<lib/master.{native,byte}>: pkg_lwt
-<lib/master.{native,byte}>: pkg_nocrypto
-<lib/master.{native,byte}>: pkg_opam-lib.client
-<lib/master.{native,byte}>: pkg_opium
-<lib/master.{native,byte}>: pkg_sexplib
-<lib/master.{native,byte}>: pkg_sexplib.syntax
-<lib/master.{native,byte}>: pkg_uri
-<lib/master.{native,byte}>: use_ciso
-<lib/*.ml{,i,y}>: pkg_cmdliner
-<lib/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/*.ml{,i,y}>: pkg_github.unix
+<lib/*.ml{,i,y}>: pkg_fmt
+<lib/*.ml{,i,y}>: pkg_hex
 <lib/*.ml{,i,y}>: pkg_irmin.unix
+<lib/*.ml{,i,y}>: pkg_jsont.jsonm
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_nocrypto
-<lib/*.ml{,i,y}>: pkg_opam-lib.client
-<lib/*.ml{,i,y}>: pkg_opium
-<lib/*.ml{,i,y}>: pkg_sexplib
-<lib/*.ml{,i,y}>: pkg_sexplib.syntax
 <lib/*.ml{,i,y}>: pkg_uri
-<lib/*.ml{,i,y}>: use_ciso
+<lib/*.ml{,i,y}>: pkg_uuidm
+# Executable test_ciso
+<lib_test/test.{native,byte}>: pkg_alcotest
+<lib_test/test.{native,byte}>: pkg_fmt
+<lib_test/test.{native,byte}>: pkg_hex
+<lib_test/test.{native,byte}>: pkg_irmin.unix
+<lib_test/test.{native,byte}>: pkg_jsont.jsonm
+<lib_test/test.{native,byte}>: pkg_lwt
+<lib_test/test.{native,byte}>: pkg_nocrypto
+<lib_test/test.{native,byte}>: pkg_uri
+<lib_test/test.{native,byte}>: pkg_uuidm
+<lib_test/test.{native,byte}>: use_ciso
+<lib_test/*.ml{,i,y}>: pkg_alcotest
+<lib_test/*.ml{,i,y}>: pkg_fmt
+<lib_test/*.ml{,i,y}>: pkg_hex
+<lib_test/*.ml{,i,y}>: pkg_irmin.unix
+<lib_test/*.ml{,i,y}>: pkg_jsont.jsonm
+<lib_test/*.ml{,i,y}>: pkg_lwt
+<lib_test/*.ml{,i,y}>: pkg_nocrypto
+<lib_test/*.ml{,i,y}>: pkg_uri
+<lib_test/*.ml{,i,y}>: pkg_uuidm
+<lib_test/*.ml{,i,y}>: use_ciso
+# Library ciso-worker
+"lib/worker/ciso-worker.cmxs": use_ciso-worker
+<lib/worker/*.ml{,i,y}>: pkg_fmt
+<lib/worker/*.ml{,i,y}>: pkg_hex
+<lib/worker/*.ml{,i,y}>: pkg_irmin.unix
+<lib/worker/*.ml{,i,y}>: pkg_jsont.jsonm
+<lib/worker/*.ml{,i,y}>: pkg_lwt
+<lib/worker/*.ml{,i,y}>: pkg_nocrypto
+<lib/worker/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/worker/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/worker/*.ml{,i,y}>: pkg_uri
+<lib/worker/*.ml{,i,y}>: pkg_uuidm
+<lib/worker/*.ml{,i,y}>: use_ciso
+# Library ciso-master
+"lib/master/ciso-master.cmxs": use_ciso-master
+<lib/master/*.ml{,i,y}>: pkg_fmt
+<lib/master/*.ml{,i,y}>: pkg_hex
+<lib/master/*.ml{,i,y}>: pkg_irmin.unix
+<lib/master/*.ml{,i,y}>: pkg_jsont.jsonm
+<lib/master/*.ml{,i,y}>: pkg_lwt
+<lib/master/*.ml{,i,y}>: pkg_nocrypto
+<lib/master/*.ml{,i,y}>: pkg_uri
+<lib/master/*.ml{,i,y}>: pkg_uuidm
+<lib/master/*.ml{,i,y}>: use_ciso
+# Executable ciso-worker
+<bin/worker_main.{native,byte}>: pkg_cmdliner
+<bin/worker_main.{native,byte}>: pkg_fmt
+<bin/worker_main.{native,byte}>: pkg_hex
+<bin/worker_main.{native,byte}>: pkg_irmin.unix
+<bin/worker_main.{native,byte}>: pkg_jsont.jsonm
+<bin/worker_main.{native,byte}>: pkg_lwt
+<bin/worker_main.{native,byte}>: pkg_nocrypto
+<bin/worker_main.{native,byte}>: pkg_ocamlgraph
+<bin/worker_main.{native,byte}>: pkg_opam-lib.client
+<bin/worker_main.{native,byte}>: pkg_uri
+<bin/worker_main.{native,byte}>: pkg_uuidm
+<bin/worker_main.{native,byte}>: use_ciso
+<bin/worker_main.{native,byte}>: use_ciso-worker
+<bin/*.ml{,i,y}>: pkg_ocamlgraph
+<bin/*.ml{,i,y}>: pkg_opam-lib.client
+<bin/*.ml{,i,y}>: use_ciso-worker
+# Executable ciso-master
+<bin/master_main.{native,byte}>: pkg_cmdliner
+<bin/master_main.{native,byte}>: pkg_fmt
+<bin/master_main.{native,byte}>: pkg_hex
+<bin/master_main.{native,byte}>: pkg_irmin.unix
+<bin/master_main.{native,byte}>: pkg_jsont.jsonm
+<bin/master_main.{native,byte}>: pkg_lwt
+<bin/master_main.{native,byte}>: pkg_nocrypto
+<bin/master_main.{native,byte}>: pkg_uri
+<bin/master_main.{native,byte}>: pkg_uuidm
+<bin/master_main.{native,byte}>: use_ciso
+<bin/master_main.{native,byte}>: use_ciso-master
+<bin/*.ml{,i,y}>: use_ciso-master
+# Library ciso-github
+"lib/github/ciso-github.cmxs": use_ciso-github
+<lib/github/*.ml{,i,y}>: pkg_fmt
+<lib/github/*.ml{,i,y}>: pkg_github.unix
+<lib/github/*.ml{,i,y}>: pkg_hex
+<lib/github/*.ml{,i,y}>: pkg_irmin.unix
+<lib/github/*.ml{,i,y}>: pkg_jsont.jsonm
+<lib/github/*.ml{,i,y}>: pkg_lwt
+<lib/github/*.ml{,i,y}>: pkg_nocrypto
+<lib/github/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/github/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/github/*.ml{,i,y}>: pkg_uri
+<lib/github/*.ml{,i,y}>: pkg_uuidm
+<lib/github/*.ml{,i,y}>: use_ciso
+<lib/github/*.ml{,i,y}>: use_ciso-worker
+# Executable ciso-store
+<bin/store_main.{native,byte}>: pkg_cmdliner
+<bin/store_main.{native,byte}>: pkg_fmt
+<bin/store_main.{native,byte}>: pkg_hex
+<bin/store_main.{native,byte}>: pkg_irmin.unix
+<bin/store_main.{native,byte}>: pkg_jsont.jsonm
+<bin/store_main.{native,byte}>: pkg_lwt
+<bin/store_main.{native,byte}>: pkg_nocrypto
+<bin/store_main.{native,byte}>: pkg_uri
+<bin/store_main.{native,byte}>: pkg_uuidm
+<bin/store_main.{native,byte}>: use_ciso
+<bin/*.ml{,i,y}>: pkg_cmdliner
+<bin/*.ml{,i,y}>: pkg_fmt
+<bin/*.ml{,i,y}>: pkg_hex
+<bin/*.ml{,i,y}>: pkg_irmin.unix
+<bin/*.ml{,i,y}>: pkg_jsont.jsonm
+<bin/*.ml{,i,y}>: pkg_lwt
+<bin/*.ml{,i,y}>: pkg_nocrypto
+<bin/*.ml{,i,y}>: pkg_uri
+<bin/*.ml{,i,y}>: pkg_uuidm
+<bin/*.ml{,i,y}>: use_ciso
+<bin/store_main.{native,byte}>: custom
 # OASIS_STOP
 true: debug, bin_annot
-true: warn(A-4-41-44), warn(A-4-41-44)
+true: warn(+A-4-41-44), warn_error(A-4-41-44)

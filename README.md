@@ -1,14 +1,23 @@
 ## CISO:
 
-A (distributed) Continuous Integration engine for OPAM
+A (distributed) Continuous Integration engine for OPAM.
+
+[![Build Status](https://travis-ci.org/samoht/ciso.svg)](https://travis-ci.org/samoht/ciso)
+[![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://samoht.github.io/ciso/)
 
 ### Install
 
-Need the dev version of `opam-lib`:
+Ciso is not yet properly released so you need to pin some dev packages to
+compile and install the project:
 
 ```shell
-$ opam pin add opam-lib --dev
-$ opam pin add ciso .
+opam pin add opam-lib --dev -n
+opam pin add irmin --dev -n
+opam pin add fmt https://github.com/dbuenzli/fmt.git -n
+opam pin add jsonm https://github.com/dbuenzli/jsonm.git -n
+opam pin add jsont https://github.com/dbuenzli/jsont.git -n
+opam pin add ciso https://github.com/samoht/ciso.git -n
+opam install ciso
 ```
 
 ### Architecture
@@ -27,3 +36,7 @@ Any other **worker** who needs this _object_ to execute their own _task_ will ma
 
 There are more parts to add, like a github repo listener, who listens PR from ocaml/opam-repository, and add tasks in the task table of the **master**
 Rigth now, this project is in phase **pre-alpha**
+
+### License
+
+ISC. See the [LICENSE](./blob/master/LICENSE) file.

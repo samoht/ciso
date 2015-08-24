@@ -16,43 +16,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+type 'a t = string
 
-type t
-(** The type for host configuration. *)
+let compare x y = String.compare x y
+let equal x y = compare x y = 0
+let pp = Fmt.string
+let json = Jsont.string
+let of_string _ x = x
+let to_string x = x
 
-val detect: unit -> t
-(** Detects the host configuration. *)
+let digest _kind str =
+  let `Hex h =
+    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
+  in
+  h
 
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
-
-val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
-
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
-]
-(** The type for OS configuration. *)
-
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
-
-val os: t -> os
-(** [os t] is [t]'s OS. *)
+let of_uuid _kind =
+  let `Hex h =
+    Hex.of_string (Uuidm.to_bytes (Uuidm.create `V4))
+  in
+  h

@@ -1,9 +1,15 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1db9488b93fce7178e49cc2e68a8f029)
-Store
-Object
+# DO NOT EDIT (digest: 31f27d506b6cfb9ecf41c2f017cf2111)
+Id
 Task
-Message
+Job
+Object
+Package
 Host
-Common_types
+Switch
+Worker
+Store
+Scheduler
+Version
+Gol
 # OASIS_STOP
