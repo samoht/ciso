@@ -76,7 +76,11 @@ module XTask = struct
 
   let rec peek_s t =
     match peek t with
-    | None   -> Lwt_condition.wait t.cond >>= fun () -> peek_s t
+    | None   ->
+      debug "waiting for a new task to appear ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new task!";
+      peek_s t
     | Some h -> Lwt.return h
 
   let watch_task t = Store.Task.watch t.store (add_task t)
@@ -100,35 +104,37 @@ module XJob = struct
 
   let list t = Hashtbl.fold (fun _ v l -> v :: l) t.jobs []
 
+  let status t j = try Hashtbl.find t.status j with Not_found -> `Pending
+
   let runnables t host =
     Hashtbl.fold (fun id j acc ->
-        if Hashtbl.find t.status id = `Runnable && Host.equal (Job.host j) host
+        if status t id = `Runnable && Host.equal (Job.host j) host
         then j :: acc
         else acc
       ) t.jobs []
 
-  let rec peek_s t host =
-    let runnables = runnables t host in
-    match runnables with
-    | []       ->
-      Lwt_condition.wait t.cond >>= fun () ->
-      peek_s t host
-    | jid :: _ -> Lwt.return jid
-
-  let peek t host =
-    match runnables t host with
+  let peek t host = match runnables t host with
     | []   -> None
     | h::_ -> Some h
+
+  let rec peek_s t host =
+    match peek t host with
+    | Some jid -> Lwt.return jid
+    | None     ->
+      debug "waiting for a runnable job to appear ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new runnable job!";
+      peek_s t host
+
 
   (* FIXME: use rev-deps to make it fast (a al TUP). *)
   let update_runnable t =
     let jobs = Hashtbl.fold (fun k v acc -> (k, v) :: acc) t.jobs [] in
-    let status j = Hashtbl.find t.status j in
     List.iter (fun (id, job) ->
-        match status id with
+        match status t id with
         | `Pending ->
           let inputs = Job.inputs job in
-          if List.for_all (fun j -> status j = `Success) inputs then (
+          if List.for_all (fun j -> status t j = `Success) inputs then (
             debug "%s is now runnable" (Id.to_string id);
             Hashtbl.replace t.status id `Runnable;
             (* FIXME: could broadcast only to the workers with the right
@@ -287,8 +293,12 @@ module XWorker = struct
 
   let rec peek_s t =
     match peek t with
-    | None   -> Lwt_condition.wait t.cond >>= fun () -> peek_s t
     | Some t -> Lwt.return t
+    | None   ->
+      debug "waiting for an idle worker ...";
+      Lwt_condition.wait t.cond >>= fun () ->
+      debug "there's a new idle worker!";
+      peek_s t
 
   let create store =
     let cond = Lwt_condition.create () in
