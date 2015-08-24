@@ -91,6 +91,9 @@ val create:
 val equal: t -> t -> bool
 (** [equal] is the task equality. *)
 
+val compare: t -> t -> int
+(** [compare] compares tasks. *)
+
 val pp: t Fmt.t
 (** [pp] formats tasks. *)
 

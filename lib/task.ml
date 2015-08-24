@@ -58,6 +58,7 @@ type t = {
 }
 
 let equal x y = Id.equal x.id y.id
+let compare x y = Id.compare x.id y.id
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
@@ -103,7 +104,7 @@ let id t = t.id
 let packages t = t.packages
 
 let hash ~repos ~pins ~switches ~hosts ~packages =
-  let x l = String.concat "+" (List.sort compare l) in
+  let x l = String.concat "+" (List.sort String.compare l) in
   let y   = String.concat "-" in
   let repos = List.map (Fmt.to_to_string pp_repo) repos in
   let pins = List.map (Fmt.to_to_string pp_pin) pins in
