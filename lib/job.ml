@@ -27,6 +27,7 @@ type t = {
 }
 
 let equal x y = Id.equal x.id y.id
+let compare x y = Id.compare x.id y.id
 
 let json_package =
   let o = Jsont.objc ~kind:"job" () in

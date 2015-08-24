@@ -67,6 +67,9 @@ val packages: t -> (Package.t * Package.info) list
 val equal: t -> t -> bool
 (** [equal] is the job equality. *)
 
+val compare: t -> t -> int
+(** [compare] compares jobs. *)
+
 val json: t Jsont.codec
 (** [json] is the JSON codec for jobs. *)
 
