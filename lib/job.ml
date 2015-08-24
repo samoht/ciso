@@ -128,8 +128,10 @@ let is_success = function `Success -> true | _ -> false
 let is_failure = function `Failure -> true | _ -> false
 let is_cancelled = function `Cancelled -> true | _ -> false
 
-let task_status l: Task.status =
-  if List.for_all is_success l then `Success
-  else if List.exists is_failure l then `Failure     (* maybe a bit strong... *)
-  else if List.exists is_cancelled l then `Cancelled
-  else `Pending
+let task_status = function
+  | [] -> `New
+  | l  ->
+    if List.for_all is_success l then `Success
+    else if List.exists is_failure l then `Failure   (* maybe a bit strong... *)
+    else if List.exists is_cancelled l then `Cancelled
+    else `Pending

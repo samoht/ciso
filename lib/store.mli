@@ -83,9 +83,9 @@ module Worker: sig
       current time since 00:00:00 GMT, Jan. 1, 1970, in seconds in the
       worker referential. *)
 
-  val status: t -> Worker.id -> Worker.status Lwt.t
+  val status: t -> Worker.id -> Worker.status option Lwt.t
   (** [job t w] is the worker [w]'s current job. [None] means that the
-      worker is idle. *)
+      worker is not alive anymore. *)
 
   val start_job: t -> Worker.id -> Job.id -> unit Lwt.t
   (** [start_job t w j] asks the worker [w] to start working on the
@@ -98,12 +98,15 @@ module Worker: sig
   val idle: t -> Worker.id -> unit Lwt.t
   (** [idle t w] registers that [w] is idle. *)
 
-  val watch: t -> Worker.t callback -> cancel Lwt.t
+  type diff = [`Added of Worker.t | `Removed of Worker.id]
+  (** The type for worker diffs. *)
+
+  val watch: t -> diff callback -> cancel Lwt.t
   (** [watch t f] calls [f] everytime a new worker is added. *)
 
-  val watch_status: t -> Worker.id -> Worker.status callback -> cancel Lwt.t
+  val watch_status: t -> Worker.id -> Worker.status option callback -> cancel Lwt.t
   (** [watch_status t w f] calls [f] everytime [w]'s status is
-      updated. *)
+      updated. [None] means that the worker is not alive anymore. *)
 
   val watch_ticks: t -> Worker.id -> float callback -> cancel Lwt.t
   (** [watch_ticks t w f] calls [f] everytime the worker [w] calls
@@ -119,6 +122,9 @@ module Task: sig
   val update_status: t -> Task.id -> unit Lwt.t
   (** [update_status t id] updates [id]'s status by looking at the
       status of its jobs. *)
+
+  val reset: t -> Task.id -> unit Lwt.t
+  (** [reset t task] resets the status of [t] to be [`New]. *)
 
   val status: t -> Task.id -> Task.status Lwt.t
   (** [status t task] is [task]'s status in [t]. *)

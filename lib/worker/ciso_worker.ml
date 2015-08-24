@@ -236,7 +236,6 @@ type t = {
 }
 
 let tick_sleep = 1.00
-let idle_sleep = 10.0
 
 let archive_of_id id =
   Filename.get_temp_dir_name () / Id.to_string id  ^ ".tar.gz"
@@ -416,12 +415,11 @@ let process_job ?(white_list=default_white_list) t job =
 
 let execution_loop t =
   Store.Worker.watch_status t.local (Worker.id t.w) (function
-      | `Task _ -> failwith "TODO"
-      | `Idle   -> Lwt_unix.sleep idle_sleep
-      | `Job id -> Store.Job.get t.local id >>= process_job t
-    ) >>= fun _cancel ->
-  let t, _ = Lwt.task () in
-  t
+      | None            -> exit 1
+      | Some `Idle      -> Lwt.return_unit
+      | Some (`Task __) -> failwith "TODO"
+      | Some (`Job id)  -> Store.Job.get t.local id >>= process_job t
+    )
 
 let rec heartbeat_loop t =
   let id = Worker.id t.w in
@@ -433,7 +431,5 @@ let run ?root uri =
   let w = Worker.create (Host.detect ()) in
   create ?root w uri >>= fun t ->
   Store.Worker.add t.local w >>= fun () ->
-  Lwt.pick [
-    heartbeat_loop t;
-    execution_loop t;
-  ]
+  execution_loop t >>= fun _cancel ->
+  heartbeat_loop t

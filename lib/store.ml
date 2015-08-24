@@ -147,12 +147,6 @@ module Store = struct
     | RV t -> RV.update t
     | LV t -> LV.update t
 
-  let remove = function
-    | R t  -> R.remove t
-    | L t  -> L.remove t
-    | RV t -> RV.remove t
-    | LV t -> LV.remove t
-
   let read = function
     | R t  -> R.read t
     | L t  -> L.read t
@@ -172,6 +166,17 @@ module Store = struct
     | L t  -> L.list t k  >|= List.map last
     | RV t -> RV.list t k >|= List.map last
     | LV t -> LV.list t k >|= List.map last
+
+  let rmdir = function
+    | R t  -> R.remove_rec t
+    | L t  -> L.remove_rec t
+    | RV t -> RV.remove_rec t
+    | LV t -> LV.remove_rec t
+
+  let head = function
+    | R t  -> R.head t
+    | L t  -> L.head t
+    | RV _ | LV _ -> err "watch not supported on views"
 
   let don't_watch _k ?init:_ _f = Lwt.return (fun () -> Lwt.return_unit)
 
@@ -197,30 +202,53 @@ module Store = struct
     | `Added x   -> list_of_view f x >|= fun x -> `Added x
     | `Removed x -> list_of_view f x >|= fun x -> `Removed x
 
-  let watch_key_rec t key f = match t with
-    | R t -> RV.watch_path t key (fun d -> list_diff rv d >>= f)
-    | L t -> LV.watch_path t key (fun d -> list_diff lv d >>=  f)
+  let init_of_l t key = function
+    | None   -> Lwt.return_none
+    | Some h ->
+      R.of_head (R.config t) (fun () -> R.task t) h >>= fun t ->
+      RV.of_path (t ()) key >|= fun v ->
+      Some (h, v)
+
+  let init_of_r t key = function
+    | None   -> Lwt.return_none
+    | Some h ->
+      L.of_head (L.config t) (fun () -> L.task t) h >>= fun t ->
+      LV.of_path (t ()) key >|= fun v ->
+      Some (h, v)
+
+  let watch_key_rec t key f =
+    head t >>= fun h ->
+    match t with
+    | R t ->
+      init_of_l t key h >>= fun init ->
+      RV.watch_path t key ?init (fun d -> list_diff rv d >>= f)
+    | L t ->
+      init_of_r t key h >>= fun init ->
+      LV.watch_path t key ?init (fun d -> list_diff lv d >>=  f)
     | RV _ | LV _ ->
       (* cannot watch transactions *)
       don't_watch t key
 
   let watch t root f =
-    let process children =
-      Lwt_list.map_p (fun id ->
-          read t (root / id / "value") >|= function
-          | None    -> err "invalide job" id
-          | Some  j -> j
+    let process a children =
+      Lwt_list.map_p (fun id -> match a with
+          | `Added   -> read_exn t (root / id / "value") >|= fun v -> `Added v
+          | `Removed -> Lwt.return (`Removed id)
         ) children >>=
       Lwt_list.iter_p f
     in
     watch_key_rec t root (function
-        | `Added l   -> process l
-        | `Removed _ -> Lwt.return_unit
-        | `Updated (x, y) ->
-          let x = StringSet.of_list x in
-          let y = StringSet.of_list y in
-          let s = StringSet.diff y x in
-          process (StringSet.elements s)
+        | `Added l   -> process `Added l
+        | `Removed l -> process `Removed l
+        | `Updated (o, n) ->
+          let old_ids = StringSet.of_list o in
+          let new_ids = StringSet.of_list n in
+          let added = StringSet.diff new_ids old_ids in
+          let removed = StringSet.diff old_ids new_ids in
+          Lwt.join [
+            process `Added (StringSet.elements added);
+            process `Removed (StringSet.elements removed);
+          ]
       )
 
 end
@@ -234,7 +262,7 @@ module type S = sig
   val list: t -> id list Lwt.t
 end
 
-let pretty id = Fmt.to_to_string Id.pp id
+let pretty id = Id.to_string id
 let fmt msg id = msg ^ " " ^ pretty id
 let mk t msg id = t (fmt msg id)
 
@@ -297,7 +325,13 @@ module XJob = struct
       )
 
   let watch t f =
-    Store.watch (t "watch jobs") root (fun v -> f (of_str Job.json v))
+    let mk v = of_str Job.json v in
+    Store.watch (t "watch jobs") root (function
+        | `Added v    -> f (mk v)
+        | `Removed id ->
+          debug "The job %s has been removed, skipping it." id;
+          Lwt.return_unit
+      )
 
 end
 
@@ -320,7 +354,10 @@ module XTask = struct
     mem t id >>= function
     | true  -> Lwt.return_unit
     | false ->
-      Store.update (mk t "add task" id) (value_p id) (to_str Task.json task)
+      with_transaction t (fmt "add task" id) (fun t ->
+          Store.update (t "") (value_p id) (to_str Task.json task) >>= fun () ->
+          Store.update (t "") (status_p id) (to_str Task.json_status `New)
+        )
       >|= fun () ->
       debug "add: task %s published!" (pretty id)
 
@@ -332,6 +369,10 @@ module XTask = struct
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
     List.map (Id.of_string `Job)
 
+  let reset t id =
+    let status = to_str Task.json_status `New in
+    Store.update (mk t "reset task status" id) (status_p id) status
+
   let update_status t id =
     jobs t id >>= fun jobs ->
     Lwt_list.map_p (XJob.status t) jobs >>= fun status ->
@@ -340,8 +381,9 @@ module XTask = struct
 
   let status t id =
     update_status t id >>= fun () ->
-    Store.read_exn (mk t "task status" id) (status_p id) >|=
-    of_str Task.json_status
+    Store.read (mk t "task status" id) (status_p id) >|= function
+    | None   -> `New
+    | Some s -> of_str Task.json_status s
 
   let watch_status t id f =
     Store.watch_key (mk t "watch task status" id) (status_p id) (function
@@ -351,7 +393,13 @@ module XTask = struct
       )
 
   let watch t f =
-    Store.watch (t "watch taks") root (fun v -> f (of_str Task.json v))
+    let mk v = of_str Task.json v in
+    Store.watch (t "watch taks") root (function
+        | `Added    v -> f (mk v)
+        | `Removed id ->
+          debug "The task %s has been removed, skipping it." id;
+          Lwt.return_unit
+      )
 
 end
 
@@ -377,12 +425,14 @@ module XObject = struct
       debug "add: object %s published!" (pretty id)
 
   let get t id =
-    Store.read_exn (mk t "retrieve object" id) (value_p id) >|=
+    Store.read_exn (mk t "get object" id) (value_p id) >|=
     of_str Object.json
 
 end
 
 module XWorker = struct
+
+  type diff = [`Added of Worker.t | `Removed of Worker.id]
 
   let root = ["workers"]
   let path id = root / Id.to_string id
@@ -402,22 +452,27 @@ module XWorker = struct
     | true  -> Lwt.return_unit
     | false ->
       let w = to_str Worker.json w in
-      Store.update (mk t "publish worker" id) (value_p id) w >|= fun () ->
+      with_transaction t (fmt "publish worker" id) (fun t ->
+          Store.update (t "") (value_p id) w >>= fun () ->
+          Store.update (t "") (status_p id) (to_str Worker.json_status `Idle)
+        ) >|= fun () ->
       debug "add: worker %s published!" (pretty id)
 
   let get t id =
-    Store.read_exn (mk t "retrieve worker" id) (value_p id) >|=
+    Store.read_exn (mk t "get worker" id) (value_p id) >|=
     of_str Worker.json
 
   let forget t id =
-    Store.remove (mk t "forget worker" id) (path id)
+    debug "forget worker %s" (Id.to_string id);
+    Store.rmdir (mk t "forget worker" id) (path id)
 
   let tick t id f =
     Store.update (mk t "tick worker" id) (tick_p id) (string_of_float f)
 
   let status t id =
-    Store.read_exn (mk t "worker status" id) (status_p id) >|=
-    of_str Worker.json_status
+    Store.read (mk t "worker status" id) (status_p id) >|= function
+    | None   -> None
+    | Some s -> Some (of_str Worker.json_status s)
 
   let start t id status =
     let status_s = to_str Worker.json_status status in
@@ -441,12 +496,15 @@ module XWorker = struct
   let watch_status t id f =
     Store.watch_key (mk t "watch status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (of_str Worker.json_status s)
-        | `Removed _    -> f `Idle
+        | `Added (_, s) -> f (Some (of_str Worker.json_status s))
+        | `Removed _    -> f None
       )
 
   let watch t f =
-    Store.watch (t "watch workers") root (fun v -> f (of_str Worker.json v))
+    Store.watch (t "watch workers") root (function
+        | `Added v    -> f @@ `Added (of_str Worker.json v)
+        | `Removed id -> f @@ `Removed (Id.of_string `Worker id)
+      )
 
 end
 
