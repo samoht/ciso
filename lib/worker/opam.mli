@@ -28,6 +28,10 @@ val create: root:string -> Switch.t -> t
 val jobs: t -> Task.t -> Job.t list
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
 
+val atomic_jobs: t -> Task.t -> Job.t list
+(** [atomic_jobs t] is similar to {!jobs} but it builds jobs with only
+    one package to install. *)
+
 (** {1 OPAM files} *)
 
 val read_installed: t -> Package.t list

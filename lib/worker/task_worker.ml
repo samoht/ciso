@@ -29,6 +29,7 @@ let start = start (fun t -> function
       let store = store t in
       Store.Task.dispatched store id >>= fun () ->
       Store.Task.get store id >>= fun tasks ->
-      let jobs = Opam.jobs (opam t Switch.system) tasks in
+      let jobs = if cache t then Opam.atomic_jobs else Opam.jobs in
+      let jobs = jobs (opam t Switch.system) tasks in
       Lwt_list.iter_p (Store.Job.add store) jobs
   )

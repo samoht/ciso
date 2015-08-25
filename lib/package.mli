@@ -43,6 +43,9 @@ val to_string: t -> string
 val equal: t -> t -> bool
 (** [equal] is the equality for packages. *)
 
+val compare: t -> t -> int
+(** [compare] compares packages. *)
+
 val json: t Jsont.codec
 (** [json] is the JSON codec for packages. *)
 

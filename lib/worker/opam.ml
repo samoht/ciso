@@ -139,13 +139,23 @@ let opam_of_package p =
   in
   OpamPackage.create name version
 
-let jobs_of_plan plan =
-  let package_of_action = function
+(* URGENT FIXME *)
+let package_info _ =
+  let empty = Cstruct.of_string "" in
+  Package.info ~opam:empty ~url:empty
+
+let package_of_action (a:Graph.vertex) =
+  let o = match a with
     | `Install target -> target
     | `Change (_, o, t) -> fail "change %s -> %s" (package o) (package t)
     | `Remove p | `Reinstall p | `Build p ->
       fail "Not expect delete/recompile %s" (package p)
   in
+  package_of_opam o
+
+module PMap = Map.Make(Package)
+
+let atomic_jobs_of_plan plan =
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
@@ -156,28 +166,36 @@ let jobs_of_plan plan =
     Graph.iter_pred (fun pred -> Queue.add pred process_queue) plan.g v;
     Stack.push v add_stack;
   done;
-  let id_map = ref OpamPackage.Map.empty in
+  let id_map = ref PMap.empty in
   let j_lst = ref [] in
   while not (Stack.is_empty add_stack) do
     let v = Stack.pop add_stack in
-    let pkg = package_of_action v in
-    let p = package_of_opam pkg in
+    let p = package_of_action v in
     let inputs = Graph.fold_pred (fun pred i ->
         let pred_pkg  = package_of_action pred in
-        let pred_id   = OpamPackage.Map.find pred_pkg !id_map in
+        let pred_id   = PMap.find pred_pkg !id_map in
         pred_id :: i
       ) plan.g v []
     in
-    (* URGENT FIXME *)
-    let opam = Cstruct.of_string "" and url = Cstruct.of_string "" in
-    let job = Job.create ~inputs plan.h plan.s [p, Package.info ~opam ~url] in
-    id_map  := OpamPackage.Map.add pkg (Job.id job) !id_map;
+    let info = package_info () in
+    let job = Job.create ~inputs plan.h plan.s [p, info] in
+    id_map  := PMap.add p (Job.id job) !id_map;
     j_lst := job :: !j_lst
   done;
   !j_lst
 
+let jobs_of_plan plan =
+  let actions = Graph.fold_vertex (fun e l -> e :: l) plan.g [] in
+  let pkgs =
+    List.map (fun a -> package_of_action a, package_info ()) actions
+  in
+  Job.create plan.h plan.s pkgs
+
+let atomic_jobs t p =
+  List.fold_left (fun jobs p -> atomic_jobs_of_plan p @ jobs) [] (plans t p)
+
 let jobs t p =
-  List.fold_left (fun jobs p -> jobs_of_plan p @ jobs) [] (plans t p)
+  List.fold_left (fun jobs p -> jobs_of_plan p :: jobs) [] (plans t p)
 
 let (@@++) x f =
   let open OpamProcess.Job.Op in
