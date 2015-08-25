@@ -92,6 +92,8 @@ let retry ?(n=5) f =
 
 let err_cannot_commit_transaction () = err "Cannot commit the transaction"
 
+(* FIXME: this doesn't really work as expected, see
+   https://github.com/mirage/irmin/issues/272 *)
 let with_transaction ?retry:n t msg f =
   let aux () = match t msg with
     | R t ->
@@ -231,10 +233,13 @@ module Store = struct
 
   let watch t root f =
     let process a children =
-      Lwt_list.map_p (fun id -> match a with
-          | `Added   -> read_exn t (root / id / "value") >|= fun v -> `Added v
-          | `Removed -> Lwt.return (`Removed id)
-        ) children >>=
+      Lwt_list.fold_left_s (fun acc id -> match a with
+          | `Removed -> Lwt.return (`Removed id :: acc)
+          | `Added   ->
+            read t (root / id / "value") >|= function
+            | Some v -> `Added v :: acc
+            | None   -> acc
+        ) [] children >>=
       Lwt_list.iter_p f
     in
     watch_key_rec t root (function
@@ -298,7 +303,7 @@ module XJob = struct
     Store.update (mk t ("job " ^ status) id) (status_p id) status
 
   let success = update_status `Success
-  let running = update_status `Running
+  let has_started = update_status `Started
   let failure = update_status `Failure
   let pending = update_status `Pending
   let runnable = update_status `Runnable
@@ -374,18 +379,24 @@ module XTask = struct
     let status = to_str Task.json_status status in
     Store.update (mk t ("task " ^ status) id) (status_p id) status
 
-  let reset      = update_status `New
-  let dispatched = update_status `Dispatched
-  let resolving  = update_status `Resolving
+  let reset = update_status `New
+
+  let dispatch_to t id w = update_status (`Dispatched (w, `Pending)) t id
+  let ack t id w = update_status (`Dispatched (w, `Started)) t id
 
   let refresh_status t id =
     jobs t id >>= fun jobs ->
     Lwt_list.map_p (XJob.status t) jobs >>= fun status ->
     let status = Job.task_status status |> to_str Task.json_status in
-    Store.update (mk t "update task status" id) (status_p id) status
+    (* FIXME: because of https://github.com/mirage/irmin/issues/272  *)
+    begin Store.read (t "") (status_p id) >|= function
+      | None    -> true
+      | Some s -> s <> status
+    end >>= function
+    | true  -> Store.update (mk t "update task status" id) (status_p id) status
+    | false -> Lwt.return_unit
 
   let status t id =
-    refresh_status t id >>= fun () ->
     Store.read (mk t "task status" id) (status_p id) >|= function
     | None   -> `New
     | Some s -> of_str Task.json_status s

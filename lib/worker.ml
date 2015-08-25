@@ -57,11 +57,19 @@ let pp_status ppf = function
   | `Job j  -> Fmt.pf ppf "job %a" Id.pp j
   | `Task t -> Fmt.pf ppf "task %a" Id.pp t
 
+let status = [`Idle; `Job; `Task]
+
+let to_string = function
+  | `Idle -> "idle"
+  | `Job  -> "job"
+  | `Task -> "task"
+
+let status_enum =
+  Jsont.enum ~default:`Idle @@ List.map (fun s -> to_string s, s) status
+
 let json_status =
   let o = Jsont.objc ~kind:"worker-status" () in
-  let status =
-    Jsont.(mem o "status" @@ enum ["idle", `Idle; "job", `Job; "task", `Task])
-  in
+  let status = Jsont.(mem o "status" @@ status_enum) in
   let id = Jsont.(mem_opt o "id" string) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
