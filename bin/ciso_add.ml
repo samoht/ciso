@@ -16,38 +16,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
 open Cmdliner
+open Lwt.Infix
+include Ciso_common
 
-let () =
-  Irmin_unix.install_dir_polling_listener 0.2;
-  Fmt.(set_style_renderer stdout `Ansi_tty)
+let package_c: Package.t Arg.converter =
+  let parse str = `Ok (Package.of_string str) in
+  let print ppf t = Package.pp ppf t in
+  parse, print
 
-let root =
-  Arg.(value & opt (some string) None & info ["local"]
-         ~docv:"DIR" ~doc:"the path to the local Irmin store.")
-
-let uri =
-  Arg.(value & opt (some string) None & info ["global"]
-         ~docv:"URI" ~doc:"the URI of the global Irmin store.")
-
-let with_default d f = function None -> d | Some x -> f x
+let packages =
+  let doc = "The package to install" in
+  Arg.(value & pos_all package_c [] & info [] ~docv:"PKGS" ~doc)
 
 let main =
-  let worker root uri =
-    let root =
-      let default = Filename.(concat (get_temp_dir_name ()) "ciso-worker") in
-      with_default default (fun x -> x) root
-    in
-    let uri =
-      with_default (Uri.of_string "http://127.0.0.0:8080") Uri.of_string uri
-    in
-    Fmt.(pf stdout "%a: %s\n%a: %s\n%!"
-           (styled `Cyan string) "root" root
-           (styled `Cyan string) "uri " (Uri.to_string uri));
-    Lwt_main.run (Ciso_worker.run ~root uri)
+  let master t packages =
+    if packages = [] then ()
+    else
+      let task = Task.create packages in
+      Lwt_main.run begin
+        t >>= fun { store; _ } ->
+        Store.Task.add store task
+      end
   in
-  Term.(pure worker $ root $ uri),
-  Term.info ~doc:"CISO worker" "ciso-worker"
+  Term.(pure master $ t $ packages),
+  Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

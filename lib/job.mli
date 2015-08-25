@@ -79,11 +79,11 @@ val pp: t Fmt.t
 (** {Job Status} *)
 
 type status = [
-  | `Success
-  | `Failure
   | `Pending
   | `Runnable
   | `Running
+  | `Success
+  | `Failure
   | `Cancelled
 ]
 (** The type for job status. *)

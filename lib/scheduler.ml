@@ -30,27 +30,26 @@ module XTask = struct
     cond: unit Lwt_condition.t;
     store: Store.t;                                            (* local store *)
     mutable new_tasks: TSet.t;                                   (* new tasks *)
-    mutable pending_tasks: TSet.t;                           (* pending tasks *)
+    mutable tasks: TSet.t;          (* resolving, dispatched or pending tasks *)
     cancels: (Task.id, unit -> unit Lwt.t) Hashtbl.t;
     mutable stop: unit -> unit Lwt.t;
   }
 
-  let list t = TSet.(elements (union t.new_tasks t.pending_tasks))
+  let list t = TSet.elements t.new_tasks
 
   let remove_task t task =
     let id = Task.id task in
     debug "remove taks %s" (Id.to_string id);
     Hashtbl.remove t.cancels id;
     t.new_tasks <- TSet.remove task t.new_tasks;
-    t.pending_tasks <- TSet.remove task t.pending_tasks
+    t.tasks <- TSet.remove task t.tasks
 
   let set_new t task =
     t.new_tasks <- TSet.add task t.new_tasks;
-    t.pending_tasks <- TSet.remove task t.pending_tasks
+    Lwt_condition.broadcast t.cond ()
 
-  let set_pending t task =
-    t.new_tasks <- TSet.remove task t.new_tasks;
-    t.pending_tasks <- TSet.add task t.pending_tasks
+  let set_not_new t task =
+    t.new_tasks <- TSet.remove task t.new_tasks
 
   (* FIXME: need to watch the related jobs status updates to update
      the task status. *)
@@ -58,7 +57,9 @@ module XTask = struct
     let id = Task.id task in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Task.watch_status t.store id (function
-        | `Pending   -> set_pending t task; Lwt.return_unit
+        | `Resolving
+        | `Dispatched
+        | `Pending   -> set_not_new t task; Lwt.return_unit
         | `New       -> set_new t task; Lwt.return_unit
         | `Cancelled -> todo "Task.cancel"
         | `Success
@@ -69,18 +70,16 @@ module XTask = struct
     cancel := c
 
   let add_task t task =
-    if TSet.mem task t.new_tasks || TSet.mem task t.pending_tasks then
-      Lwt.return_unit
+    if TSet.mem task t.tasks then Lwt.return_unit
     else (
       let id = Task.id task in
       Store.Task.status t.store id >>= function
       | `Cancelled -> todo "cancelled tasks"
       | `Success | `Failure -> Lwt.return_unit
-      | `Pending | `New as s ->
+      | `Pending | `Resolving | `Dispatched | `New as s ->
         debug "add task %s" (Id.to_string id);
-        if s = `New then set_new t task else set_pending t task;
-        watch_task_status t task >|= fun () ->
-        Lwt_condition.broadcast t.cond ()
+        if s = `New then set_new t task;
+        watch_task_status t task
     )
 
   let empty store =
@@ -88,8 +87,8 @@ module XTask = struct
     let stop () = Lwt.return_unit in
     let cancels = Hashtbl.create 16 in
     let new_tasks = TSet.empty in
-    let pending_tasks = TSet.empty in
-    { cond; store; new_tasks; pending_tasks; stop; cancels; }
+    let tasks = TSet.empty in
+    { cond; store; new_tasks; tasks; stop; cancels; }
 
   let peek t =
     if TSet.cardinal t.new_tasks = 0 then None
@@ -97,12 +96,16 @@ module XTask = struct
 
   let rec peek_s t =
     match peek t with
-    | None   ->
+    | None ->
       debug "waiting for a new task to appear ...";
       Lwt_condition.wait t.cond >>= fun () ->
       debug "there's a new task!";
       peek_s t
-    | Some h -> Lwt.return h
+    | Some ta ->
+      set_not_new t ta;
+      (* FIXME: set a timer to switch back the to new if no
+         progress? *)
+      Lwt.return ta
 
   let watch_task t = Store.Task.watch t.store (add_task t)
 
@@ -139,6 +142,8 @@ module XJob = struct
 
   let status t j = try Hashtbl.find t.status j with Not_found -> `Pending
 
+  let set_running t j = Hashtbl.replace t.status j `Running
+
   let runnables t host =
     Hashtbl.fold (fun id j acc ->
         if status t id = `Runnable && Host.equal (Job.host j) host
@@ -152,16 +157,17 @@ module XJob = struct
 
   let rec peek_s t host =
     match peek t host with
-    | Some jid -> Lwt.return jid
-    | None     ->
-      debug "waiting for a runnable job to appear ...";
+    | Some j -> set_running t (Job.id j); Lwt.return j
+    | None   ->
+      debug "[%s] waiting for a runnable job to appear" (Host.short host);
       Lwt_condition.wait t.cond >>= fun () ->
-      debug "there's a new runnable job!";
+      debug "[%s] there's a new runnable job!" (Host.short host);
       peek_s t host
 
   (* FIXME: use rev-deps to make it fast (a al TUP). *)
   let update_runnable t =
     let jobs = Hashtbl.fold (fun k v acc -> (k, v) :: acc) t.jobs [] in
+    let broadcast = ref false in
     List.iter (fun (id, job) ->
         match status t id with
         | `Pending ->
@@ -171,10 +177,11 @@ module XJob = struct
             Hashtbl.replace t.status id `Runnable;
             (* FIXME: could broadcast only to the workers with the right
                host configuration *)
-            Lwt_condition.broadcast t.cond ()
+            broadcast := true;
           )
         | _ -> ()
-      ) jobs
+      ) jobs;
+    if !broadcast then Lwt_condition.broadcast t.cond ()
 
   let remove_job t id =
     Hashtbl.remove t.jobs id;
@@ -197,8 +204,8 @@ module XJob = struct
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Job.watch_status t.store id (function
         | `Cancelled -> todo "job cancelled"
-        | `Pending
-        | `Running   (* we already watch it, so nothing to do *)
+        | `Running   -> set_running t id; Lwt.return_unit
+        | `Pending   (* we already watch it, so nothing to do *)
         | `Runnable  -> Lwt.return_unit
         | `Success
         | `Failure   -> remove_job t id; !cancel ()
@@ -371,7 +378,7 @@ module XWorker = struct
 
   let rec peek_s t =
     match peek t with
-    | Some t -> Lwt.return t
+    | Some w -> Lwt.return w
     | None   ->
       debug "waiting for an idle worker ...";
       Lwt_condition.wait t.cond >>= fun () ->
@@ -404,6 +411,8 @@ module XWorker = struct
 
 end
 
+let fmt s id = s ^ " " ^ Id.to_string id
+
 let start store =
   XJob.start store    >>= fun j ->
   XTask.start store   >>= fun t ->
@@ -414,12 +423,31 @@ let start store =
     let host = Worker.host w in
     let wid = Worker.id w in
     Lwt.pick [peek_job host; peek_task ()] >>= function
-    | `Job j  -> Store.Worker.start_job store wid (Job.id j)
-    | `Task t -> Store.Worker.start_task store wid (Task.id t)
+    | `Job j  ->
+      let id = Job.id j in
+      Store.with_transaction store (fmt "starting job" id) (fun t ->
+          Store.Job.runnable t id >>= fun () ->
+          Store.Worker.start_job t wid id
+        )
+    | `Task t ->
+      let id = Task.id t in
+      Store.with_transaction store (fmt "starting task" id) (fun t ->
+          Store.Task.dispatched t id >>= fun () ->
+          Store.Worker.start_task t wid id
+        )
   in
   let rec loop () =
+    (* FIXME: this scheduler loop is a bit wrong. We should be
+       listening for jobs available for the current workers, and then
+       dispatch. The current loop will block if there are no jobs
+       available for the given host (event if there is job for other
+       workers). *)
     XWorker.peek_s w >>= fun w ->
-    Lwt.join [schedule w; loop ()]
+    Lwt.pick [
+      Lwt_unix.sleep 5.; (* in case the worker dies ... FIXME *)
+      schedule w
+    ] >>= fun () ->
+    loop ()
   in
   Lwt.async loop
 

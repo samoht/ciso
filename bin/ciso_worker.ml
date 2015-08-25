@@ -16,10 +16,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Cmdliner
 open Lwt.Infix
+include Ciso_common
 
-let start ?root () =
-  Store.local ?root () >>= fun store ->
-  Scheduler.start store >>= fun () ->
-  let t, _ = Lwt.task () in
-  t
+let task =
+  let doc = "Start a task worker." in
+  Arg.(value & flag & info ["task"] ~doc)
+
+let with_default d f = function None -> d | Some x -> f x
+
+let start { store; opam_root } = function
+  | true  -> Task_worker.start ~opam_root store ~cache:false >>= block
+  | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
+
+let main =
+  let worker t task =
+    Lwt_main.run begin
+      t >>= fun t ->
+      start t task
+    end
+  in
+  Term.(pure worker $ t $ task),
+  Term.info ~version:Version.current ~doc:"Start a CISO worker" "ciso-worker"
+
+let () =
+  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

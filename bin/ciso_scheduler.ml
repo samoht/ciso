@@ -16,47 +16,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+open Cmdliner
+open Lwt.Infix
+include Ciso_common
 
-type t
-(** The type for host configuration. *)
+let main =
+  let master t =
+    Lwt_main.run begin
+      t >>= fun { store; _ } ->
+      Scheduler.start store >>= block
+    end
+  in
+  Term.(pure master $ t),
+  Term.info ~version:Version.current ~doc:"Run the CISO scheduler" "ciso-master"
 
-val detect: unit -> t
-(** Detects the host configuration. *)
-
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val short: t -> string
-(** [short t] is the short represention of [t], useful to be displayed
-    on a logging line. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
-
-val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
-
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
-]
-(** The type for OS configuration. *)
-
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
-
-val os: t -> os
-(** [os t] is [t]'s OS. *)
+let () =
+  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

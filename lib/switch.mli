@@ -21,14 +21,17 @@
 type t
 (** The type for compiler switches. *)
 
+val system: t
+(** The [system] switch. *)
+
+val defaults: t list
+(** [defaults] is the list of default switches. *)
+
 val of_string: string -> t
 (** [of_string] is the identity function. *)
 
 val to_string: t -> string
 (** [to_string] is the identity function. *)
-
-val defaults: t list
-(** [defaults] is the list of default switches. *)
 
 val equal: t -> t -> bool
 (** [equal] is the equality for compiler switches. *)

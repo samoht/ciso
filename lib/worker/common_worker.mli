@@ -1,4 +1,4 @@
- (*
+(*
  * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
  * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
  * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
@@ -16,7 +16,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The worker API. *)
+type t
 
-(* FIXME *)
-val run: ?root:string -> Uri.t -> unit Lwt.t
+val opam: t -> Switch.t -> Opam.t
+val opam_root: t -> string
+val store: t -> Store.t
+val cache: t -> bool
+val worker: t -> Worker.t
+
+val start:
+  (t -> Worker.status -> unit Lwt.t) ->
+  ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+
+val stop: t -> unit Lwt.t

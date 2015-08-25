@@ -16,19 +16,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The master process.
+(** Job worker.
 
-    The master is responsisble for:
-
-    {ul
-    {- Watchnig for new workers and checking that the current ones are
-      still responsive.}
-    {- Watching for new tasks and dispatch them to the workers to be
-       resolved.}
-    {- Watching for runnable jobs and dispatch them to the workers.}
-    }
+    A worker has a fixed host configuration. It builds OPAM packages
+    and store the resultsc.
 
 *)
 
-val start: ?root:string -> unit -> unit Lwt.t
-(** [start ?root ()] starts the master proces. *)
+type t
+(** The type for job workers. *)
+
+val start: ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+(** [starts ~opam_root store] starts a job worker. *)
+
+val stop: t -> unit Lwt.t
+(** [stop t] stops the job worker. *)

@@ -16,47 +16,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Detection of host configuration. *)
+open Lwt.Infix
+include Common_worker
 
-type t
-(** The type for host configuration. *)
+let debug fmt = Gol.debug ~section:"task-worker" fmt
 
-val detect: unit -> t
-(** Detects the host configuration. *)
-
-val equal: t -> t -> bool
-(** [equal] is the equality for host configurations. *)
-
-val short: t -> string
-(** [short t] is the short represention of [t], useful to be displayed
-    on a logging line. *)
-
-val pp: t Fmt.t
-(** [pp] formats a {{!t}host configuration}. *)
-
-val json: t Jsont.codec
-(** [json] is the JSON codec for host configurations. *)
-
-val defaults: t list
-(** [defaults] is the list of host configurations supported by
-    default. *)
-
-type os = [
-  | `Darwin
-  | `Linux
-  | `Unix
-  | `FreeBSD
-  | `OpenBSD
-  | `NetBSD
-  | `DragonFly
-  | `Win32
-  | `Cygwin
-  | `Other of string
-]
-(** The type for OS configuration. *)
-
-val pp_os: os Fmt.t
-(** [pp_os] format OS configurations. *)
-
-val os: t -> os
-(** [os t] is [t]'s OS. *)
+let start = start (fun t -> function
+    | `Idle
+    | `Job _   -> Lwt.return_unit
+    | `Task id ->
+      debug "Got a new task: %s!" (Id.to_string id);
+      let store = store t in
+      Store.Task.dispatched store id >>= fun () ->
+      Store.Task.get store id >>= fun tasks ->
+      let jobs = if cache t then Opam.atomic_jobs else Opam.jobs in
+      let jobs = jobs (opam t Switch.system) tasks in
+      Lwt_list.iter_p (Store.Job.add store) jobs
+  )

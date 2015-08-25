@@ -28,6 +28,17 @@ let equal x y =
   | Some x, Some y -> String.compare x y = 0
   | _ -> false
 
+let compare x y =
+  match String.compare x.name y.name with
+  | 0 -> begin
+      match x.version, y.version with
+      | None  , None   -> 0
+      | Some _, None   -> 1
+      | None  , Some _ -> -1
+      | Some x, Some y -> String.compare x y
+    end
+  | i -> i
+
 let pp ppf t =
   Fmt.(pf ppf
     "@[<v>\

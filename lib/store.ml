@@ -301,6 +301,7 @@ module XJob = struct
   let running = update_status `Running
   let failure = update_status `Failure
   let pending = update_status `Pending
+  let runnable = update_status `Runnable
 
   let status t id =
     Store.read (mk t "job status" id) (status_p id) >|= function
@@ -369,18 +370,22 @@ module XTask = struct
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
     List.map (Id.of_string `Job)
 
-  let reset t id =
-    let status = to_str Task.json_status `New in
-    Store.update (mk t "reset task status" id) (status_p id) status
+  let update_status status t id =
+    let status = to_str Task.json_status status in
+    Store.update (mk t ("task " ^ status) id) (status_p id) status
 
-  let update_status t id =
+  let reset      = update_status `New
+  let dispatched = update_status `Dispatched
+  let resolving  = update_status `Resolving
+
+  let refresh_status t id =
     jobs t id >>= fun jobs ->
     Lwt_list.map_p (XJob.status t) jobs >>= fun status ->
     let status = Job.task_status status |> to_str Task.json_status in
     Store.update (mk t "update task status" id) (status_p id) status
 
   let status t id =
-    update_status t id >>= fun () ->
+    refresh_status t id >>= fun () ->
     Store.read (mk t "task status" id) (status_p id) >|= function
     | None   -> `New
     | Some s -> of_str Task.json_status s

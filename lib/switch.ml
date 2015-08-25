@@ -24,6 +24,8 @@ let json = Jsont.string
 let to_string x = x
 let of_string x = x
 
+let system = "system"
+
 let defaults = [
   "3.12.1";
   "4.00.1";
