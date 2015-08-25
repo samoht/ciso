@@ -49,7 +49,7 @@ let opam_switch s = OpamSwitch.of_string (Switch.to_string s)
 let init t =
   let current_switch = opam_switch t.switch in
   let root_dir = OpamFilename.Dir.of_string t.root in
-  OpamClientConfig.opam_init ~debug_level:10 ~root_dir ~current_switch ~answer:None ()
+  OpamClientConfig.opam_init ~root_dir ~current_switch ~answer:None ()
 
 let repo t name url =
   let repo_name = OpamRepositoryName.of_string name in
