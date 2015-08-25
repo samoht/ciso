@@ -25,21 +25,6 @@ val create: root:string -> Switch.t -> t
 (** [create ~root s] create an OPAM state using [root] as OPAM's root
     and [s] as the current switch. *)
 
-type plan
-(** The type for OPAM's build plan. *)
-
-val host: plan -> Host.t
-(** [host p] is the host configuration of workers executing [p]. *)
-
-val switch: plan -> Switch.t
-(** [switch p] is the compiler switchs of workers executing [p]. *)
-
-val plans: ?hosts:Host.t list -> ?switches:Switch.t list ->
-  t -> Task.t -> plan list
-(** [plans t] is the list of plans, for all the supported hosts and
-    switches. If [hosts] is not set, use {!Host.defaults}. If
-    [switches] is not set, use {!Switch.default}. *)
-
 val jobs: t -> Task.t -> Job.t list
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
 

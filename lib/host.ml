@@ -206,6 +206,11 @@ type t = {
   distr: distr option;
 }
 
+let short t =
+  Printf.sprintf "%s:%s:%s"
+    (string_of_arch t.arch) (string_of_os t.os)
+    (match t.distr with None -> "-" | Some d -> string_of_distr d)
+
 let os t = t.os
 
 let create arch os distr = { arch; os; distr }

@@ -27,6 +27,10 @@ val detect: unit -> t
 val equal: t -> t -> bool
 (** [equal] is the equality for host configurations. *)
 
+val short: t -> string
+(** [short t] is the short represention of [t], useful to be displayed
+    on a logging line. *)
+
 val pp: t Fmt.t
 (** [pp] formats a {{!t}host configuration}. *)
 

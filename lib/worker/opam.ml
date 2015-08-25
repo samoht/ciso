@@ -32,9 +32,6 @@ type plan = {
   s: Switch.t;
 }
 
-let host t = t.h
-let switch t = t.s
-
 let debug fmt = Gol.debug ~section:"opam" fmt
 let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
 let fail fmt = Printf.ksprintf failwith ("Ciso.Opam: " ^^ fmt)
@@ -55,7 +52,8 @@ let init t =
 
 let load_state t dbg =
   init t;
-  let switch =  opam_switch t.switch in
+  let switch = opam_switch t.switch in
+  debug "XXX";
   OpamState.load_state ("ci-opam-" ^ dbg) switch
 
 let get_var t v =
@@ -94,14 +92,16 @@ let set_env h s =
   Unix.putenv "OPAMVAR_os"     Fmt.(to_to_string Host.pp_os @@ Host.os h);
   Unix.putenv "OPAMVAR_switch" (Switch.to_string s)
 
-let plans ?(hosts=Host.defaults) ?(switches=Switch.defaults) t task =
+let plans t task =
   let one h s =
     set_env h s;
     resolve_packages t (Task.packages task)
   in
   List.fold_left (fun acc h ->
-      List.fold_left (fun acc s -> { g = one h s; h; s } :: acc) acc switches
-    ) [] hosts
+      List.fold_left (fun acc s ->
+          { g = one h s; h; s } :: acc
+        ) acc (Task.switches task)
+    ) [] (Task.hosts task)
 
 module IdSet = struct
   include Set.Make(struct

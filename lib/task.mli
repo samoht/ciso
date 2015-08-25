@@ -38,9 +38,6 @@ type id = [`Task] Id.t
     {!create} arguments (after normalisation) and calling {!Id.digest}
     on the result. *)
 
-type t
-(** The type for task values. *)
-
 type repo = string * Uri.t
 (** The type for remote opam repositories. *)
 
@@ -57,9 +54,20 @@ type pin = string * Uri.t option
 val pp_pin: pin Fmt.t
 (** [pp_pin] formats a pin package. *)
 
+type t
+(** The type for task values. *)
+
 val id: t -> id
 (** [id t] is [t]'s deterministic identifier. Is it obtaining by
     hashing a stable representation of [t]'s components. *)
+
+val switches: t -> Switch.t list
+(** [switches t] is the list of switches that [t]'s packages need
+    to be installed on. *)
+
+val hosts: t -> Host.t list
+(** [hosts t] is the list of hosts that [t]'s packages need to be
+    installed on. *)
 
 val packages: t -> Package.t list
 (** [packages t]'s is the list of packages that [t] wants to
@@ -104,6 +112,8 @@ val json: t Jsont.codec
 
 type status = [
   | `New
+  | `Dispatched
+  | `Resolving
   | `Pending
   | `Success
   | `Failure

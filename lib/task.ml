@@ -59,6 +59,8 @@ type t = {
 
 let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
+let hosts t = t.hosts
+let switches t = t.switches
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
@@ -124,8 +126,10 @@ let create ?(repos=[]) ?(pins=[])
   { id; repos; pins; switches; hosts; packages }
 
 type status = [
-  | `New
-  | `Pending
+  | `New          (* the task is created. *)
+  | `Dispatched   (* the task is dispatched to a worker. *)
+  | `Resolving    (* a worker is resolving the task. *)
+  | `Pending      (* the task resolution is complete. *)
   | `Success
   | `Failure
   | `Cancelled
@@ -133,12 +137,16 @@ type status = [
 
 let to_string = function
   | `New       -> "new"
+  | `Dispatched-> "dispatched"
+  | `Resolving -> "resolving"
   | `Pending   -> "pending"
   | `Success   -> "success"
   | `Failure   -> "failure"
   | `Cancelled -> "canceled"
 
-let status = [`New; `Pending; `Success; `Failure; `Cancelled ]
+let status =
+  [`New; `Dispatched; `Resolving; `Pending; `Success; `Failure; `Cancelled ]
+
 let pp_status = Fmt.of_to_string to_string
 
 let json_status =

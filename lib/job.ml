@@ -102,11 +102,11 @@ let create ?(inputs=[]) host switch packages =
   { id; inputs; switch; host; packages; }
 
 type status = [
+  | `Pending     (* the job is created *)
+  | `Runnable    (* the job is dispatched to a worker to run *)
+  | `Running     (* a worker is running the job *)
   | `Success
   | `Failure
-  | `Pending
-  | `Runnable
-  | `Running
   | `Cancelled
 ]
 
