@@ -14,11 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
-
-
-let () =
-  Alcotest.run "ciso" [
-    "simple"   , Test_simple.suite;
-    "scheduler", Test_scheduler.suite;
-  ]
+val suite: Alcotest.test_case list
