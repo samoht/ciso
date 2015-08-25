@@ -21,6 +21,7 @@ open Lwt.Infix
 module T = OpamState.Types
 
 module Graph = OpamSolver.ActionGraph
+let (/) = Filename.concat
 
 type t = { root: string; switch: Switch.t }
 
@@ -48,13 +49,28 @@ let opam_switch s = OpamSwitch.of_string (Switch.to_string s)
 let init t =
   let current_switch = opam_switch t.switch in
   let root_dir = OpamFilename.Dir.of_string t.root in
-  OpamClientConfig.opam_init ~root_dir ~current_switch ~answer:(Some true) ()
+  OpamClientConfig.opam_init ~debug_level:10 ~root_dir ~current_switch ~answer:None ()
+
+let repo t name url =
+  let repo_name = OpamRepositoryName.of_string name in
+  let repo_priority = 0 in
+  let repo_address, repo_kind = OpamTypesBase.parse_url url in
+  let repo_root =
+    OpamRepositoryPath.create (OpamFilename.Dir.of_string t.root) repo_name
+  in
+  { repo_root; repo_name; repo_kind; repo_address; repo_priority }
 
 let load_state t dbg =
   init t;
+  if not OpamFilename.(exists_dir Dir.(of_string (t.root / "system"))) then (
+    let repo = repo t "default" ("https://opam.ocaml.org", None) in
+    let comp = OpamCompiler.system in
+    let root = OpamFilename.of_string t.root in
+    OpamClient.SafeAPI.init repo comp `bash root `no;
+  );
   let switch = opam_switch t.switch in
-  debug "XXX";
-  OpamState.load_state ("ci-opam-" ^ dbg) switch
+  let t = OpamState.load_state ("ci-opam-" ^ dbg) switch in
+  t
 
 let get_var t v =
   let t = load_state t "get-var" in
