@@ -30,28 +30,26 @@ module XTask = struct
     cond: unit Lwt_condition.t;
     store: Store.t;                                            (* local store *)
     mutable new_tasks: TSet.t;                                   (* new tasks *)
-    mutable pending_tasks: TSet.t;                           (* pending tasks *)
+    mutable tasks: TSet.t;          (* resolving, dispatched or pending tasks *)
     cancels: (Task.id, unit -> unit Lwt.t) Hashtbl.t;
     mutable stop: unit -> unit Lwt.t;
   }
 
-  let list t = TSet.(elements (union t.new_tasks t.pending_tasks))
+  let list t = TSet.elements t.new_tasks
 
   let remove_task t task =
     let id = Task.id task in
     debug "remove taks %s" (Id.to_string id);
     Hashtbl.remove t.cancels id;
     t.new_tasks <- TSet.remove task t.new_tasks;
-    t.pending_tasks <- TSet.remove task t.pending_tasks
+    t.tasks <- TSet.remove task t.tasks
 
   let set_new t task =
     t.new_tasks <- TSet.add task t.new_tasks;
-    t.pending_tasks <- TSet.remove task t.pending_tasks;
     Lwt_condition.broadcast t.cond ()
 
-  let set_pending t task =
-    t.new_tasks <- TSet.remove task t.new_tasks;
-    t.pending_tasks <- TSet.add task t.pending_tasks
+  let set_not_new t task =
+    t.new_tasks <- TSet.remove task t.new_tasks
 
   (* FIXME: need to watch the related jobs status updates to update
      the task status. *)
@@ -61,7 +59,7 @@ module XTask = struct
     Store.Task.watch_status t.store id (function
         | `Resolving
         | `Dispatched
-        | `Pending   -> set_pending t task; Lwt.return_unit
+        | `Pending   -> set_not_new t task; Lwt.return_unit
         | `New       -> set_new t task; Lwt.return_unit
         | `Cancelled -> todo "Task.cancel"
         | `Success
@@ -72,8 +70,7 @@ module XTask = struct
     cancel := c
 
   let add_task t task =
-    if TSet.mem task t.new_tasks || TSet.mem task t.pending_tasks then
-      Lwt.return_unit
+    if TSet.mem task t.tasks then Lwt.return_unit
     else (
       let id = Task.id task in
       Store.Task.status t.store id >>= function
@@ -81,7 +78,7 @@ module XTask = struct
       | `Success | `Failure -> Lwt.return_unit
       | `Pending | `Resolving | `Dispatched | `New as s ->
         debug "add task %s" (Id.to_string id);
-        if s = `New then set_new t task else set_pending t task;
+        if s = `New then set_new t task;
         watch_task_status t task
     )
 
@@ -90,8 +87,8 @@ module XTask = struct
     let stop () = Lwt.return_unit in
     let cancels = Hashtbl.create 16 in
     let new_tasks = TSet.empty in
-    let pending_tasks = TSet.empty in
-    { cond; store; new_tasks; pending_tasks; stop; cancels; }
+    let tasks = TSet.empty in
+    { cond; store; new_tasks; tasks; stop; cancels; }
 
   let peek t =
     if TSet.cardinal t.new_tasks = 0 then None
@@ -105,7 +102,9 @@ module XTask = struct
       debug "there's a new task!";
       peek_s t
     | Some ta ->
-      set_pending t ta;
+      set_not_new t ta;
+      (* FIXME: set a timer to switch back the to new if no
+         progress? *)
       Lwt.return ta
 
   let watch_task t = Store.Task.watch t.store (add_task t)
