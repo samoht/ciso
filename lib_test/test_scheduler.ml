@@ -123,44 +123,83 @@ let basic_workers () =
   in
   run test
 
-let task_scheduler () =
+let mk_check s ~section sched msg expected =
+  let msg = Printf.sprintf "[%s] %s" section msg in
+  let tasks = Scheduler.Task.list (Scheduler.task sched) in
+  Alcotest.(check @@ tasks_t) "t1 is monitored" [t1] tasks;
+  Store.Task.status s (Task.id t1) >>= fun status ->
+  Alcotest.(check task_status_t) msg expected status;
+  Lwt.return_unit
+
+(* - add a task
+   - start the scheduler
+   - add a worker: the task is picked-up
+   - kill the worker: the task is new again *)
+let task_scheduler_1 () =
   let test () =
     store () >>= fun s ->
-
-    let check ~section sched msg expected =
-      let msg = Printf.sprintf "[%s] %s" section msg in
-      let tasks = Scheduler.Task.list (Scheduler.task sched) in
-      Alcotest.(check @@ tasks_t) "t1 is monitored" [t1] tasks;
-      Store.Task.status s (Task.id t1) >>= fun status ->
-      Alcotest.(check task_status_t) msg expected status;
-      Lwt.return_unit
-    in
-
-    (* - add a task
-       - start the scheduler
-       - add a worker: the task is picked-up
-       - kill the  worker: the task is new again *)
     Store.Task.add s t1  >>= fun () ->
     Scheduler.start s    >>= fun scheduler ->
-    let check = check ~section:"task -> scheduler -> worker" scheduler in
-
+    let check = mk_check s ~section:"task -> scheduler -> worker" scheduler in
     check "init" `New >>= fun () ->
-
     Store.Worker.add s w1 >>= fun () ->
     sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id w1, `Pending)) >>= fun () ->
-
     Store.Worker.forget s (Worker.id w1) >>= fun () ->
     sleep () >>= fun () ->
     check "forget" `New >>= fun () ->
+    Scheduler.stop scheduler
+  in
+  run test
 
+(* - add a worker
+   - start the scheduler
+   - add a task: the task is picked-up
+   - kill the worker: the task is new again *)
+let task_scheduler_3 () =
+  let test () =
+    store () >>= fun s ->
+    Store.Worker.add s w1 >>= fun () ->
+    Scheduler.start s     >>= fun scheduler ->
+    let check = mk_check s ~section:"worker -> scheduler -> task" scheduler in
+    let tasks = Scheduler.Task.list (Scheduler.task scheduler) in
+    Alcotest.(check @@ tasks_t) "t1 is not monitored" [] tasks;
+    Store.Task.add s t1 >>= fun () ->
+    sleep () >>= fun () ->
+    check "start" (`Dispatched (Worker.id w1, `Pending)) >>= fun () ->
+    Store.Worker.forget s (Worker.id w1) >>= fun () ->
+    sleep () >>= fun () ->
+    check "forget" `New >>= fun () ->
+    Scheduler.stop scheduler
+  in
+  run test
+
+(* - add a worker
+   - add a task
+   - start the scheduler
+   - the task is picked-up
+   - kill the worker: the task is new again *)
+let task_scheduler_2 () =
+  let test () =
+    store () >>= fun s ->
+    Store.Worker.add s w1 >>= fun () ->
+    Store.Task.add s t1 >>= fun () ->
+    Scheduler.start s     >>= fun scheduler ->
+    let check = mk_check s ~section:"worker -> task -> scheduler" scheduler in
+    sleep () >>= fun () ->
+    check "start" (`Dispatched (Worker.id w1, `Pending)) >>= fun () ->
+    Store.Worker.forget s (Worker.id w1) >>= fun () ->
+    sleep () >>= fun () ->
+    check "forget" `New >>= fun () ->
     Scheduler.stop scheduler
   in
   run test
 
 let suite = [
-  "basic tasks"  , `Quick, basic_tasks;
-  "basic jobs"   , `Quick, basic_jobs;
-  "basic workers", `Quick, basic_workers;
-  "task schduler", `Quick, task_scheduler;
+  "basic tasks"    , `Quick, basic_tasks;
+  "basic jobs"     , `Quick, basic_jobs;
+  "basic workers"  , `Quick, basic_workers;
+  "task schduler 1", `Quick, task_scheduler_1;
+  "task schduler 2", `Quick, task_scheduler_2;
+  "task schduler 3", `Quick, task_scheduler_3;
 ]

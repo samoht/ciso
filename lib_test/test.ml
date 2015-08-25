@@ -14,9 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
-
-
 let () =
   Alcotest.run "ciso" [
     "simple"   , Test_simple.suite;
