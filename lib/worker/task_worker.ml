@@ -16,14 +16,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
 include Common_worker
 
-(* open Lwt.Infix *)
-(* let debug fmt = Gol.debug ~section:"task-worker" fmt *)
-let err fmt = Printf.ksprintf Lwt.fail_with ("Task_worker: " ^^ fmt)
+let debug fmt = Gol.debug ~section:"task-worker" fmt
 
-let start = start (fun _t -> function
+let start = start (fun t -> function
     | `Idle
-    | `Job _  -> Lwt.return_unit
-    | `Task _ -> err "TODO"
+    | `Job _   -> Lwt.return_unit
+    | `Task id ->
+      debug "Got a new task: %s!" (Id.to_string id);
+      let store = store t in
+      Store.Task.dispatched store id >>= fun () ->
+      Store.Task.get store id >>= fun tasks ->
+      let jobs = Opam.jobs (opam t Switch.system) tasks in
+      Lwt_list.iter_p (Store.Job.add store) jobs
   )

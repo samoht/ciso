@@ -18,6 +18,7 @@
 
 type t
 
+val opam: t -> Switch.t -> Opam.t
 val opam_root: t -> string
 val store: t -> Store.t
 val cache: t -> bool

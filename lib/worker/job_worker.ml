@@ -19,8 +19,6 @@
 open Lwt.Infix
 include Common_worker
 
-let opam t s = Opam.create ~root:(opam_root t) s
-
 let debug fmt = Gol.debug ~section:"job-worker" fmt
 let err fmt  = Printf.ksprintf Lwt.fail_with ("Job_worker: " ^^ fmt)
 let fail fmt = Printf.kprintf failwith ("Job_worker: " ^^ fmt)

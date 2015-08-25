@@ -28,6 +28,7 @@ type t = {
   mutable alive: bool;
 }
 
+let opam t s = Opam.create ~root:t.opam_root s
 let store t = t.store
 let opam_root t = t.opam_root
 let cache t = t.cache
