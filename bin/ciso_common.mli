@@ -24,3 +24,5 @@ type t = {
 val t: t Lwt.t Cmdliner.Term.t
 
 val block: 'a -> unit Lwt.t
+
+val info: string -> string -> unit

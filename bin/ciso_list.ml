@@ -22,22 +22,29 @@ open Cmdliner
 open Lwt.Infix
 include Ciso_common
 
-let one pp ppf (id, v) =
+let one pp pp_status ppf (id, v) =
   match v with
   | None   ->
     Fmt.(styled `Cyan Id.pp ppf) id;
     Fmt.(pf ppf " --\n")
-  | Some v ->
-    Fmt.box ~indent:2 pp ppf v
+  | Some (v, s) ->
+    Fmt.box ~indent:2 pp ppf v;
+    match s with
+    | None   -> ()
+    | Some s ->
+      Fmt.pf ppf "%a: %a\n" Fmt.(styled `Underline string) "status" pp_status s
 
-let block title pp =
+let block title pp pp_status =
   let bar ppf = Fmt.pf ppf "\n=== %s ===\n\n" in
   Fmt.(styled `Yellow bar stdout) title;
-  Fmt.(list (one pp) stdout)
+  Fmt.(list (one pp pp_status) stdout)
 
-let find get t x =
+let find (get, status) t x =
   Lwt.catch
-    (fun () -> get t x >|= fun y -> x, Some y)
+    (fun () ->
+       get t x    >>= fun y ->
+       status t x >|= fun s ->
+       x, Some (y, Some s))
     (function Invalid_argument _ -> Lwt.return (x, None) | e -> Lwt.fail e)
 
 let kind =
@@ -57,19 +64,24 @@ let main =
       match kind with
       | `Task ->
         Store.Task.list store >>= fun task_ids ->
-        Lwt_list.map_p (find Store.Task.get store) task_ids >|= fun tasks ->
-        block "Tasks" Task.pp tasks
+        Lwt_list.map_p (find Store.Task.(get, status) store) task_ids
+        >|= fun tasks ->
+        block "Tasks" Task.pp Task.pp_status tasks
       | `Job ->
         Store.Job.list store >>= fun job_ids ->
-        Lwt_list.map_p (find Store.Job.get store) job_ids >|= fun jobs ->
-        block "Jobs" Job.pp jobs
+        Lwt_list.map_p (find Store.Job.(get, status) store) job_ids
+        >|= fun jobs ->
+        block "Jobs" Job.pp Job.pp_status jobs
       | `Worker ->
         Store.Worker.list store >>= fun worker_ids ->
-        Lwt_list.map_p (find Store.Worker.get store) worker_ids >|= fun workers ->
-        block "Workers" Worker.pp workers
+        Lwt_list.map_p (find Store.Worker.(get, status) store) worker_ids
+        >|= fun workers ->
+        block "Workers" Worker.pp Fmt.(option Worker.pp_status) workers
       | `Host ->
-        let hosts = List.map (fun h -> Host.id h, Some h) Host.defaults in
-        block "Hosts" Host.pp hosts;
+        let hosts =
+          List.map (fun h -> Host.id h, Some (h, None)) Host.defaults
+        in
+        block "Hosts" Host.pp Fmt.string hosts;
         Lwt.return_unit
     end
   in

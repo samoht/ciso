@@ -32,6 +32,7 @@ let start { store; opam_root } = function
 
 let main =
   let worker t task =
+    info "task" (string_of_bool task);
     Lwt_main.run begin
       t >>= fun t ->
       start t task
