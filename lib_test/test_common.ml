@@ -84,8 +84,13 @@ let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
 let hosts = Host.detect () :: Host.defaults
-let workers = List.map Worker.create hosts
-let w1 = List.hd workers
+
+let job_workers = List.map (Worker.create `Job) hosts
+let task_workers = List.map (Worker.create `Task) hosts
+let workers = job_workers @ task_workers
+
+let wj1 = List.hd job_workers
+let wt1 = List.hd task_workers
 
 let jobs =
   let info opam url =
