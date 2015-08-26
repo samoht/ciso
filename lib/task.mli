@@ -112,8 +112,7 @@ val json: t Jsont.codec
 
 type status = [
   | `New
-  | `Dispatched
-  | `Resolving
+  | `Dispatched of [`Worker] Id.t * [`Pending | `Started]
   | `Pending
   | `Success
   | `Failure

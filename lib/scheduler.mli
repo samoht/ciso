@@ -47,6 +47,9 @@ module type S = sig
   val peek_s: t -> value Lwt.t
   (** [peek_s t] blocks until a value is available. *)
 
+  val is_runnable: t -> value -> bool
+  (** [is_runnable t v] checks if [v] can be scheduled by [t]. *)
+
 end
 
 (** Task scheduler.
@@ -82,5 +85,21 @@ end
     workers. *)
 module Worker: S with type value := Worker.t
 
-val start: Store.t -> unit Lwt.t
-(** Start all the schedulers. *)
+type t
+(** The type for global schedulers. *)
+
+val job: t -> Job.t
+(** [job t] is [t]'s job scheduler. *)
+
+val task: t -> Task.t
+(** [task t] is [t]'s task scheduler. *)
+
+val worker: t -> Worker.t
+(** [worker t] is [t]'s work scheduler. *)
+
+val start: Store.t -> t Lwt.t
+(** [start s] connects the three schedulers: the {{!Worker.t}worker},
+    the {{!Task.t}task} and the {{!Job.t}job} ones. *)
+
+val stop: t -> unit Lwt.t
+(** [stop t] stops the three schdulers. *)

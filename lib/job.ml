@@ -104,7 +104,7 @@ let create ?(inputs=[]) host switch packages =
 type status = [
   | `Pending     (* the job is created *)
   | `Runnable    (* the job is dispatched to a worker to run *)
-  | `Running     (* a worker is running the job *)
+  | `Started     (* a worker is running the job *)
   | `Success
   | `Failure
   | `Cancelled
@@ -115,10 +115,10 @@ let to_string = function
   | `Failure   -> "failure"
   | `Pending   -> "pending"
   | `Runnable  -> "runnnable"
-  | `Running   -> "running"
+  | `Started   -> "started"
   | `Cancelled -> "cancelled"
 
-let status = [ `Success; `Failure; `Pending; `Runnable; `Running; `Cancelled; ]
+let status = [ `Success; `Failure; `Pending; `Runnable; `Started; `Cancelled; ]
 let pp_status = Fmt.of_to_string to_string
 
 let json_status =

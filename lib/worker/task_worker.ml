@@ -27,7 +27,8 @@ let start = start (fun t -> function
     | `Task id ->
       debug "Got a new task: %s!" (Id.to_string id);
       let store = store t in
-      Store.Task.dispatched store id >>= fun () ->
+      let wid = Worker.id (worker t) in
+      Store.Task.ack store id wid >>= fun () ->
       Store.Task.get store id >>= fun tasks ->
       let jobs = if cache t then Opam.atomic_jobs else Opam.jobs in
       let jobs = jobs (opam t Switch.system) tasks in

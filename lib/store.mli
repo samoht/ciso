@@ -126,13 +126,14 @@ module Task: sig
   val reset: t -> Task.id -> unit Lwt.t
   (** [reset t task] resets the status of [t] to be [`New]. *)
 
-  val dispatched: t -> Task.id -> unit Lwt.t
-  (** [dispatched t id] signals that [id] has been dispatched to a
-      worker to be resolved. *)
+  val dispatch_to: t -> Task.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [dispatch_to t id w] dispatches the task [id] to the worker
+      [w]. Set [id]'s state to be [`Dispatched (w, `Pending)]. *)
 
-  val resolving: t -> Task.id -> unit Lwt.t
-  (** [resolving t id] signals that [id] is being resolved into jobs
-      by a worker. *)
+  val ack: t -> Task.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [ack t id w] is the acknoledgement of [w] that it is starting to
+      work on [id]. Set [id]'s state to be [`Dispatched (w,
+      `Started)]. *)
 
   val status: t -> Task.id -> Task.status Lwt.t
   (** [status t task] is [task]'s status in [t]. *)
@@ -163,8 +164,8 @@ module Job: sig
   val runnable: t -> Job.id -> unit Lwt.t
   (** [runnable t j] set [j]'s status to [`Runnable]. *)
 
-  val running: t -> Job.id -> unit Lwt.t
-  (** [runnning t j] sets [j]'s status to [`Running]. *)
+  val has_started: t -> Job.id -> unit Lwt.t
+  (** [has_started t j] sets [j]'s status to [`Started]. *)
 
   val success: t -> Job.id -> unit Lwt.t
   (** [success t j] sets [j]'s status to [`Success]. *)

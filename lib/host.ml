@@ -201,19 +201,23 @@ let distr_of_string = function
 (* end of copy-pate *)
 
 type t = {
+  id: [`Host] Id.t;
   arch: arch;
   os: os;
   distr: distr option;
 }
 
-let short t =
+let short_aux arch os distr =
   Printf.sprintf "%s:%s:%s"
-    (string_of_arch t.arch) (string_of_os t.os)
-    (match t.distr with None -> "-" | Some d -> string_of_distr d)
+    (string_of_arch arch) (string_of_os os)
+    (match distr with None -> "-" | Some d -> string_of_distr d)
 
+let short t = short_aux t.arch t.os t.distr
 let os t = t.os
 
-let create arch os distr = { arch; os; distr }
+let create arch os distr =
+  let id = Id.of_string `Host (short_aux arch os distr) in
+  { id; arch; os; distr }
 
 let detect () =
   let os = guess_os () in
@@ -226,9 +230,11 @@ let pp_distr ppf x = Fmt.string ppf (string_of_distr x)
 let pp ppf t =
   Fmt.pf ppf
     "@[<v>\
+     id:    %a@;\
      arch:  %a@;\
      os:    %a@;\
      distr: %a@]"
+    Id.pp t.id
     pp_arch t.arch
     pp_os t.os
     (Fmt.option pp_distr) t.distr
@@ -245,7 +251,7 @@ let json =
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get f = Jsont.get f o in
-    `Ok { arch = get arch; os = get os; distr = get distr; }
+    `Ok (create (get arch) (get os) (get distr))
   in
   let enc t =
     Jsont.(new_obj c [memv arch t.arch; memv os t.os; memv distr t.distr])
@@ -261,16 +267,5 @@ let defaults =
       (`X86, `Darwin, Some `Homebrew);
     ]
 
-let equal_other x y = match x, y with
-  | `Other x, `Other y -> String.(compare (lowercase x) (lowercase y)) = 0
-  | x, y -> x = y
-
-let equal_option eq x y = match x, y with
-  | None  , None   -> true
-  | Some x, Some y -> eq x y
-  | _ -> false
-
-let equal x y =
-  equal_other x.arch y.arch
-  && equal_other x.os y.os
-  && equal_option equal_other x.distr y.distr
+let equal x y = Id.equal x.id y.id
+let compare x y = Id.compare x.id y.id

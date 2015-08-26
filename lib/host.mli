@@ -24,6 +24,9 @@ type t
 val detect: unit -> t
 (** Detects the host configuration. *)
 
+val compare: t -> t -> int
+(** [compare] compares host configurations. *)
+
 val equal: t -> t -> bool
 (** [equal] is the equality for host configurations. *)
 

@@ -408,6 +408,6 @@ let start = start (fun t -> function
     | `Job id ->
       debug "Got a new job: %s" (Id.to_string id);
       Store.Job.get (store t) id >>= fun job ->
-      Store.Job.running (store t) id >>= fun () ->
+      Store.Job.has_started (store t) id >>= fun () ->
       process_job t job
   )
