@@ -402,7 +402,7 @@ let process_job ?(white_list=default_white_list) t job =
       | `Failure -> Store.Job.success t id
     )
 
-let start = start (fun t -> function
+let start = start ~kind:`Job (fun t -> function
     | `Idle
     | `Task _ -> Lwt.return_unit
     | `Job id ->

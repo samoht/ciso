@@ -53,8 +53,8 @@ let rec heartbeat_loop t =
   Lwt_unix.sleep t.tick >>= fun () ->
   if t.alive then heartbeat_loop t else Lwt.return_unit
 
-let start fn ?(tick=5.) ~opam_root ?(cache=false) store =
-  let w = Worker.create (Host.detect ()) in
+let start fn ?(tick=5.) ~opam_root ?(cache=false) ~kind store =
+  let w = Worker.create kind (Host.detect ()) in
   let t = create ~tick ~store ~opam_root ~cache w in
   Store.Worker.add t.store w >>= fun () ->
   execution_loop t fn >|= fun cancel ->

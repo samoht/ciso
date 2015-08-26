@@ -505,14 +505,14 @@ let start store =
     | `Job j  ->
       let id = Job.id j in
       Store.with_transaction store (fmt "starting job" id) (fun t ->
-          debug "DISPATCH: job %a to worker %a" Id.pp id Id.pp wid;
+          debug "DISPATCH: job:%a to worker:%a" Id.pp id Id.pp wid;
           Store.Job.has_started t id >>= fun () ->
           Store.Worker.start_job t wid id
         )
     | `Task t ->
       let id = Task.id t in
       Store.with_transaction store (fmt "starting task" id) (fun t ->
-          debug "DISPATCH: task %a to worker %a" Id.pp id Id.pp wid;
+          debug "DISPATCH: task:%a to worker:%a" Id.pp id Id.pp wid;
           Store.Task.dispatch_to t id wid >>= fun () ->
           Store.Worker.start_task t wid id
         )
@@ -521,9 +521,14 @@ let start store =
     peek_worker () >>= fun worker ->
     debug "DISPATCH: worker:%a is available" Id.pp (Worker.id worker);
     let host = Worker.host worker in
-    Lwt.pick [peek_job host; peek_task ()] >>= fun job ->
-    dispatch worker job >>= fun () ->
-    loop ()
+    let dispatch () =
+      begin match Worker.kind worker with
+        | `Job  -> peek_job host
+        | `Task -> peek_task ()
+      end >>= fun job ->
+      dispatch worker job
+    in
+    Lwt.join [loop (); dispatch ()]
   in
   Lwt.async loop;
   { j; t; w }

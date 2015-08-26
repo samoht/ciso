@@ -21,7 +21,7 @@ include Common_worker
 
 let debug fmt = Gol.debug ~section:"task-worker" fmt
 
-let start = start (fun t -> function
+let start = start ~kind:`Task (fun t -> function
     | `Idle
     | `Job _   -> Lwt.return_unit
     | `Task id ->
