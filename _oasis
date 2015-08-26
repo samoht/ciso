@@ -63,6 +63,12 @@ Executable "ciso-add"
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 
+Executable "ciso-list"
+  Path: bin
+  MainIs: ciso_list.ml
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner
+
 Executable "ciso-store"
   Path: bin
   MainIs: ciso_store.ml

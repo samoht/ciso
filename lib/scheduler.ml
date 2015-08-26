@@ -411,7 +411,8 @@ module XWorker = struct
     else (
       let id = Worker.id w in
       Store.Worker.status t.store id >>= function
-      | None   -> Lwt.return_unit
+      | None   ->
+        Store.Worker.forget t.store id
       | Some s ->
         update_status t w (s :> status);
         watch_woker_ticks t w >>= fun () ->
@@ -465,7 +466,11 @@ module XWorker = struct
     debug "starting the work scheduler";
     let t = empty store in
     Store.Worker.list store >>=
-    Lwt_list.map_s (Store.Worker.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Worker.mem store id >>= function
+        | true  -> Store.Worker.get store id    >|= fun x  -> Some x
+        | false -> Store.Worker.forget store id >|= fun () -> None
+      ) >>=
     Lwt_list.iter_p (add_worker t) >>= fun () ->
     watch_workers t >|= fun cancel ->
     t.stop <- cancel;

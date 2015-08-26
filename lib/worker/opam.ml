@@ -49,7 +49,10 @@ let opam_switch s = OpamSwitch.of_string (Switch.to_string s)
 let init t =
   let current_switch = opam_switch t.switch in
   let root_dir = OpamFilename.Dir.of_string t.root in
-  OpamClientConfig.opam_init ~root_dir ~current_switch ~answer:None ()
+  OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
+    ~skip_version_checks:true ~answer:None ()
+
+let default_repo = ("https://github.com/ocaml/opam-repository.git", None)
 
 let repo t name url =
   let repo_name = OpamRepositoryName.of_string name in
@@ -63,7 +66,7 @@ let repo t name url =
 let load_state t dbg =
   init t;
   if not OpamFilename.(exists_dir Dir.(of_string (t.root / "system"))) then (
-    let repo = repo t "default" ("https://opam.ocaml.org", None) in
+    let repo = repo t "default" default_repo in
     let comp = OpamCompiler.system in
     let root = OpamFilename.of_string t.root in
     OpamClient.SafeAPI.init repo comp `bash root `no;

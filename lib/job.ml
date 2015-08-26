@@ -63,18 +63,18 @@ let json =
 let pp_package ppf (p, _) = Package.pp ppf p
 
 let pp ppf t =
-  Fmt.pf ppf
-    "@[<v>\
-     id:       %a@;\
-     inputs:   %a@;\
-     switch:   %a@;\
-     host:     %a@;\
-     packages: %a@]"
-    Id.pp t.id
-    (Fmt.list Id.pp) t.inputs
-    Switch.pp t.switch
-    Host.pp t.host
-    (Fmt.list pp_package) t.packages
+  let mk = Fmt.to_to_string in
+  let mks pp = List.map (mk pp) in
+  let short id = String.sub id 0 8 in
+  let shorts ids = List.map short ids in
+  let block = [
+    "id      ", [Id.to_string t.id];
+    "inputs  ", shorts @@ mks Id.pp t.inputs;
+    "switch  ", [mk Switch.pp t.switch];
+    "host    ", [Id.to_string @@ Host.id t.host];
+    "packages", mks pp_package t.packages;
+  ] in
+  Gol.show_block ppf block
 
 let id t = t.id
 let inputs t = t.inputs

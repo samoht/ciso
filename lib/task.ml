@@ -87,20 +87,18 @@ let json =
   Jsont.view (dec, enc) c
 
 let pp ppf t =
-  Fmt.(pf ppf
-    "@[<v>\
-     id:       %a@,\
-     repos:    %a@,\
-     pins:     %a@,\
-     switches: %a@,\
-     hosts:    %a@,\
-     packages: %a@]"
-    Id.pp t.id
-    (list pp_repo) t.repos
-    (list pp_pin) t.pins
-    (list Switch.pp) t.switches
-    (list Host.pp) t.hosts
-    (list Package.pp) t.packages)
+  let mk pp = List.map (Fmt.to_to_string pp) in
+  let short id = String.sub id 0 8 in
+  let shorts ids = List.map short ids in
+  let block = [
+    "id      ", [Id.to_string t.id];
+    "repo    ", mk pp_repo t.repos;
+    "pins    ", mk pp_pin t.pins;
+    "switches", mk Switch.pp t.switches;
+    "hosts   ", shorts @@ mk Id.pp (List.map Host.id t.hosts);
+    "packages", mk Package.pp t.packages;
+  ] in
+  Gol.show_block ppf block
 
 let id t = t.id
 let packages t = t.packages

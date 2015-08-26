@@ -39,12 +39,9 @@ let compare x y =
     end
   | i -> i
 
-let pp ppf t =
-  Fmt.(pf ppf
-    "@[<v>\
-     name:    %s@;\
-     version: %a@]"
-    t.name (option string) t.version)
+let pp ppf t = match t.version with
+  | None   -> Fmt.string ppf t.name
+  | Some v -> Fmt.pf ppf "%s.%s" t.name v
 
 let json =
   let o = Jsont.objc ~kind:"package" () in

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3566232ae8514cba8c5ec98b67ec151f)
+# DO NOT EDIT (digest: 8888f3daad07c4116a0577689087d16c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -97,6 +97,17 @@ true: annot, bin_annot
 <bin/ciso_add.{native,byte}>: pkg_uri
 <bin/ciso_add.{native,byte}>: pkg_uuidm
 <bin/ciso_add.{native,byte}>: use_ciso
+# Executable ciso-list
+<bin/ciso_list.{native,byte}>: pkg_cmdliner
+<bin/ciso_list.{native,byte}>: pkg_fmt
+<bin/ciso_list.{native,byte}>: pkg_hex
+<bin/ciso_list.{native,byte}>: pkg_irmin.unix
+<bin/ciso_list.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_list.{native,byte}>: pkg_lwt
+<bin/ciso_list.{native,byte}>: pkg_nocrypto
+<bin/ciso_list.{native,byte}>: pkg_uri
+<bin/ciso_list.{native,byte}>: pkg_uuidm
+<bin/ciso_list.{native,byte}>: use_ciso
 # Executable ciso-store
 <bin/ciso_store.{native,byte}>: pkg_cmdliner
 <bin/ciso_store.{native,byte}>: pkg_fmt

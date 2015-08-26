@@ -53,12 +53,17 @@ let store =
   in
   Term.(pure mk $ local $ global)
 
+let (/) = Filename.concat
+
+let tmp_dir = Filename.get_temp_dir_name ()
+
 let t =
   let mk store opam_root =
     let opam_root = match opam_root with
-      | None   -> Id.of_uuid `Worker |> Id.to_string
+      | None   -> tmp_dir / (Id.of_uuid `Worker |> Id.to_string)
       | Some r -> r
     in
+    info "opam " opam_root;
     store >|= fun store -> { store; opam_root }
   in
   Term.(pure mk $ store $ opam_root)
