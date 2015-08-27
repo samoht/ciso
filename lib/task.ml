@@ -88,14 +88,12 @@ let json =
 
 let pp ppf t =
   let mk pp = List.map (Fmt.to_to_string pp) in
-  let short id = String.sub id 0 8 in
-  let shorts ids = List.map short ids in
   let block = [
     "id      ", [Id.to_string t.id];
     "repo    ", mk pp_repo t.repos;
     "pins    ", mk pp_pin t.pins;
     "switches", mk Switch.pp t.switches;
-    "hosts   ", shorts @@ mk Id.pp (List.map Host.id t.hosts);
+    "hosts   ", List.map Host.short t.hosts;
     "packages", mk Package.pp t.packages;
   ] in
   Gol.show_block ppf block

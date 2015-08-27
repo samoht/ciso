@@ -34,7 +34,7 @@ let pp ppf t =
   let block = [
     "id    ", mk Id.pp t.id;
     "kind  ", mk pp_kind t.kind;
-    "host  ", mk Id.pp @@ Host.id t.host;
+    "host  ", [Host.short t.host];
   ] in
   Gol.show_block ppf block
 
