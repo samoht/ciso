@@ -17,7 +17,6 @@
  *)
 
 open OpamTypes
-open Lwt.Infix
 module T = OpamState.Types
 
 module Graph = OpamSolver.ActionGraph
@@ -34,7 +33,6 @@ type plan = {
 }
 
 let debug fmt = Gol.debug ~section:"opam" fmt
-let err fmt = Printf.ksprintf Lwt.fail_with ("Ciso.Opam: " ^^ fmt)
 let fail fmt = Printf.ksprintf failwith ("Ciso.Opam: " ^^ fmt)
 
 let package p = OpamPackage.to_string p
@@ -208,48 +206,35 @@ let (@@++) x f =
 
 let install t pkgs =
   let state = load_state t "install" in
-  if List.length pkgs = 0 then Lwt.return_unit
-  else match Lwt_unix.fork () with
-    | 0 ->
-      begin match pkgs with
-        | [pkg] ->
-          let nv = opam_of_package pkg in
-          let job =
-            let open OpamProcess.Job.Op in
-            OpamAction.download_package state nv @@+ function
-            | `Error err         -> failwith err
-            | `Successful source ->
-              OpamAction.build_package state source nv @@++ fun () ->
-              OpamAction.install_package state nv @@++ fun () ->
-              let { T.installed; installed_roots; reinstall; _ } = state in
-              let installed = OpamPackage.Set.add nv installed in
-              OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
-              |> fun _ -> exit 0
-          in
-          OpamProcess.Job.run job
-        | pkgs ->
-          let atoms = List.map atom_of_package pkgs in
-          let add_to_root = None in
-          let deps_only = false in
-          OpamClient.SafeAPI.install atoms add_to_root deps_only;
-          Lwt.return_unit
-      end
-    | pid ->
-      let open Lwt_unix in
-      Lwt_unix.waitpid [] pid >>= fun (_, stat) ->
-      match stat with
-      | WEXITED i when i = 0 -> Lwt.return_unit
-      | WEXITED _ | WSIGNALED _ | WSTOPPED _ ->
-        err "opam install %s failed"
-          (String.concat ", " @@ List.map Package.to_string pkgs)
+  if List.length pkgs = 0 then ()
+  else match pkgs with
+    | [pkg] ->
+      let nv = opam_of_package pkg in
+      let job =
+        let open OpamProcess.Job.Op in
+        OpamAction.download_package state nv @@+ function
+        | `Error err         -> failwith err
+        | `Successful source ->
+          OpamAction.build_package state source nv @@++ fun () ->
+          OpamAction.install_package state nv @@++ fun () ->
+          let { T.installed; installed_roots; reinstall; _ } = state in
+          let installed = OpamPackage.Set.add nv installed in
+          OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
+          |> fun _ -> exit 0
+      in
+      OpamProcess.Job.run job
+    | pkgs ->
+      let atoms = List.map atom_of_package pkgs in
+      let add_to_root = None in
+      let deps_only = false in
+      OpamClient.SafeAPI.install atoms add_to_root deps_only
 
 let remove t = function
-  | []   -> Lwt.return_unit
+  | []   -> ()
   | pkgs ->
     let atoms = List.map atom_of_package pkgs in
     init t;
-    OpamClient.SafeAPI.remove ~autoremove:true ~force:true atoms;
-    Lwt.return_unit
+    OpamClient.SafeAPI.remove ~autoremove:true ~force:true atoms
 
 (*
 let install_switch s =
@@ -293,8 +278,7 @@ let switch_to t s =
   let compiler = OpamCompiler.of_string (Switch.to_string s) in
   let new_aliases = OpamSwitch.Map.add switch compiler aliases in
   OpamFile.Aliases.write (OpamPath.aliases root) new_aliases;
-  OpamSwitchCommand.switch ~quiet:false ~warning:false switch;
-  Lwt.return_unit
+  OpamSwitchCommand.switch ~quiet:false ~warning:false switch
 
 let clean_repos t =
   let t = load_state t "clean-repos" in
@@ -314,19 +298,8 @@ let add_repos t repos =
     let address, kind = OpamTypesBase.parse_url address in
     OpamRepositoryCommand.add name kind address ~priority:None
   in
-  match Lwt_unix.fork () with
-  | 0 ->
-    clean_repos t;
-    List.iter add_one_repo repos;
-    exit 0
-  | pid ->
-    Lwt_unix.waitpid [] pid >>= fun (_, s) ->
-    let open Lwt_unix in
-    match s with
-    | WEXITED i when i = 0 -> Lwt.return_unit
-    | WEXITED i | WSIGNALED i | WSTOPPED i ->
-      err "add_repo %s failed (exit %d)"
-        (Fmt.(to_to_string (list Task.pp_repo) repos)) i
+  clean_repos t;
+  List.iter add_one_repo repos
 
 let add_pins t pin =
   init t;
@@ -343,22 +316,11 @@ let add_pins t pin =
       OpamClient.SafeAPI.PIN.pin
         ~edit:false ~action:false name (Some pin_option)
   in
-  List.iter add_one pin;
-  Lwt.return_unit
+  List.iter add_one pin
 
 let update t =
-  match Lwt_unix.fork () with
-  | 0 ->
-    init t;
-    OpamClient.SafeAPI.update ~repos_only:false ~dev_only:false [];
-    exit 0
-  | pid ->
-    Lwt_unix.waitpid [] pid >>= fun (_, s) ->
-    let open Lwt_unix in
-    (* FIXME: review use of fork *)
-    match s with
-    | WEXITED i when i = 0 -> Lwt.return_unit
-    | WEXITED i | WSIGNALED i | WSTOPPED i -> err "exited %d when opam update" i
+  init t;
+  OpamClient.SafeAPI.update ~repos_only:false ~dev_only:false []
 
 let read_installed t =
   let t = load_state t "installed" in

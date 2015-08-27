@@ -350,7 +350,7 @@ let find_obj_deps t j =
 
 let prepare t job  =
   find_obj_deps t (Job.id job) >>= fun objs ->
-  Opam.switch_to (opam t Switch.system) (Job.switch job) >>= fun () ->
+  Opam.switch_to (opam t Switch.system) (Job.switch job);
   (* URGENT FIXME: installation order IS important *)
   Lwt_list.iter_p (fun oid ->
       Store.Object.get (store t) oid >>=
@@ -372,8 +372,8 @@ let process_job ?(white_list=default_white_list) t job =
   begin
     Lwt.catch
       (fun () ->
-         Opam.install (opam t @@ Job.switch job) pkgs >|= fun () ->
-         `Success)
+         Opam.install (opam t @@ Job.switch job) pkgs;
+         Lwt.return `Success)
       (fun exn ->
          debug "Job %s exited with: %s" (Id.to_string id) (Printexc.to_string exn);
          Lwt.return `Failure)
@@ -389,7 +389,7 @@ let process_job ?(white_list=default_white_list) t job =
   collect_installed t job ~before ~after >>= fun installed ->
   create_archive t job installed ~old_pkgs ~new_pkgs >>= fun archive ->
   System.clean_tmp "pkg_build" (archive_of_id id) >>= fun () ->
-  Opam.remove (opam t @@ Job.switch job) pkgs >>= fun () ->
+  Opam.remove (opam t @@ Job.switch job) pkgs;
   Store.with_transaction (store t) "Job complete" (fun t ->
       let add_one o =
         (if cache then Store.Object.add t archive else Lwt.return_unit)
