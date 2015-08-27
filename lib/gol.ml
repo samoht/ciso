@@ -27,9 +27,10 @@ let debug ~section fmt =
 
 let show_block ppf block =
   let block = List.filter (fun (_, l) -> l <> []) block in
-  List.iter (fun (k, v) ->
+  List.iteri (fun i (k, v) ->
       Fmt.(styled `Bold string) ppf k;
       Fmt.pf ppf ": ";
-      Fmt.string ppf (String.concat " " v);
+      let color = if i = 0 then Fmt.(styled `Cyan) else (fun x -> x) in
+      color Fmt.string ppf (String.concat " " v);
       Fmt.pf ppf "\n"
     ) block

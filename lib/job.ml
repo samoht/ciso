@@ -71,7 +71,7 @@ let pp ppf t =
     "id      ", [Id.to_string t.id];
     "inputs  ", shorts @@ mks Id.pp t.inputs;
     "switch  ", [mk Switch.pp t.switch];
-    "host    ", [Id.to_string @@ Host.id t.host];
+    "host    ", [Host.short t.host];
     "packages", mks pp_package t.packages;
   ] in
   Gol.show_block ppf block
