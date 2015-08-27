@@ -44,7 +44,7 @@ let parse_atom str =
 let atom_of_package p = parse_atom (Package.to_string p)
 let opam_switch s = OpamSwitch.of_string (Switch.to_string s)
 
-let init t =
+let init_config t =
   let current_switch = opam_switch t.switch in
   let root_dir = OpamFilename.Dir.of_string t.root in
   OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
@@ -62,7 +62,7 @@ let repo t name url =
   { repo_root; repo_name; repo_kind; repo_address; repo_priority }
 
 let load_state t dbg =
-  init t;
+  init_config t;
   if not OpamFilename.(exists_dir Dir.(of_string (t.root / "system"))) then (
     let repo = repo t "default" default_repo in
     let comp = OpamCompiler.system in
@@ -232,8 +232,8 @@ let install t pkgs =
 let remove t = function
   | []   -> ()
   | pkgs ->
+    init_config t;
     let atoms = List.map atom_of_package pkgs in
-    init t;
     OpamClient.SafeAPI.remove ~autoremove:true ~force:true atoms
 
 (*
@@ -271,7 +271,7 @@ let eval_opam_config_env ?switch () =
 *)
 
 let switch_to t s =
-  init t;
+  init_config t;
   let root = OpamStateConfig.(!r.root_dir) in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
   let switch = opam_switch s in
@@ -302,7 +302,7 @@ let add_repos t repos =
   List.iter add_one_repo repos
 
 let add_pins t pin =
-  init t;
+  init_config t;
   let add_one (pkg, target) =
     let name = OpamPackage.Name.of_string pkg in
     match target with
@@ -319,7 +319,7 @@ let add_pins t pin =
   List.iter add_one pin
 
 let update t =
-  init t;
+  init_config t;
   OpamClient.SafeAPI.update ~repos_only:false ~dev_only:false []
 
 let read_installed t =
