@@ -29,8 +29,8 @@ let task =
   Arg.(value & flag & info ["task"] ~doc)
 
 let start store opam_root = function
-  | true  -> Task_worker.start ~opam_root store ~cache:false >>= block
-  | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
+  | true  -> Task_worker.start ~opam_root store >>= block
+  | false -> Job_worker.start ~opam_root store  >>= block
 
 let mk_opam_root x =
   let return x = info "opam  " x; Lwt.return x in

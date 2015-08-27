@@ -21,9 +21,9 @@
 type t
 (** The type for OPAM state. *)
 
-val create: root:string -> Switch.t -> t
-(** [create ~root s] create an OPAM state using [root] as OPAM's root
-    and [s] as the current switch. *)
+val create: root:string -> Switch.t option -> t
+(** [create ~root s h] create an OPAM state using [root] as OPAM's
+    root and [s] as the current switch. *)
 
 val jobs: t -> Task.t -> Job.t list
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
@@ -60,9 +60,21 @@ val switch_to: t -> Switch.t -> unit
 val update: t -> unit
 (** [update t] is {i opam update}. *)
 
+val eval_opam_config_env: t -> unit
+(** [eval_opam_config_env t] is {i eval `opam config env`}. *)
+
+val repo_clean: t -> unit
+(** [repo_clean t] removes all the repositories. *)
+
+val repo_add: t -> Task.repo list -> unit
+(** [repo_add t r] is {i opam repo add r}. *)
+
+val pin_clean: t -> unit
+(** [pin_clean] removes all the pinned packages. *)
+
+val pin_add: t -> Task.pin list -> unit
+(** [repo_add t p] is {i opam pin add p}. *)
+
 (* FIXME: review the doc *)
 
 val get_var: t -> string -> string
-val clean_repos: t -> unit
-val add_repos: t -> Task.repo list -> unit
-val add_pins: t -> Task.pin list -> unit

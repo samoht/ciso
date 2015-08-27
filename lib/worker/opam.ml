@@ -22,9 +22,7 @@ module T = OpamState.Types
 module Graph = OpamSolver.ActionGraph
 let (/) = Filename.concat
 
-type t = { root: string; switch: Switch.t }
-
-let create ~root switch = { root; switch }
+type t = { root: string; switch: Switch.t; }
 
 type plan = {
   g: Graph.t;
@@ -52,6 +50,7 @@ let init_config t =
 
 let default_repo = ("https://github.com/ocaml/opam-repository.git", None)
 
+(*
 let repo t name url =
   let repo_name = OpamRepositoryName.of_string name in
   let repo_priority = 0 in
@@ -60,18 +59,39 @@ let repo t name url =
     OpamRepositoryPath.create (OpamFilename.Dir.of_string t.root) repo_name
   in
   { repo_root; repo_name; repo_kind; repo_address; repo_priority }
+*)
 
 let load_state t dbg =
   init_config t;
   if not OpamFilename.(exists_dir Dir.(of_string (t.root / "system"))) then (
-    let repo = repo t "default" default_repo in
-    let comp = OpamCompiler.system in
-    let root = OpamFilename.of_string t.root in
-    OpamClient.SafeAPI.init repo comp `bash root `no;
+    (* FIXME: we don't want opam 1.3, so shell out `opam init...`*)
+    (*   let repo = repo t "default" default_repo in
+         let comp = OpamCompiler.system in
+         let root = OpamFilename.of_string t.root in
+         OpamClient.SafeAPI.init repo comp `bash root `no; *)
+    let cmd =
+      Printf.sprintf "opam init --root=%s %s -n" t.root
+        (match default_repo with s, None -> s | s, Some v -> s ^ "#" ^ v)
+    in
+    match Sys.command cmd with
+    | 0 -> ()
+    | i -> Printf.ksprintf failwith "%s failed (exit %d)!" cmd i
   );
   let switch = opam_switch t.switch in
   let t = OpamState.load_state ("ci-opam-" ^ dbg) switch in
   t
+
+let create ~root = function
+  | Some s -> { root; switch = s}
+  | None   ->
+    let aliases = root / "aliases"  in
+    if Sys.file_exists aliases then
+      let aliases = OpamFile.Aliases.read (OpamFilename.of_string aliases) in
+      match OpamSwitch.Map.bindings aliases with
+      | []        -> { root; switch = Switch.system }
+      | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
+    else
+      { root; switch = Switch.system }
 
 let get_var t v =
   let t = load_state t "get-var" in
@@ -79,15 +99,32 @@ let get_var t v =
   |> OpamState.contents_of_variable (lazy t)
   |> OpamVariable.string_of_variable_contents
 
+(* FIXME: this doesn't work as OPAM is caching the env variables
+   lazily. *)
+let _set_env t s h =
+  let app k v = Unix.putenv ("OPAMVAR_" ^ k) v in
+  let tts = Fmt.to_to_string in
+  List.iter (fun (k, v) -> app k v) [
+    "os"          , tts Host.pp_os @@ Host.os h;
+    "switch"      , Switch.to_string s;
+    "os"          , Switch.to_string s;
+    "preinstalled", "false";
+  ];
+  Unix.putenv "OPAMROOT" t.root
+
+let eval_opam_config_env t =
+  let env_s = load_state t "opam-eval-env" in
+  let env = OpamState.get_opam_env ~force_path:true env_s in
+  List.iter (fun (n, v) -> Unix.putenv n v) env
+
 let resolve t atoms_s =
+  debug "resolve";
   let state = load_state t "resolve" in
   let atoms = List.rev_map parse_atom atoms_s in
   let install_set = OpamPackage.Name.Set.of_list (List.rev_map fst atoms) in
   let action = Install install_set in
   let universe = OpamState.universe state action in
   let request = OpamSolver.request ~install:atoms () in
-  let switch = OpamSwitch.to_string state.T.switch in
-  debug "resolve: switch:%s preinstalled:%s" switch (get_var t "preinstalled");
   let result =
     OpamSolver.resolve ~orphans:OpamPackage.Set.empty universe request
   in
@@ -105,20 +142,20 @@ let resolve t atoms_s =
 
 let resolve_packages t pkgs = resolve t (List.map Package.to_string pkgs)
 
-let set_env h s =
-  Unix.putenv "OPAMVAR_os"     Fmt.(to_to_string Host.pp_os @@ Host.os h);
-  Unix.putenv "OPAMVAR_switch" (Switch.to_string s)
-
 let plans t task =
-  let one h s =
-    set_env h s;
-    resolve_packages t (Task.packages task)
+  let one switch =
+    (* FIXME *)
+    eval_opam_config_env t;
+    let i = Sys.command (Fmt.strf "opam switch %a" Switch.pp switch) in
+    if i <> 0 then failwith "error while switching";
+    resolve_packages { t with switch } (Task.packages task)
   in
-  List.fold_left (fun acc h ->
-      List.fold_left (fun acc s ->
-          { g = one h s; h; s } :: acc
-        ) acc (Task.switches task)
-    ) [] (Task.hosts task)
+  let h = Host.detect () in
+  if List.mem h (Task.hosts task) then
+    let switches = Task.switches task in
+    List.fold_left (fun acc s -> { g = one s; h; s } :: acc) [] switches
+  else
+    []
 
 module IdSet = struct
   include Set.Make(struct
@@ -141,9 +178,23 @@ let opam_of_package p =
   OpamPackage.create name version
 
 (* URGENT FIXME *)
-let package_info _ =
-  let empty = Cstruct.of_string "" in
-  Package.info ~opam:empty ~url:empty
+let package_info o pkg =
+  let nv = opam_of_package pkg in
+  let to_cstruct name f x =
+    let file = Filename.temp_file name "tmp" in
+    f (OpamFilename.of_string file) x;
+    let fd = Unix.openfile file [Unix.O_RDONLY; Unix.O_NONBLOCK] 0o644 in
+    let cstruct = Unix_cstruct.of_fd fd in
+    Unix.close fd;
+    cstruct
+  in
+  let opam = OpamState.opam o nv |> to_cstruct "opam" OpamFile.OPAM.write in
+  let url  =
+    match OpamState.url o nv with
+    | None   -> None
+    | Some x -> Some (to_cstruct "url" OpamFile.URL.write x)
+  in
+  Package.info ~opam ~url
 
 let package_of_action (a:Graph.vertex) =
   let o = match a with
@@ -156,7 +207,7 @@ let package_of_action (a:Graph.vertex) =
 
 module PMap = Map.Make(Package)
 
-let atomic_jobs_of_plan plan =
+let atomic_jobs_of_plan t plan =
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
   Graph.iter_vertex (fun v ->
@@ -178,25 +229,21 @@ let atomic_jobs_of_plan plan =
         pred_id :: i
       ) plan.g v []
     in
-    let info = package_info () in
+    let info = package_info t p in
     let job = Job.create ~inputs plan.h plan.s [p, info] in
     id_map  := PMap.add p (Job.id job) !id_map;
     j_lst := job :: !j_lst
   done;
   !j_lst
 
-let jobs_of_plan plan =
+let jobs_of_plan t plan =
   let actions = Graph.fold_vertex (fun e l -> e :: l) plan.g [] in
   let pkgs =
-    List.map (fun a -> package_of_action a, package_info ()) actions
+    List.map (fun a ->
+        let pkg = package_of_action a in
+        pkg, package_info t pkg) actions
   in
   Job.create plan.h plan.s pkgs
-
-let atomic_jobs t p =
-  List.fold_left (fun jobs p -> atomic_jobs_of_plan p @ jobs) [] (plans t p)
-
-let jobs t p =
-  List.fold_left (fun jobs p -> jobs_of_plan p :: jobs) [] (plans t p)
 
 let (@@++) x f =
   let open OpamProcess.Job.Op in
@@ -205,6 +252,7 @@ let (@@++) x f =
   | None     -> f ()
 
 let install t pkgs =
+  debug "install";
   let state = load_state t "install" in
   if List.length pkgs = 0 then ()
   else match pkgs with
@@ -232,6 +280,7 @@ let install t pkgs =
 let remove t = function
   | []   -> ()
   | pkgs ->
+    debug "remove";
     init_config t;
     let atoms = List.map atom_of_package pkgs in
     OpamClient.SafeAPI.remove ~autoremove:true ~force:true atoms
@@ -264,13 +313,10 @@ let remove_switch c =
   OpamSwitchCommand.remove switch;
   Lwt.return_unit
 
-let eval_opam_config_env ?switch () =
-  let env_s = load_state ?switch "opam-eval-env" in
-  let env = OpamState.get_opam_env ~force_path:true env_s in
-  List.iter (fun (n, v) -> Unix.putenv n v) env
 *)
 
 let switch_to t s =
+  debug "switch_to %a" Switch.pp s;
   init_config t;
   let root = OpamStateConfig.(!r.root_dir) in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
@@ -280,8 +326,9 @@ let switch_to t s =
   OpamFile.Aliases.write (OpamPath.aliases root) new_aliases;
   OpamSwitchCommand.switch ~quiet:false ~warning:false switch
 
-let clean_repos t =
-  let t = load_state t "clean-repos" in
+let repo_clean t =
+  debug "repo_clean";
+  let t = load_state t "repo_clean" in
   let repos = OpamState.sorted_repositories t in
   List.iter (fun r ->
     let name = OpamRepositoryName.to_string r.repo_name in
@@ -289,7 +336,8 @@ let clean_repos t =
     else OpamRepositoryCommand.remove r.repo_name
     ) repos
 
-let add_repos t repos =
+let repo_add t repos =
+  debug "repo_add";
   let add_one_repo (name, address) =
     let address = Uri.to_string address in
     debug "repository: add %s %s" name address;
@@ -298,10 +346,20 @@ let add_repos t repos =
     let address, kind = OpamTypesBase.parse_url address in
     OpamRepositoryCommand.add name kind address ~priority:None
   in
-  clean_repos t;
+  repo_clean t;
   List.iter add_one_repo repos
 
-let add_pins t pin =
+let pin_clean t =
+  debug "pin_clean";
+  let t = load_state t "repo_clean" in
+  let pins = OpamState.pinned_packages t in
+  let pkgs = OpamPackage.Set.elements pins in
+  let names = List.map OpamPackage.name pkgs in
+  let _ = OpamPinCommand.unpin ~state:t names in
+  ()
+
+let pin_add t pin =
+  debug "pin_add";
   init_config t;
   let add_one (pkg, target) =
     let name = OpamPackage.Name.of_string pkg in
@@ -319,10 +377,12 @@ let add_pins t pin =
   List.iter add_one pin
 
 let update t =
+  debug "update";
   init_config t;
   OpamClient.SafeAPI.update ~repos_only:false ~dev_only:false []
 
 let read_installed t =
+  debug "read_installed";
   let t = load_state t "installed" in
   t.T.installed
   |> OpamPackage.Set.elements
@@ -330,6 +390,7 @@ let read_installed t =
   |> List.map Package.of_string
 
 let write_installed t installed =
+  debug "write_installed";
   let installed =
     installed
     |> List.map Package.to_string
@@ -341,6 +402,7 @@ let write_installed t installed =
   OpamFile.Installed.write file installed
 
 let write_pinned t pinned =
+  debug "write_pinned";
   let t = load_state t "write-pinned" in
   let file = OpamPath.Switch.pinned t.T.root t.T.switch in
   let pinned =
@@ -350,3 +412,13 @@ let write_pinned t pinned =
       ) pinned
   in
   OpamFile.Lines.write file pinned
+
+let atomic_jobs t p =
+  debug "atomic_jobs";
+  let o = load_state t "atomic-jobs" in
+  List.fold_left (fun jobs p -> atomic_jobs_of_plan o p @ jobs) [] (plans t p)
+
+let jobs t p =
+  debug "jobs";
+  let o = load_state t "atomic-jobs" in
+  List.fold_left (fun jobs p -> jobs_of_plan o p :: jobs) [] (plans t p)

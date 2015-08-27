@@ -26,7 +26,7 @@
 type t
 (** The type for job workers. *)
 
-val start: ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+val start: ?tick:float -> opam_root:string -> Store.t -> t Lwt.t
 (** [starts ~opam_root store] starts a job worker. *)
 
 val stop: t -> unit Lwt.t
