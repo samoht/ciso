@@ -272,6 +272,37 @@ let pretty id = Id.to_string id
 let fmt msg id = msg ^ " " ^ pretty id
 let mk t msg id = t (fmt msg id)
 
+module XObject = struct
+
+  let root = ["objects"]
+  let path id = root / Id.to_string id
+  let value_p id = path id / "value"
+
+  let list t =
+    Store.list (t "list objects") root >|= List.map (Id.of_string `Object)
+
+  let forget t id =
+    debug "forget object:%a" Id.pp id;
+    Store.rmdir (mk t "forget object" id) (path id)
+
+  let mem t id = Store.mem (mk t "mem object" id) (value_p id)
+
+  let add t obj =
+    let id = Object.id obj in
+    debug "add: object %s" (pretty id);
+    mem t id >>= function
+    | true  -> Lwt.return_unit
+    | false ->
+      let obj = to_str Object.json obj in
+      Store.update (mk t "publish object" id) (value_p id) obj >|= fun () ->
+      debug "add: object %s published!" (pretty id)
+
+  let get t id =
+    Store.read_exn (mk t "get object" id) (value_p id) >|=
+    of_str Object.json
+
+end
+
 module XJob = struct
 
   let root = ["jobs"]
@@ -280,6 +311,8 @@ module XJob = struct
   let status_p id = path id / "status"
   let outputs_p id = path id / "outputs"
   let output_p id obj = outputs_p id / "outputs" / Id.to_string obj
+  let file_p id f = path id / "files" / f
+  let package_p id pkg f = path id / "packages" / Package.to_string pkg / f
 
   let mem t id = Store.mem (mk t "mem job" id) (value_p id)
 
@@ -290,8 +323,21 @@ module XJob = struct
     | true  -> Lwt.return_unit
     | false ->
       with_transaction t (fmt "add job" id) (fun t ->
-          Store.update (t "") (value_p id) (to_str Job.json job) >>= fun () ->
+          Store.update (t "") (value_p id) (to_str Job.json job)
+          >>= fun () ->
           Store.update (t "") (status_p id) (to_str Job.json_status `Pending)
+          >>= fun () ->
+          Lwt_list.iter_s (fun (p, i) ->
+              let one (k, v) = match v with
+                | None   -> Lwt.return_unit
+                | Some v ->
+                  Store.update (t "") (package_p id p k) (Cstruct.to_string v)
+              in
+              Lwt_list.iter_s one [
+                "opam", Some (Package.opam i);
+                "url" , Package.url i;
+              ]
+            ) (Job.packages job)
         )
       >|= fun () ->
       debug "add: job %s published!" (pretty id)
@@ -317,7 +363,14 @@ module XJob = struct
     | Some s -> Some (of_str Job.json_status s)
 
   let add_output t id obj =
-    Store.update (mk t "add job output" id) (output_p id obj) ""
+    match Object.contents obj with
+    | Object.Archive _ ->
+      XObject.add t obj >>= fun () ->
+      let oid = Object.id obj in
+      Store.update (mk t "add job output" id) (output_p id oid) ""
+    | Object.File (n, c) ->
+      let c = Cstruct.to_string c in
+      Store.update (mk t "add job output" id) (file_p id n) c
 
   let outputs t id =
     Store.list (mk t "list job outputs" id) (outputs_p id) >|=
@@ -435,37 +488,6 @@ module XTask = struct
         | `Added v   -> f (mk v)
         | `Removed _ -> Lwt.return_unit
       )
-
-end
-
-module XObject = struct
-
-  let root = ["objects"]
-  let path id = root / Id.to_string id
-  let value_p id = path id / "value"
-
-  let list t =
-    Store.list (t "list objects") root >|= List.map (Id.of_string `Object)
-
-  let forget t id =
-    debug "forget object:%a" Id.pp id;
-    Store.rmdir (mk t "forget object" id) (path id)
-
-  let mem t id = Store.mem (mk t "mem object" id) (value_p id)
-
-  let add t obj =
-    let id = Object.id obj in
-    debug "add: object %s" (pretty id);
-    mem t id >>= function
-    | true  -> Lwt.return_unit
-    | false ->
-      let obj = to_str Object.json obj in
-      Store.update (mk t "publish object" id) (value_p id) obj >|= fun () ->
-      debug "add: object %s published!" (pretty id)
-
-  let get t id =
-    Store.read_exn (mk t "get object" id) (value_p id) >|=
-    of_str Object.json
 
 end
 
