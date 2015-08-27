@@ -57,7 +57,7 @@ val pp: t Fmt.t
 type info
 (** The type for package information values. *)
 
-val info: opam:Cstruct.t -> url:Cstruct.t -> info
+val info: opam:Cstruct.t -> url:Cstruct.t option -> info
 (** [info ~opam ~url] is the package information value containing the
     given opam and url file contents. Both files should contains only
     valid UTF-8 characters. This is {b not} checked by CISO. *)
@@ -65,7 +65,7 @@ val info: opam:Cstruct.t -> url:Cstruct.t -> info
 val opam: info -> Cstruct.t
 (** [opam i] is the contents of [i]'s opam file. *)
 
-val url: info -> Cstruct.t
+val url: info -> Cstruct.t option
 (** [url i] is the contents of [i]'s url file. *)
 
 val pp_info: info Fmt.t

@@ -66,12 +66,14 @@ let to_string t = match t.version with
 
 type info = {
   opam: Cstruct.t;
-  url : Cstruct.t;
+  url : Cstruct.t option;
 }
 
 let pp_info ppf i =
   (* FIXME: to_string *)
-  Fmt.pf ppf "@[<v>%s@;%s@]" (Cstruct.to_string i.opam) (Cstruct.to_string i.url)
+  Fmt.pf ppf "@[<v>%s@;%a@]"
+    (Cstruct.to_string i.opam)
+    Fmt.(option (of_to_string Cstruct.to_string)) i.url
 
 let json_cstruct =
   let dec o = `Ok (Cstruct.of_string o) in
@@ -81,7 +83,7 @@ let json_cstruct =
 let json_info =
   let o = Jsont.objc ~kind:"package" () in
   let opam = Jsont.(mem o "opam" json_cstruct) in
-  let url = Jsont.(mem ~opt:`Yes_rem o "url" json_cstruct) in
+  let url = Jsont.(mem_opt o "url" json_cstruct) in
   let c = Jsont.obj ~seal:true o in
   let dec o = `Ok { opam = Jsont.get opam o; url = Jsont.get url o } in
   let enc t = Jsont.(new_obj c [memv opam t.opam; memv url t.url]) in
@@ -89,4 +91,4 @@ let json_info =
 
 let info ~opam ~url = { opam; url }
 let opam i = i.opam
-let url i = i.opam
+let url i = i.url

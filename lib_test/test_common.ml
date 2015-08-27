@@ -102,7 +102,8 @@ let wt1 = List.hd task_workers
 
 let jobs =
   let info opam url =
-    Package.info ~opam:(Cstruct.of_string opam) ~url:(Cstruct.of_string url)
+    Package.info
+      ~opam:(Cstruct.of_string opam) ~url:(Some (Cstruct.of_string url))
   in
   let pkgs = [
     (p1, info "build: [make]" "url: http://example.com");

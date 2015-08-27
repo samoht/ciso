@@ -91,7 +91,11 @@ let hash ~host ~switch ~packages =
   let hosts = [Fmt.to_to_string Host.pp host] in
   let packages =
     List.map (fun (p, i) ->
-        y [Package.to_string p; digest (Package.opam i); digest (Package.url i)]
+        y ([Package.to_string p; digest (Package.opam i)]
+           @
+           match Package.url i with
+           | None   -> []
+           | Some u -> [digest u])
       ) packages
   in
   let str = y [x switches; x hosts; x packages] in
