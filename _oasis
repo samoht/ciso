@@ -45,7 +45,7 @@ Library "ciso-worker"
   Modules: Task_worker, Job_worker
   BuildDepends:
     ciso, irmin.unix, opam-lib.client, ocamlgraph,
-    threads, lwt.preemptive
+    threads, lwt.preemptive, cstruct.unix
 
 Executable "ciso-worker"
   Path: bin

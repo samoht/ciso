@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 5d2229b4dd6954afb1d0c7617f856994)
+# DO NOT EDIT (digest: ed12c8a21f7f72a6e5bf83dbeec6da48)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -47,6 +47,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_ciso
 # Library ciso-worker
 "lib/worker/ciso-worker.cmxs": use_ciso-worker
+<lib/worker/*.ml{,i,y}>: pkg_cstruct.unix
 <lib/worker/*.ml{,i,y}>: pkg_fmt
 <lib/worker/*.ml{,i,y}>: pkg_hex
 <lib/worker/*.ml{,i,y}>: pkg_irmin.unix
@@ -62,6 +63,7 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: use_ciso
 # Executable ciso-worker
 <bin/ciso_worker.{native,byte}>: pkg_cmdliner
+<bin/ciso_worker.{native,byte}>: pkg_cstruct.unix
 <bin/ciso_worker.{native,byte}>: pkg_fmt
 <bin/ciso_worker.{native,byte}>: pkg_hex
 <bin/ciso_worker.{native,byte}>: pkg_irmin.unix
@@ -76,6 +78,7 @@ true: annot, bin_annot
 <bin/ciso_worker.{native,byte}>: pkg_uuidm
 <bin/ciso_worker.{native,byte}>: use_ciso
 <bin/ciso_worker.{native,byte}>: use_ciso-worker
+<bin/*.ml{,i,y}>: pkg_cstruct.unix
 <bin/*.ml{,i,y}>: pkg_lwt.preemptive
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_opam-lib.client
@@ -137,6 +140,7 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: use_ciso
 # Library ciso-github
 "lib/github/ciso-github.cmxs": use_ciso-github
+<lib/github/*.ml{,i,y}>: pkg_cstruct.unix
 <lib/github/*.ml{,i,y}>: pkg_fmt
 <lib/github/*.ml{,i,y}>: pkg_github.unix
 <lib/github/*.ml{,i,y}>: pkg_hex
