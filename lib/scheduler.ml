@@ -24,6 +24,9 @@ let todo f = err "TODO %s" f
 let count name =
   let c = ref 0 in fun () -> incr c; name ^ "-" ^ string_of_int !c
 
+let some x = Some x
+let none () = None
+
 let opt ppf =
   let none ppf () = Fmt.pf ppf "-" in
   Fmt.(option ~none) ppf
@@ -146,7 +149,11 @@ module XTask = struct
     debug "starting the task scheduler";
     let t = empty store in
     Store.Task.list store >>=
-    Lwt_list.map_p (Store.Task.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Task.mem store id >>= function
+        | true  -> Store.Task.get store id >|= some
+        | false -> Store.Task.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_task t) >>= fun () ->
     watch_task t >|= fun cancel ->
     t.stop <- cancel;
@@ -298,7 +305,11 @@ module XJob = struct
     debug "starting the job scheduler.";
     let t = empty store in
     Store.Job.list store >>=
-    Lwt_list.map_p (Store.Job.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Job.mem store id >>= function
+        | true  -> Store.Job.get store id >|= some
+        | false -> Store.Job.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_job t) >>= fun () ->
     watch_jobs t >|= fun cancel ->
     t.stop <- cancel;
@@ -477,8 +488,8 @@ module XWorker = struct
     Store.Worker.list store >>=
     Lwt_list.filter_map_p (fun id ->
         Store.Worker.mem store id >>= function
-        | true  -> Store.Worker.get store id    >|= fun x  -> Some x
-        | false -> Store.Worker.forget store id >|= fun () -> None
+        | true  -> Store.Worker.get store id >|= some
+        | false -> Store.Worker.forget store id >|= none
       ) >>=
     Lwt_list.iter_p (add_worker t) >>= fun () ->
     watch_workers t >|= fun cancel ->
