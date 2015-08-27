@@ -16,13 +16,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = {
-  store: Store.t;
-  opam_root: string;
-}
-
-val t: t Lwt.t Cmdliner.Term.t
+val info: string -> string -> unit
 
 val block: 'a -> unit Lwt.t
 
-val info: string -> string -> unit
+val opam_root: string option Cmdliner.Term.t
+val store: Store.t Lwt.t Cmdliner.Term.t

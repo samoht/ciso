@@ -44,7 +44,7 @@ let find (get, status) t x =
     (fun () ->
        get t x    >>= fun y ->
        status t x >|= fun s ->
-       x, Some (y, Some s))
+       x, Some (y, s))
     (function Invalid_argument _ -> Lwt.return (x, None) | e -> Lwt.fail e)
 
 let kind =
@@ -58,9 +58,9 @@ let kind =
   Arg.(value & opt (enum choices) `Task & info ["k";"kind"] ~docv:"KIND" ~doc)
 
 let main =
-  let master t kind =
+  let master store kind =
     Lwt_main.run begin
-      t >>= fun { store; _ } ->
+      store >>= fun store ->
       match kind with
       | `Task ->
         Store.Task.list store >>= fun task_ids ->
@@ -76,7 +76,7 @@ let main =
         Store.Worker.list store >>= fun worker_ids ->
         Lwt_list.map_p (find Store.Worker.(get, status) store) worker_ids
         >|= fun workers ->
-        block "Workers" Worker.pp Fmt.(option Worker.pp_status) workers
+        block "Workers" Worker.pp Worker.pp_status workers
       | `Host ->
         let hosts =
           List.map (fun h -> Host.id h, Some (h, None)) Host.defaults
@@ -85,7 +85,7 @@ let main =
         Lwt.return_unit
     end
   in
-  Term.(pure master $ t $ kind),
+  Term.(pure master $ store $ kind),
   Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
 
 let () =
