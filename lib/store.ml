@@ -340,10 +340,8 @@ module XJob = struct
   let watch t f =
     let mk v = of_str Job.json v in
     Store.watch (t "watch jobs") root (function
-        | `Added v    -> f (mk v)
-        | `Removed id ->
-          debug "The job %s has been removed, skipping it." id;
-          Lwt.return_unit
+        | `Added v   -> f (mk v)
+        | `Removed _ -> Lwt.return_unit
       )
 
 end
@@ -434,10 +432,8 @@ module XTask = struct
   let watch t f =
     let mk v = of_str Task.json v in
     Store.watch (t "watch taks") root (function
-        | `Added    v -> f (mk v)
-        | `Removed id ->
-          debug "The task %s has been removed, skipping it." id;
-          Lwt.return_unit
+        | `Added v   -> f (mk v)
+        | `Removed _ -> Lwt.return_unit
       )
 
 end
@@ -474,8 +470,6 @@ module XObject = struct
 end
 
 module XWorker = struct
-
-  type diff = [`Added of Worker.t | `Removed of Worker.id]
 
   let root = ["workers"]
   let path id = root / Id.to_string id
@@ -537,16 +531,19 @@ module XWorker = struct
       )
 
   let watch_status t id f =
+    (* FIXME: small race here ... *)
     Store.watch_key (mk t "watch status" id) (status_p id) (function
         | `Updated (_, (_, s))
         | `Added (_, s) -> f (Some (of_str Worker.json_status s))
         | `Removed _    -> f None
       )
 
+  type diff = [`Added of Worker.t | `Removed of Worker.id]
+
   let watch t f =
     Store.watch (t "watch workers") root (function
-        | `Added v    -> f @@ `Added (of_str Worker.json v)
-        | `Removed id -> f @@ `Removed (Id.of_string `Worker id)
+        | `Added v    -> f (`Added (of_str Worker.json v))
+        | `Removed id -> f (`Removed (Id.of_string `Worker id))
       )
 
 end
