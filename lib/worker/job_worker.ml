@@ -391,12 +391,12 @@ let process_job ?(white_list=default_white_list) t job =
   System.clean_tmp "pkg_build" (archive_of_id id) >>= fun () ->
   Opam.remove (opam t @@ Job.switch job) pkgs;
   Store.with_transaction (store t) "Job complete" (fun t ->
-      let add_one o =
-        (if cache then Store.Object.add t archive else Lwt.return_unit)
-        >>= fun () ->
-        Store.Job.add_output t id (Object.id o)
+      let add_one obj =
+        Store.Object.add t obj >>= fun () ->
+        Store.Job.add_output t id (Object.id obj)
       in
-      Lwt_list.iter_p add_one (archive :: outputs) >>= fun () ->
+      let objs = if cache then archive :: outputs else outputs in
+      Lwt_list.iter_p add_one objs >>= fun () ->
       match result with
       | `Success -> Store.Job.success t id
       | `Failure -> Store.Job.success t id
