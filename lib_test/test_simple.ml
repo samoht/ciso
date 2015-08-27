@@ -98,8 +98,8 @@ let simple_task_status =
     `Dispatched (Worker.id wt1, `Pending);
     `Dispatched (Worker.id wj1, `Started);
     `Pending;
-    `Success;
-    `Failure;
+    `Complete `Success;
+    `Complete `Failure;
     `Cancelled
   ]
 
@@ -109,8 +109,8 @@ let simple_job_status =
     `Runnable;
     `Dispatched (Worker.id wt1, `Pending);
     `Dispatched (Worker.id wj1, `Started);
-    `Success;
-    `Failure;
+    `Complete `Success;
+    `Complete `Failure;
     `Cancelled;
   ]
 

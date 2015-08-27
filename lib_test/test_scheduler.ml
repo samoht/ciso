@@ -56,7 +56,7 @@ let basic_tasks () =
     Scheduler.Task.start s >>= fun t ->
     Alcotest.(check @@ tasks_t) "2 task" [t1] (Scheduler.Task.list t);
     Store.Task.status s (Task.id t1) >>= fun s ->
-    Alcotest.(check task_status_t) "status" `New s;
+    Alcotest.(check @@ option task_status_t) "status" (Some `New) s;
     Scheduler.Task.stop t
 
   in
@@ -123,7 +123,7 @@ let task_check s ~section sched msg expected =
   let tasks = Scheduler.Task.list (Scheduler.task sched) in
   Alcotest.(check @@ tasks_t) "t1 is monitored" [t1] tasks;
   Store.Task.status s (Task.id t1) >>= fun status ->
-  Alcotest.(check task_status_t) msg expected status;
+  Alcotest.(check @@ option task_status_t) msg (Some expected) status;
   Lwt.return_unit
 
 (* - add a task
@@ -198,7 +198,7 @@ let job_check s ~section sched msg expected =
   let jobs = Scheduler.Job.list (Scheduler.job sched) in
   Alcotest.(check @@ jobs_t) "jr1 is monitored" [jr1] jobs;
   Store.Job.status s (Job.id jr1) >>= fun status ->
-  Alcotest.(check job_status_t) msg expected status;
+  Alcotest.(check @@ option job_status_t) msg (Some expected) status;
   Lwt.return_unit
 
 (* - add a job

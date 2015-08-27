@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8888f3daad07c4116a0577689087d16c)
+# DO NOT EDIT (digest: 5d2229b4dd6954afb1d0c7617f856994)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -52,9 +52,11 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: pkg_irmin.unix
 <lib/worker/*.ml{,i,y}>: pkg_jsont.jsonm
 <lib/worker/*.ml{,i,y}>: pkg_lwt
+<lib/worker/*.ml{,i,y}>: pkg_lwt.preemptive
 <lib/worker/*.ml{,i,y}>: pkg_nocrypto
 <lib/worker/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/worker/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/worker/*.ml{,i,y}>: pkg_threads
 <lib/worker/*.ml{,i,y}>: pkg_uri
 <lib/worker/*.ml{,i,y}>: pkg_uuidm
 <lib/worker/*.ml{,i,y}>: use_ciso
@@ -65,15 +67,19 @@ true: annot, bin_annot
 <bin/ciso_worker.{native,byte}>: pkg_irmin.unix
 <bin/ciso_worker.{native,byte}>: pkg_jsont.jsonm
 <bin/ciso_worker.{native,byte}>: pkg_lwt
+<bin/ciso_worker.{native,byte}>: pkg_lwt.preemptive
 <bin/ciso_worker.{native,byte}>: pkg_nocrypto
 <bin/ciso_worker.{native,byte}>: pkg_ocamlgraph
 <bin/ciso_worker.{native,byte}>: pkg_opam-lib.client
+<bin/ciso_worker.{native,byte}>: pkg_threads
 <bin/ciso_worker.{native,byte}>: pkg_uri
 <bin/ciso_worker.{native,byte}>: pkg_uuidm
 <bin/ciso_worker.{native,byte}>: use_ciso
 <bin/ciso_worker.{native,byte}>: use_ciso-worker
+<bin/*.ml{,i,y}>: pkg_lwt.preemptive
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_opam-lib.client
+<bin/*.ml{,i,y}>: pkg_threads
 <bin/*.ml{,i,y}>: use_ciso-worker
 # Executable ciso-scheduler
 <bin/ciso_scheduler.{native,byte}>: pkg_cmdliner
@@ -137,9 +143,11 @@ true: annot, bin_annot
 <lib/github/*.ml{,i,y}>: pkg_irmin.unix
 <lib/github/*.ml{,i,y}>: pkg_jsont.jsonm
 <lib/github/*.ml{,i,y}>: pkg_lwt
+<lib/github/*.ml{,i,y}>: pkg_lwt.preemptive
 <lib/github/*.ml{,i,y}>: pkg_nocrypto
 <lib/github/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/github/*.ml{,i,y}>: pkg_opam-lib.client
+<lib/github/*.ml{,i,y}>: pkg_threads
 <lib/github/*.ml{,i,y}>: pkg_uri
 <lib/github/*.ml{,i,y}>: pkg_uuidm
 <lib/github/*.ml{,i,y}>: use_ciso
