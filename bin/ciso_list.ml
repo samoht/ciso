@@ -22,7 +22,7 @@ open Cmdliner
 open Lwt.Infix
 include Ciso_common
 
-let one pp pp_status ppf (id, v) =
+let one ?(pad=0) pp pp_status ppf (id, v) =
   match v with
   | None   ->
     Fmt.(styled `Cyan Id.pp ppf) id;
@@ -32,15 +32,17 @@ let one pp pp_status ppf (id, v) =
     match s with
     | None   -> ()
     | Some s ->
-      Fmt.pf ppf "%a: %a\n" Fmt.(styled `Underline string) "status" pp_status s
+      let pad = String.make pad ' ' in
+      let underline = Fmt.(styled `Underline string) in
+      Fmt.pf ppf "%a%s: %a\n" underline "status" pad pp_status s
 
-let block title pp pp_status b =
+let block ?pad title pp pp_status b =
   let bar ppf = Fmt.pf ppf "\n=== %s ===\n\n" in
   Fmt.(styled `Yellow bar stdout) title;
   match b with
   | [] -> Fmt.(string stdout) "None!\n\n"
   | _  ->
-    Fmt.(list (one pp pp_status) stdout) b;
+    Fmt.(list (one ?pad pp pp_status) stdout) b;
     Fmt.(cut stdout) ()
 
 let find (get, status) t x =
@@ -70,12 +72,12 @@ let main =
         Store.Task.list store >>= fun task_ids ->
         Lwt_list.map_p (find Store.Task.(get, status) store) task_ids
         >|= fun tasks ->
-        block "Tasks" Task.pp Task.pp_status tasks
+        block "Tasks" Task.pp Task.pp_status tasks ~pad:2
       | `Job ->
         Store.Job.list store >>= fun job_ids ->
         Lwt_list.map_p (find Store.Job.(get, status) store) job_ids
         >|= fun jobs ->
-        block "Jobs" Job.pp Job.pp_status jobs
+        block "Jobs" Job.pp Job.pp_status jobs ~pad:2
       | `Worker ->
         Store.Worker.list store >>= fun worker_ids ->
         Lwt_list.map_p (find Store.Worker.(get, status) store) worker_ids

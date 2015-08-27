@@ -32,9 +32,9 @@ let pp_kind =
 let pp ppf t =
   let mk pp x = [Fmt.to_to_string pp x] in
   let block = [
-    "id  ", mk Id.pp t.id;
-    "kind", mk pp_kind t.kind;
-    "host", mk Id.pp @@ Host.id t.host;
+    "id    ", mk Id.pp t.id;
+    "kind  ", mk pp_kind t.kind;
+    "host  ", mk Id.pp @@ Host.id t.host;
   ] in
   Gol.show_block ppf block
 
