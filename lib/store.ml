@@ -355,6 +355,7 @@ module XTask = struct
   let value_p id = path id / "value"
   let status_p id = path id / "status"
   let jobs_p id = path id / "jobs"
+  let job_p id j = jobs_p id / Id.to_string j
 
   let list t =
     Store.list (t "list tasks") root >|= List.map (Id.of_string `Task)
@@ -381,6 +382,11 @@ module XTask = struct
   let get t id =
     Store.read_exn (mk t "find task" id) (value_p id) >|=
     of_str Task.json
+
+  let add_jobs t id jobs =
+    with_transaction t (fmt "add jobs" id) (fun t ->
+        Lwt_list.iter_p (fun j -> Store.update (t "") (job_p id j) "") jobs
+      )
 
   let jobs t id =
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=

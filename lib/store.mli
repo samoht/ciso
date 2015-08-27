@@ -138,6 +138,9 @@ module Task: sig
   val status: t -> Task.id -> Task.status option Lwt.t
   (** [status t task] is [task]'s status in [t]. *)
 
+  val add_jobs: t -> Task.id -> Job.id list -> unit Lwt.t
+  (** [add_jobs t id js] add the jobs [js] to [id]. *)
+
   val jobs: t -> Task.id -> Job.id list Lwt.t
   (** [jobs t task] are [task]'s jobs in [t]. *)
 
