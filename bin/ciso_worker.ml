@@ -33,7 +33,7 @@ let start store opam_root = function
   | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
 
 let mk_opam_root x =
-  let return x = info "opam " x; Lwt.return x in
+  let return x = info "opam  " x; Lwt.return x in
   let x = match x with
     | Some r -> return r
     | None   ->
@@ -46,7 +46,7 @@ let mk_opam_root x =
 
 let main =
   let worker store opam_root task =
-    info "task " (string_of_bool task);
+    info "kind  " (if task then "task" else "job");
     Lwt_main.run begin
       store >>= fun store ->
       mk_opam_root opam_root >>= fun opam_root ->
