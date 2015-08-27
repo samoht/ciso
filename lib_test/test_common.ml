@@ -84,7 +84,14 @@ let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
 
-let hosts = Host.detect () :: Host.defaults
+module HSet = Set.Make(Host)
+
+let hosts =
+  let set =
+    List.fold_left
+      (fun l e -> HSet.add e l) HSet.empty (Host.detect () :: Host.defaults)
+  in
+  HSet.elements set
 
 let job_workers = List.map (Worker.create `Job) hosts
 let task_workers = List.map (Worker.create `Task) hosts
