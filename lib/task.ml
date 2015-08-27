@@ -61,6 +61,8 @@ let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
 let hosts t = t.hosts
 let switches t = t.switches
+let repos t = t.repos
+let pins t = t.pins
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
