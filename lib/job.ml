@@ -101,17 +101,14 @@ let create ?(inputs=[]) host switch packages =
   let id = hash ~host ~switch ~packages in
   { id; inputs; switch; host; packages; }
 
-type status_core = [
-  | `Pending                                            (* the job is created *)
-  | `Runnable                     (* the job is dispatched to a worker to run *)
-  | `Success
-  | `Failure
-  | `Cancelled
-]
+type core = [ `Pending | `Runnable | `Cancelled ]
+type dispatch =  [`Pending | `Started]
+type complete = [`Success | `Failure]
 
 type status = [
-  | status_core
-  | `Dispatched of  [`Worker] Id.t * [`Pending | `Started]
+  | core
+  | `Complete of complete
+  | `Dispatched of [`Worker] Id.t * dispatch
 ]
 
 let to_string = function
@@ -119,12 +116,14 @@ let to_string = function
   | `Runnable   -> "runnnable"
   | `Dispatched -> "dispatched"
   | `Started    -> "started"
+  | `Complete   -> "complete"
   | `Success    -> "success"
   | `Failure    -> "failure"
   | `Cancelled  -> "cancelled"
 
-let status =
-  [ `Pending; `Runnable; `Dispatched; `Started; `Success; `Failure; `Cancelled ]
+let core = [ `Pending; `Runnable; `Dispatched; `Complete; `Cancelled ]
+let dispatch = [ `Pending; `Started]
+let complete = [`Success; `Failure]
 
 let mk_enum status =
   let default = List.hd status in
@@ -133,8 +132,8 @@ let mk_enum status =
 (* FIXME: code duplication with Task.json_{params,status} *)
 let json_params =
   let o = Jsont.objc ~kind:"job-status-params" () in
-  let worker = Jsont.(mem o "worker" Id.json) in
-  let status = Jsont.(mem o "status" @@ mk_enum [`Pending; `Started]) in
+  let worker = Jsont.(mem_opt o "worker" Id.json) in
+  let status = Jsont.(mem o "status" @@ mk_enum (dispatch @ complete)) in
   let c = Jsont.obj ~seal:true o in
   let dec o = `Ok (Jsont.get worker o, Jsont.get status o) in
   let enc (w, s) = Jsont.(new_obj c [memv worker w; memv status s]) in
@@ -142,33 +141,42 @@ let json_params =
 
 let json_status =
   let o = Jsont.objc ~kind:"job-status" () in
-  let status = Jsont.(mem o "status" @@ mk_enum status) in
+  let status = Jsont.(mem o "status" @@ mk_enum core) in
   let params = Jsont.(mem_opt o "params" json_params) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
-    match Jsont.get status o, Jsont.get params o with
-    | `Dispatched, Some p -> `Ok (`Dispatched p)
-    | #status_core as x, None -> `Ok x
+    let params = match Jsont.get params o with
+      | None -> `N
+      | Some (Some w, (#dispatch as p)) -> `D (w, p)
+      | Some (None  , (#complete as p)) -> `C p
+      | _ -> `Error "task_params"
+    in
+    match Jsont.get status o, params with
+    | `Dispatched, `D p -> `Ok (`Dispatched p)
+    | `Complete  , `C p -> `Ok (`Complete p)
+    | #core as x , `N   -> `Ok x
     | _ -> `Error "task_status"
   in
-  let enc t =
+  let enc (t:status) =
+    let cast t = (t :> [dispatch | complete]) in
     let s, i = match t with
-      | `Dispatched p     -> `Dispatched, Some p
-      | #status_core as x -> x , None
+      | `Dispatched (w, p) -> `Dispatched, Some (Some w, cast p)
+      | `Complete p        -> `Complete  , Some (None  , cast p)
+      | #core as x         -> x          , None
     in
     Jsont.(new_obj c [memv status s; memv params i])
   in
   Jsont.view (dec, enc) c
 
-let is_success = function `Success -> true | _ -> false
-let is_failure = function `Failure -> true | _ -> false
+let is_success = function `Complete `Success -> true | _ -> false
+let is_failure = function `Complete `Failure -> true | _ -> false
 let is_cancelled = function `Cancelled -> true | _ -> false
 
 let task_status = function
   | [] -> `New
   | l  ->
-    if List.for_all is_success l then `Success
-    else if List.exists is_failure l then `Failure   (* maybe a bit strong... *)
+    if List.for_all is_success l then `Complete `Success
+    else if List.exists is_failure l then `Complete `Failure
     else if List.exists is_cancelled l then `Cancelled
     else `Pending
 
@@ -178,4 +186,5 @@ let pp_s ppf = Fmt.of_to_string to_string ppf
 
 let pp_status ppf = function
   | `Dispatched (w, s) -> Fmt.pf ppf "dispatched to %a (%a)" Id.pp w pp_s s
-  | #status_core as  x -> Fmt.of_to_string to_string  ppf x
+  | `Complete s -> Fmt.pf ppf "complete: %a" pp_s s
+  | #core as  x -> Fmt.of_to_string to_string  ppf x

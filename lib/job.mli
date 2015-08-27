@@ -82,8 +82,7 @@ type status = [
   | `Pending
   | `Runnable
   | `Dispatched of [`Worker] Id.t * [`Pending | `Started]
-  | `Success
-  | `Failure
+  | `Complete of [`Success | `Failure]
   | `Cancelled
 ]
 (** The type for job status. *)
