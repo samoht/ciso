@@ -389,11 +389,13 @@ module XWorker = struct
   let remove_worker t w =
     let id = Worker.id w in
     debug "remove worker:%a" Id.pp id;
-    t.workers <- WMap.remove w t.workers;
-    cancel t w >>= fun () ->
-    match status t w with
-    | None   -> Lwt.return_unit
-    | Some s -> reset_job t s
+    let reset () = match status t w with
+      | None   -> Lwt.return_unit
+      | Some s -> reset_job t s
+    in
+    reset () >>= fun () ->
+    cancel t w >|= fun () ->
+    t.workers <- WMap.remove w t.workers
 
   (* watch for worker ticks, clean-up the worker state if it's dead. *)
   let watch_woker_ticks t w =
