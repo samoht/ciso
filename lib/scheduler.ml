@@ -77,13 +77,17 @@ module XTask = struct
     let id = Task.id task in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Task.watch_status t.store id (function
-        | `Success | `Failure ->
+        | None ->
+          remove_task t task;
+          !cancel () >>= fun () ->
+          Store.Task.forget t.store id
+        | Some (`Complete _) ->
           remove_task t task;
           !cancel ()
-        | `New | `Pending | `Dispatched _ as s ->
+        | Some (`New | `Pending | `Dispatched _ as s) ->
           update_status t task s;
           Lwt.return_unit
-        | `Cancelled -> todo "Task.cancel"
+        | Some `Cancelled -> todo "Task.cancel"
       ) >|= fun c ->
     assert (not (Hashtbl.mem t.cancels id));
     Hashtbl.add t.cancels id c;
@@ -94,9 +98,10 @@ module XTask = struct
     else (
       let id = Task.id task in
       Store.Task.status t.store id >>= function
-      | `Cancelled -> todo "cancelled tasks"
-      | `Success | `Failure -> Lwt.return_unit
-      | `New | `Pending | `Dispatched _ as s ->
+      | None -> Store.Task.forget t.store id
+      | Some `Cancelled -> todo "cancelled tasks"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`New | `Pending | `Dispatched _ as s) ->
         update_status t task s;
         watch_task_status t task
     )
@@ -237,8 +242,8 @@ module XJob = struct
     JMap.iter (fun job -> function
         | `Pending ->
           let inputs = Job.inputs job in
-          if List.for_all (fun j -> status t j = Some `Success) inputs then
-            jobs := job :: !jobs
+          let is_success j = status t j = Some (`Complete `Success) in
+          if List.for_all is_success inputs then jobs := job :: !jobs
         | _ -> ()
       ) t.jobs;
     Lwt_list.iter_p (fun job ->
@@ -250,11 +255,15 @@ module XJob = struct
     let id = Job.id j in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Job.watch_status t.store id (function
-        | `Cancelled -> todo "job cancelled"
-        | `Pending | `Runnable | `Dispatched _  as s ->
+        | None ->
+          remove_job t j;
+          !cancel () >>= fun () ->
+          Store.Job.forget t.store id
+        | Some `Cancelled -> todo "job cancelled"
+        | Some (`Pending | `Runnable | `Dispatched _  as s) ->
           update_status t j s;
           Lwt.return_unit
-        | `Success | `Failure  ->
+        | Some (`Complete _) ->
           remove_job t j;
           !cancel ()
       ) >|= fun c ->
@@ -265,10 +274,12 @@ module XJob = struct
   let add_job t job =
     if JMap.mem job t.jobs then Lwt.return_unit
     else (
-      Store.Job.status t.store (Job.id job) >>= function
-      | `Cancelled -> todo "cancelled job"
-      | `Failure | `Success -> Lwt.return_unit
-      | `Pending | `Dispatched _ | `Runnable as s ->
+      let id = Job.id job in
+      Store.Job.status t.store id >>= function
+      | None -> Store.Job.forget t.store id
+      | Some `Cancelled -> todo "cancelled job"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`Pending | `Dispatched _ | `Runnable as s) ->
         update_status t job s;
         update_runnable t >>= fun () ->
         watch_job_status t job
@@ -410,8 +421,7 @@ module XWorker = struct
     else (
       let id = Worker.id w in
       Store.Worker.status t.store id >>= function
-      | None   ->
-        Store.Worker.forget t.store id
+      | None   -> Store.Worker.forget t.store id
       | Some s ->
         update_status t w (s :> status);
         watch_woker_ticks t w >>= fun () ->
