@@ -406,8 +406,9 @@ let start = start ~kind:`Job (fun t -> function
     | `Idle
     | `Task _ -> Lwt.return_unit
     | `Job id ->
+      let wid = Worker.id (worker t) in
       debug "Got a new job: %s" (Id.to_string id);
       Store.Job.get (store t) id >>= fun job ->
-      Store.Job.has_started (store t) id >>= fun () ->
+      Store.Job.ack (store t) id wid >>= fun () ->
       process_job t job
   )

@@ -125,7 +125,6 @@ let create ?(repos=[]) ?(pins=[])
 
 type status_core = [
   | `New
-  (* the task resolution is complete. *)
   | `Pending
   | `Success
   | `Failure
@@ -155,11 +154,11 @@ let mk_enum status =
 
 let json_params =
   let o = Jsont.objc ~kind:"task-status-params" () in
-  let id = Jsont.(mem o "name" Id.json) in
+  let worker = Jsont.(mem o "worker" Id.json) in
   let status = Jsont.(mem o "status" @@ mk_enum [`Pending; `Started]) in
   let c = Jsont.obj ~seal:true o in
-  let dec o = `Ok (Jsont.get id o, Jsont.get status o) in
-  let enc (i, s) = Jsont.(new_obj c [memv id i; memv status s]) in
+  let dec o = `Ok (Jsont.get worker o, Jsont.get status o) in
+  let enc (w, s) = Jsont.(new_obj c [memv worker w; memv status s]) in
   Jsont.view (dec, enc) c
 
 let json_status =
@@ -186,4 +185,4 @@ let pp_s ppf = Fmt.of_to_string to_string ppf
 
 let pp_status ppf = function
   | `Dispatched (w, s) -> Fmt.pf ppf "dispatched to %a (%a)" Id.pp w pp_s s
-  | #status_core as  x -> pp_s ppf x
+  | #status_core as  x -> Fmt.of_to_string to_string  ppf x

@@ -303,10 +303,12 @@ module XJob = struct
     Store.update (mk t ("job " ^ status) id) (status_p id) status
 
   let success = update_status `Success
-  let has_started = update_status `Started
   let failure = update_status `Failure
   let pending = update_status `Pending
   let runnable = update_status `Runnable
+
+  let dispatch_to t id w = update_status (`Dispatched (w, `Pending)) t id
+  let ack t id w = update_status (`Dispatched (w, `Started)) t id
 
   let status t id =
     Store.read (mk t "job status" id) (status_p id) >|= function

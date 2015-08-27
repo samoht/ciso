@@ -83,6 +83,7 @@ let json codec v =
 let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
+
 let hosts = Host.detect () :: Host.defaults
 
 let job_workers = List.map (Worker.create `Job) hosts
@@ -113,3 +114,12 @@ let jobs =
 
 let j1 = List.hd jobs
 let j2 = List.hd (List.rev jobs)
+
+let job_roots = List.filter (fun j -> Job.inputs j = []) jobs
+
+let job_root host =
+  try List.find (fun j -> Host.equal host (Job.host j)) job_roots
+  with Not_found ->
+    Alcotest.fail (Fmt.strf "no root for host %a" Host.pp host)
+
+let jr1 = job_root (Worker.host wj1)

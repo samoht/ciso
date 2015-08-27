@@ -164,8 +164,13 @@ module Job: sig
   val runnable: t -> Job.id -> unit Lwt.t
   (** [runnable t j] set [j]'s status to [`Runnable]. *)
 
-  val has_started: t -> Job.id -> unit Lwt.t
-  (** [has_started t j] sets [j]'s status to [`Started]. *)
+  val dispatch_to: t -> Job.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [dispatch_to t j w] sets [j]'s status to [`Dispatched (w,
+      `Pending)]`. *)
+
+  val ack: t -> Job.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [start t j w] sets [j]'s status to [`Dispatched (w,
+      `Started)]. *)
 
   val success: t -> Job.id -> unit Lwt.t
   (** [success t j] sets [j]'s status to [`Success]. *)

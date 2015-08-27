@@ -101,28 +101,64 @@ let create ?(inputs=[]) host switch packages =
   let id = hash ~host ~switch ~packages in
   { id; inputs; switch; host; packages; }
 
-type status = [
-  | `Pending     (* the job is created *)
-  | `Runnable    (* the job is dispatched to a worker to run *)
-  | `Started     (* a worker is running the job *)
+type status_core = [
+  | `Pending                                            (* the job is created *)
+  | `Runnable                     (* the job is dispatched to a worker to run *)
   | `Success
   | `Failure
   | `Cancelled
 ]
 
-let to_string = function
-  | `Success   -> "success"
-  | `Failure   -> "failure"
-  | `Pending   -> "pending"
-  | `Runnable  -> "runnnable"
-  | `Started   -> "started"
-  | `Cancelled -> "cancelled"
+type status = [
+  | status_core
+  | `Dispatched of  [`Worker] Id.t * [`Pending | `Started]
+]
 
-let status = [ `Success; `Failure; `Pending; `Runnable; `Started; `Cancelled; ]
-let pp_status = Fmt.of_to_string to_string
+let to_string = function
+  | `Pending    -> "pending"
+  | `Runnable   -> "runnnable"
+  | `Dispatched -> "dispatched"
+  | `Started    -> "started"
+  | `Success    -> "success"
+  | `Failure    -> "failure"
+  | `Cancelled  -> "cancelled"
+
+let status =
+  [ `Pending; `Runnable; `Dispatched; `Started; `Success; `Failure; `Cancelled ]
+
+let mk_enum status =
+  let default = List.hd status in
+  Jsont.enum ~default @@ List.map (fun s -> to_string s, s) status
+
+(* FIXME: code duplication with Task.json_{params,status} *)
+let json_params =
+  let o = Jsont.objc ~kind:"job-status-params" () in
+  let worker = Jsont.(mem o "worker" Id.json) in
+  let status = Jsont.(mem o "status" @@ mk_enum [`Pending; `Started]) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o = `Ok (Jsont.get worker o, Jsont.get status o) in
+  let enc (w, s) = Jsont.(new_obj c [memv worker w; memv status s]) in
+  Jsont.view (dec, enc) c
 
 let json_status =
-  Jsont.enum ~default:`Pending (List.map (fun x -> to_string x, x) status)
+  let o = Jsont.objc ~kind:"job-status" () in
+  let status = Jsont.(mem o "status" @@ mk_enum status) in
+  let params = Jsont.(mem_opt o "params" json_params) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    match Jsont.get status o, Jsont.get params o with
+    | `Dispatched, Some p -> `Ok (`Dispatched p)
+    | #status_core as x, None -> `Ok x
+    | _ -> `Error "task_status"
+  in
+  let enc t =
+    let s, i = match t with
+      | `Dispatched p     -> `Dispatched, Some p
+      | #status_core as x -> x , None
+    in
+    Jsont.(new_obj c [memv status s; memv params i])
+  in
+  Jsont.view (dec, enc) c
 
 let is_success = function `Success -> true | _ -> false
 let is_failure = function `Failure -> true | _ -> false
@@ -135,3 +171,11 @@ let task_status = function
     else if List.exists is_failure l then `Failure   (* maybe a bit strong... *)
     else if List.exists is_cancelled l then `Cancelled
     else `Pending
+
+(* FIXME: code duplication with task.pp_status *)
+
+let pp_s ppf = Fmt.of_to_string to_string ppf
+
+let pp_status ppf = function
+  | `Dispatched (w, s) -> Fmt.pf ppf "dispatched to %a (%a)" Id.pp w pp_s s
+  | #status_core as  x -> Fmt.of_to_string to_string  ppf x

@@ -251,10 +251,9 @@ module XJob = struct
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Job.watch_status t.store id (function
         | `Cancelled -> todo "job cancelled"
-        | `Pending | `Started  as s ->
+        | `Pending | `Runnable | `Dispatched _  as s ->
           update_status t j s;
           Lwt.return_unit
-        | `Runnable -> Lwt.return_unit
         | `Success | `Failure  ->
           remove_job t j;
           !cancel ()
@@ -269,7 +268,7 @@ module XJob = struct
       Store.Job.status t.store (Job.id job) >>= function
       | `Cancelled -> todo "cancelled job"
       | `Failure | `Success -> Lwt.return_unit
-      | `Pending | `Started | `Runnable as s ->
+      | `Pending | `Dispatched _ | `Runnable as s ->
         update_status t job s;
         update_runnable t >>= fun () ->
         watch_job_status t job
@@ -506,7 +505,7 @@ let start store =
       let id = Job.id j in
       Store.with_transaction store (fmt "starting job" id) (fun t ->
           debug "DISPATCH: job:%a to worker:%a" Id.pp id Id.pp wid;
-          Store.Job.has_started t id >>= fun () ->
+          Store.Job.dispatch_to t id wid >>= fun () ->
           Store.Worker.start_job t wid id
         )
     | `Task t ->

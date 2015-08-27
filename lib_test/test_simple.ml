@@ -96,7 +96,7 @@ let simple_task_status =
   simple_status Task.pp_status Task.json_status [
     `New;
     `Dispatched (Worker.id wt1, `Pending);
-    `Dispatched (Worker.id wt1, `Started);
+    `Dispatched (Worker.id wj1, `Started);
     `Pending;
     `Success;
     `Failure;
@@ -107,7 +107,8 @@ let simple_job_status =
   simple_status Job.pp_status Job.json_status [
     `Pending;
     `Runnable;
-    `Started;
+    `Dispatched (Worker.id wt1, `Pending);
+    `Dispatched (Worker.id wj1, `Started);
     `Success;
     `Failure;
     `Cancelled;
