@@ -265,6 +265,7 @@ module type S = sig
   val mem: t -> id -> bool Lwt.t
   val get: t -> id -> value Lwt.t
   val list: t -> id list Lwt.t
+  val forget: t -> id -> unit Lwt.t
 end
 
 let pretty id = Id.to_string id
@@ -302,8 +303,8 @@ module XJob = struct
     let status = to_str Job.json_status status in
     Store.update (mk t ("job " ^ status) id) (status_p id) status
 
-  let success = update_status `Success
-  let failure = update_status `Failure
+  let success = update_status (`Complete `Success)
+  let failure = update_status (`Complete `Failure)
   let pending = update_status `Pending
   let runnable = update_status `Runnable
 
@@ -312,8 +313,8 @@ module XJob = struct
 
   let status t id =
     Store.read (mk t "job status" id) (status_p id) >|= function
-    | None   -> `Pending
-    | Some s -> of_str Job.json_status s
+    | None   -> None
+    | Some s -> Some (of_str Job.json_status s)
 
   let add_output t id obj =
     Store.update (mk t "add job output" id) (output_p id obj) ""
@@ -325,11 +326,15 @@ module XJob = struct
   let list t =
     Store.list (t "list jobs") root >|= List.map (Id.of_string `Job)
 
+  let forget t id =
+    debug "forget job:%a" Id.pp id;
+    Store.rmdir (mk t "forget job" id) (path id)
+
   let watch_status t id f =
     Store.watch_key (mk t "watch job status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (of_str Job.json_status s)
-        | `Removed _    -> f `Cancelled
+        | `Added (_, s) -> f (Some (of_str Job.json_status s))
+        | `Removed _    -> f None
       )
 
   let watch t f =
@@ -353,6 +358,10 @@ module XTask = struct
 
   let list t =
     Store.list (t "list tasks") root >|= List.map (Id.of_string `Task)
+
+  let forget t id =
+    debug "forget task:%a" Id.pp id;
+    Store.rmdir (mk t "forget task" id) (path id)
 
   let mem t id = Store.mem (mk t "mem task" id) (value_p id)
 
@@ -389,6 +398,12 @@ module XTask = struct
   let refresh_status t id =
     jobs t id >>= fun jobs ->
     Lwt_list.map_p (XJob.status t) jobs >>= fun status ->
+    let status =
+      List.fold_left (fun acc -> function
+          | None   -> acc
+          | Some x -> x :: acc
+        ) [] status
+    in
     let status = Job.task_status status |> to_str Task.json_status in
     (* FIXME: because of https://github.com/mirage/irmin/issues/272  *)
     begin Store.read (t "") (status_p id) >|= function
@@ -400,14 +415,14 @@ module XTask = struct
 
   let status t id =
     Store.read (mk t "task status" id) (status_p id) >|= function
-    | None   -> `New
-    | Some s -> of_str Task.json_status s
+    | None   -> None
+    | Some s -> Some (of_str Task.json_status s)
 
   let watch_status t id f =
     Store.watch_key (mk t "watch task status" id) (status_p id) (function
         | `Updated (_, (_, s))
-        | `Added (_, s) -> f (of_str Task.json_status s)
-        | `Removed _    -> f `Cancelled
+        | `Added (_, s) -> f (Some (of_str Task.json_status s))
+        | `Removed _    -> f None
       )
 
   let watch t f =
@@ -429,6 +444,10 @@ module XObject = struct
 
   let list t =
     Store.list (t "list objects") root >|= List.map (Id.of_string `Object)
+
+  let forget t id =
+    debug "forget object:%a" Id.pp id;
+    Store.rmdir (mk t "forget object" id) (path id)
 
   let mem t id = Store.mem (mk t "mem object" id) (value_p id)
 
@@ -481,7 +500,7 @@ module XWorker = struct
     of_str Worker.json
 
   let forget t id =
-    debug "forget worker %s" (Id.to_string id);
+    debug "forget worker:%a" Id.pp id;
     Store.rmdir (mk t "forget worker" id) (path id)
 
   let tick t id f =
