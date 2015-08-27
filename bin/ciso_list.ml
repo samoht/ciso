@@ -34,10 +34,14 @@ let one pp pp_status ppf (id, v) =
     | Some s ->
       Fmt.pf ppf "%a: %a\n" Fmt.(styled `Underline string) "status" pp_status s
 
-let block title pp pp_status =
+let block title pp pp_status b =
   let bar ppf = Fmt.pf ppf "\n=== %s ===\n\n" in
   Fmt.(styled `Yellow bar stdout) title;
-  Fmt.(list (one pp pp_status) stdout)
+  match b with
+  | [] -> Fmt.(string stdout) "None!\n\n"
+  | _  ->
+    Fmt.(list (one pp pp_status) stdout) b;
+    Fmt.(cut stdout) ()
 
 let find (get, status) t x =
   Lwt.catch
