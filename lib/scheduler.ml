@@ -353,7 +353,7 @@ module XWorker = struct
   (* reset the job a dead worker was working on. This will trigger the
      job scheduler to distribute it to someone else. *)
   let reset_job t = function
-    | `Job id  -> Store.Job.pending t.store id
+    | `Job id  -> Store.Job.runnable t.store id
     | `Task id -> Store.Task.reset t.store id
     | `Await
     | `Idle    -> Lwt.return_unit
