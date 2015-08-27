@@ -43,7 +43,9 @@ Library "ciso-worker"
   FindlibName: worker
   InternalModules: Opam, Common_worker
   Modules: Task_worker, Job_worker
-  BuildDepends: ciso, irmin.unix, opam-lib.client, ocamlgraph, lwt
+  BuildDepends:
+    ciso, irmin.unix, opam-lib.client, ocamlgraph,
+    threads, lwt.preemptive
 
 Executable "ciso-worker"
   Path: bin
@@ -60,6 +62,12 @@ Executable "ciso-scheduler"
 Executable "ciso-add"
   Path: bin
   MainIs: ciso_add.ml
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner
+
+Executable "ciso-list"
+  Path: bin
+  MainIs: ciso_list.ml
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 

@@ -18,6 +18,12 @@
 
 open Lwt.Infix
 
+let debug fmt = Gol.debug ~section:"worker" fmt
+
+let () =
+  (* FIXME: why this is even needed? *)
+  Lwt_unix.set_default_async_method Lwt_unix.Async_none
+
 type t = {
   worker   : Worker.t;                           (* the worker configuration. *)
   store    : Store.t;                                     (* the Irmin store. *)
@@ -39,27 +45,31 @@ let create ~tick ~store ~opam_root ~cache worker =
   let alive = true in
   { worker; store; opam_root; tick; stop; alive; cache }
 
+let spawn f =
+  Lwt_preemptive.detach (fun () -> Lwt.async (fun () ->  f ())) ()
+
 let execution_loop t fn =
   Store.Worker.watch_status t.store (Worker.id t.worker) (function
-      | Some s -> fn t s
+      | Some s -> spawn (fun () -> fn t s)
       | None   ->
-        Fmt.(pf stdout "%a" (styled `Cyan string) "Killed!");
+        Fmt.(pf stdout "%a" (styled `Cyan string) "Killed!\n");
         exit 1
     )
 
 let rec heartbeat_loop t =
+  debug "tick %.0fs" t.tick;
   let id = Worker.id t.worker in
   Store.Worker.tick t.store id (Unix.time ()) >>= fun () ->
   Lwt_unix.sleep t.tick >>= fun () ->
   if t.alive then heartbeat_loop t else Lwt.return_unit
 
-let start fn ?(tick=5.) ~opam_root ?(cache=false) store =
-  let w = Worker.create (Host.detect ()) in
+let start fn ?(tick=5.) ~opam_root ?(cache=false) ~kind store =
+  let w = Worker.create kind (Host.detect ()) in
   let t = create ~tick ~store ~opam_root ~cache w in
   Store.Worker.add t.store w >>= fun () ->
+  Lwt.async (fun () -> heartbeat_loop t);
   execution_loop t fn >|= fun cancel ->
   t.stop <- cancel;
-  Lwt.async (fun () -> heartbeat_loop t);
   t
 
 let stop t =

@@ -48,21 +48,21 @@ val write_pinned: t -> Task.pin list -> unit
 
 (** {1 OPAM commands} *)
 
-val install: t -> Package.t list -> unit Lwt.t
+val install: t -> Package.t list -> unit
 (** [install t pkgs] is {i opam install [pkgs]}. *)
 
-val remove: t -> Package.t list -> unit Lwt.t
+val remove: t -> Package.t list -> unit
 (** [remove t pkgs] is {i opam remove [pkgs]}. *)
 
-val switch_to: t -> Switch.t -> unit Lwt.t
+val switch_to: t -> Switch.t -> unit
 (** [switch_to t s] is {i opam switch [s]}. *)
 
-val update: t -> unit Lwt.t
+val update: t -> unit
 (** [update t] is {i opam update}. *)
 
 (* FIXME: review the doc *)
 
 val get_var: t -> string -> string
 val clean_repos: t -> unit
-val add_repos: t -> Task.repo list -> unit Lwt.t
-val add_pins: t -> Task.pin list -> unit Lwt.t
+val add_repos: t -> Task.repo list -> unit
+val add_pins: t -> Task.pin list -> unit

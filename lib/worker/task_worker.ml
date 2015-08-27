@@ -21,7 +21,7 @@ include Common_worker
 
 let debug fmt = Gol.debug ~section:"task-worker" fmt
 
-let start = start (fun t -> function
+let start = start ~kind:`Task (fun t -> function
     | `Idle
     | `Job _   -> Lwt.return_unit
     | `Task id ->
@@ -32,5 +32,8 @@ let start = start (fun t -> function
       Store.Task.get store id >>= fun tasks ->
       let jobs = if cache t then Opam.atomic_jobs else Opam.jobs in
       let jobs = jobs (opam t Switch.system) tasks in
-      Lwt_list.iter_p (Store.Job.add store) jobs
+      Lwt_list.iter_p (Store.Job.add store) jobs >>= fun () ->
+      Store.Task.add_jobs store id (List.map Job.id jobs) >>= fun () ->
+      Store.Task.refresh_status store id >>= fun () ->
+      Store.Worker.idle store wid
   )

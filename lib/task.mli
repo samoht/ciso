@@ -114,8 +114,7 @@ type status = [
   | `New
   | `Dispatched of [`Worker] Id.t * [`Pending | `Started]
   | `Pending
-  | `Success
-  | `Failure
+  | `Complete of [ `Success | `Failure ]
   | `Cancelled
 ]
 (** The type for task status. *)

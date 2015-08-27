@@ -26,6 +26,7 @@ val worker: t -> Worker.t
 
 val start:
   (t -> Worker.status -> unit Lwt.t) ->
-  ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+  ?tick:float -> opam_root:string -> ?cache:bool -> kind:Worker.kind ->
+  Store.t -> t Lwt.t
 
 val stop: t -> unit Lwt.t

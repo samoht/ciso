@@ -83,9 +83,15 @@ let json codec v =
 let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
+
 let hosts = Host.detect () :: Host.defaults
-let workers = List.map Worker.create hosts
-let w1 = List.hd workers
+
+let job_workers = List.map (Worker.create `Job) hosts
+let task_workers = List.map (Worker.create `Task) hosts
+let workers = job_workers @ task_workers
+
+let wj1 = List.hd job_workers
+let wt1 = List.hd task_workers
 
 let jobs =
   let info opam url =
@@ -108,3 +114,12 @@ let jobs =
 
 let j1 = List.hd jobs
 let j2 = List.hd (List.rev jobs)
+
+let job_roots = List.filter (fun j -> Job.inputs j = []) jobs
+
+let job_root host =
+  try List.find (fun j -> Host.equal host (Job.host j)) job_roots
+  with Not_found ->
+    Alcotest.fail (Fmt.strf "no root for host %a" Host.pp host)
+
+let jr1 = job_root (Worker.host wj1)

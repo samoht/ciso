@@ -24,6 +24,9 @@ let todo f = err "TODO %s" f
 let count name =
   let c = ref 0 in fun () -> incr c; name ^ "-" ^ string_of_int !c
 
+let some x = Some x
+let none () = None
+
 let opt ppf =
   let none ppf () = Fmt.pf ppf "-" in
   Fmt.(option ~none) ppf
@@ -77,13 +80,17 @@ module XTask = struct
     let id = Task.id task in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Task.watch_status t.store id (function
-        | `Success | `Failure ->
+        | None ->
+          remove_task t task;
+          !cancel () >>= fun () ->
+          Store.Task.forget t.store id
+        | Some (`Complete _) ->
           remove_task t task;
           !cancel ()
-        | `New | `Pending | `Dispatched _ as s ->
+        | Some (`New | `Pending | `Dispatched _ as s) ->
           update_status t task s;
           Lwt.return_unit
-        | `Cancelled -> todo "Task.cancel"
+        | Some `Cancelled -> todo "Task.cancel"
       ) >|= fun c ->
     assert (not (Hashtbl.mem t.cancels id));
     Hashtbl.add t.cancels id c;
@@ -94,9 +101,10 @@ module XTask = struct
     else (
       let id = Task.id task in
       Store.Task.status t.store id >>= function
-      | `Cancelled -> todo "cancelled tasks"
-      | `Success | `Failure -> Lwt.return_unit
-      | `New | `Pending | `Dispatched _ as s ->
+      | None -> Store.Task.forget t.store id
+      | Some `Cancelled -> todo "cancelled tasks"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`New | `Pending | `Dispatched _ as s) ->
         update_status t task s;
         watch_task_status t task
     )
@@ -141,7 +149,11 @@ module XTask = struct
     debug "starting the task scheduler";
     let t = empty store in
     Store.Task.list store >>=
-    Lwt_list.map_p (Store.Task.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Task.mem store id >>= function
+        | true  -> Store.Task.get store id >|= some
+        | false -> Store.Task.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_task t) >>= fun () ->
     watch_task t >|= fun cancel ->
     t.stop <- cancel;
@@ -237,8 +249,8 @@ module XJob = struct
     JMap.iter (fun job -> function
         | `Pending ->
           let inputs = Job.inputs job in
-          if List.for_all (fun j -> status t j = Some `Success) inputs then
-            jobs := job :: !jobs
+          let is_success j = status t j = Some (`Complete `Success) in
+          if List.for_all is_success inputs then jobs := job :: !jobs
         | _ -> ()
       ) t.jobs;
     Lwt_list.iter_p (fun job ->
@@ -250,12 +262,15 @@ module XJob = struct
     let id = Job.id j in
     let cancel = ref (fun () -> Lwt.return_unit) in
     Store.Job.watch_status t.store id (function
-        | `Cancelled -> todo "job cancelled"
-        | `Pending | `Started  as s ->
+        | None ->
+          remove_job t j;
+          !cancel () >>= fun () ->
+          Store.Job.forget t.store id
+        | Some `Cancelled -> todo "job cancelled"
+        | Some (`Pending | `Runnable | `Dispatched _  as s) ->
           update_status t j s;
           Lwt.return_unit
-        | `Runnable -> Lwt.return_unit
-        | `Success | `Failure  ->
+        | Some (`Complete _) ->
           remove_job t j;
           !cancel ()
       ) >|= fun c ->
@@ -266,10 +281,12 @@ module XJob = struct
   let add_job t job =
     if JMap.mem job t.jobs then Lwt.return_unit
     else (
-      Store.Job.status t.store (Job.id job) >>= function
-      | `Cancelled -> todo "cancelled job"
-      | `Failure | `Success -> Lwt.return_unit
-      | `Pending | `Started | `Runnable as s ->
+      let id = Job.id job in
+      Store.Job.status t.store id >>= function
+      | None -> Store.Job.forget t.store id
+      | Some `Cancelled -> todo "cancelled job"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`Pending | `Dispatched _ | `Runnable as s) ->
         update_status t job s;
         update_runnable t >>= fun () ->
         watch_job_status t job
@@ -288,7 +305,11 @@ module XJob = struct
     debug "starting the job scheduler.";
     let t = empty store in
     Store.Job.list store >>=
-    Lwt_list.map_p (Store.Job.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Job.mem store id >>= function
+        | true  -> Store.Job.get store id >|= some
+        | false -> Store.Job.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_job t) >>= fun () ->
     watch_jobs t >|= fun cancel ->
     t.stop <- cancel;
@@ -411,7 +432,7 @@ module XWorker = struct
     else (
       let id = Worker.id w in
       Store.Worker.status t.store id >>= function
-      | None   -> Lwt.return_unit
+      | None   -> Store.Worker.forget t.store id
       | Some s ->
         update_status t w (s :> status);
         watch_woker_ticks t w >>= fun () ->
@@ -465,7 +486,11 @@ module XWorker = struct
     debug "starting the work scheduler";
     let t = empty store in
     Store.Worker.list store >>=
-    Lwt_list.map_s (Store.Worker.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Worker.mem store id >>= function
+        | true  -> Store.Worker.get store id >|= some
+        | false -> Store.Worker.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_worker t) >>= fun () ->
     watch_workers t >|= fun cancel ->
     t.stop <- cancel;
@@ -500,14 +525,14 @@ let start store =
     | `Job j  ->
       let id = Job.id j in
       Store.with_transaction store (fmt "starting job" id) (fun t ->
-          debug "DISPATCH: job %a to worker %a" Id.pp id Id.pp wid;
-          Store.Job.has_started t id >>= fun () ->
+          debug "DISPATCH: job:%a to worker:%a" Id.pp id Id.pp wid;
+          Store.Job.dispatch_to t id wid >>= fun () ->
           Store.Worker.start_job t wid id
         )
     | `Task t ->
       let id = Task.id t in
       Store.with_transaction store (fmt "starting task" id) (fun t ->
-          debug "DISPATCH: task %a to worker %a" Id.pp id Id.pp wid;
+          debug "DISPATCH: task:%a to worker:%a" Id.pp id Id.pp wid;
           Store.Task.dispatch_to t id wid >>= fun () ->
           Store.Worker.start_task t wid id
         )
@@ -516,9 +541,14 @@ let start store =
     peek_worker () >>= fun worker ->
     debug "DISPATCH: worker:%a is available" Id.pp (Worker.id worker);
     let host = Worker.host worker in
-    Lwt.pick [peek_job host; peek_task ()] >>= fun job ->
-    dispatch worker job >>= fun () ->
-    loop ()
+    let dispatch () =
+      begin match Worker.kind worker with
+        | `Job  -> peek_job host
+        | `Task -> peek_task ()
+      end >>= fun job ->
+      dispatch worker job
+    in
+    Lwt.join [loop (); dispatch ()]
   in
   Lwt.async loop;
   { j; t; w }

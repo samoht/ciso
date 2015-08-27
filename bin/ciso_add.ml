@@ -31,16 +31,16 @@ let packages =
   Arg.(value & pos_all package_c [] & info [] ~docv:"PKGS" ~doc)
 
 let main =
-  let master t packages =
+  let master store packages =
     if packages = [] then ()
     else
       let task = Task.create packages in
       Lwt_main.run begin
-        t >>= fun { store; _ } ->
+        store >>= fun store ->
         Store.Task.add store task
       end
   in
-  Term.(pure master $ t $ packages),
+  Term.(pure master $ store $ packages),
   Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
 
 let () =

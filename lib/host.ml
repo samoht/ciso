@@ -200,12 +200,16 @@ let distr_of_string = function
 
 (* end of copy-pate *)
 
+type id = [`Host] Id.t
+
 type t = {
-  id: [`Host] Id.t;
+  id: id;
   arch: arch;
   os: os;
   distr: distr option;
 }
+
+let id t = t.id
 
 let short_aux arch os distr =
   Printf.sprintf "%s:%s:%s"
@@ -216,7 +220,7 @@ let short t = short_aux t.arch t.os t.distr
 let os t = t.os
 
 let create arch os distr =
-  let id = Id.of_string `Host (short_aux arch os distr) in
+  let id = Id.digest `Host (short_aux arch os distr) in
   { id; arch; os; distr }
 
 let detect () =
@@ -228,16 +232,14 @@ let pp_os ppf x = Fmt.string ppf (string_of_os x)
 let pp_distr ppf x = Fmt.string ppf (string_of_distr x)
 
 let pp ppf t =
-  Fmt.pf ppf
-    "@[<v>\
-     id:    %a@;\
-     arch:  %a@;\
-     os:    %a@;\
-     distr: %a@]"
-    Id.pp t.id
-    pp_arch t.arch
-    pp_os t.os
-    (Fmt.option pp_distr) t.distr
+  let mk pp x = [Fmt.to_to_string pp x] in
+  let block = [
+    "id:  ", mk Id.pp t.id;
+    "arch ", mk pp_arch t.arch;
+    "os:  ", mk pp_os t.os;
+    "distr", match t.distr with None -> [] | Some d -> mk pp_distr d;
+  ] in
+  Gol.show_block ppf block
 
 let json_arch = Jsont.view (arch_of_string, string_of_arch) Jsont.string
 let json_os = Jsont.view (os_of_string, string_of_os) Jsont.string

@@ -21,13 +21,13 @@ open Lwt.Infix
 include Ciso_common
 
 let main =
-  let master t =
+  let master store =
     Lwt_main.run begin
-      t >>= fun { store; _ } ->
+      store >>= fun store ->
       Scheduler.start store >>= block
     end
   in
-  Term.(pure master $ t),
+  Term.(pure master $ store),
   Term.info ~version:Version.current ~doc:"Run the CISO scheduler" "ciso-master"
 
 let () =

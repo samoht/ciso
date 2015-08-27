@@ -21,3 +21,6 @@ val timestamp: unit -> string
 
 val debug: section:string -> ('a, Format.formatter, unit, unit) format4 -> 'a
 (** Display a debug line on stdout. *)
+
+val show_block: (string * string list) list Fmt.t
+(** Show a block of key/value pairs. *)

@@ -28,16 +28,23 @@
 type id = [`Worker] Id.t
 (** The type for worker identifiers. *)
 
+type kind = [`Job|`Task]
+(** The type for worker kind. *)
+
 type t
 (** The type for worker configration .*)
 
-val create: Host.t -> t
-(** [create h] is the worker with host configuration [h]. *)
+val create: kind -> Host.t -> t
+(** [create k h] is the worker with host configuration [h] and kind
+    [k]. *)
 
 val id: t -> id
 (** [id t] is [t]'s identifier. It is a 128 bits universally unique
     identifiers (UUID) version 4 (random based) according to
     {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
+
+val kind: t -> kind
+(** [kind t] is [t]'s kind. *)
 
 val host: t -> Host.t
 (** [host t] is [t]'s host configuration. *)

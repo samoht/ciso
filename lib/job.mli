@@ -81,9 +81,8 @@ val pp: t Fmt.t
 type status = [
   | `Pending
   | `Runnable
-  | `Started
-  | `Success
-  | `Failure
+  | `Dispatched of [`Worker] Id.t * [`Pending | `Started]
+  | `Complete of [`Success | `Failure]
   | `Cancelled
 ]
 (** The type for job status. *)

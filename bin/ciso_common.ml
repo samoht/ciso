@@ -17,7 +17,6 @@
  *)
 
 open Cmdliner
-open Lwt.Infix
 
 let info x y = Fmt.(pf stdout "%a: %s\n%!" (styled `Cyan string) x y)
 let err x = Fmt.(pf stdout "%a: %s\n%!" (styled `Red string) "ERROR" x)
@@ -27,14 +26,9 @@ let () =
   Fmt.(set_style_renderer stdout `Ansi_tty);
   Fmt.(set_style_renderer stderr `Ansi_tty)
 
-type t = {
-  store: Store.t;
-  opam_root: string;
-}
-
 let opam_root =
   let doc = "The OPAM root to use to store the worker state." in
-  Arg.(value & opt (some string) None & info ["root"] ~docv:"DIR" ~doc)
+  Arg.(value & opt (some string) None & info ["r";"opam-root"] ~docv:"DIR" ~doc)
 
 let local =
   let doc = "The path to the local Irmin store."in
@@ -52,16 +46,6 @@ let store =
     | None, Some r -> info "remote" r; Store.remote ~uri:(Uri.of_string r) ()
   in
   Term.(pure mk $ local $ global)
-
-let t =
-  let mk store opam_root =
-    let opam_root = match opam_root with
-      | None   -> Id.of_uuid `Worker |> Id.to_string
-      | Some r -> r
-    in
-    store >|= fun store -> { store; opam_root }
-  in
-  Term.(pure mk $ store $ opam_root)
 
 let block _ =
   let t, _ = Lwt.task () in
