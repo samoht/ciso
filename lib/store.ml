@@ -22,6 +22,7 @@ open Irmin_unix
 let debug fmt = Gol.debug ~section:"store" fmt
 let err fmt = Printf.ksprintf failwith ("Store: " ^^ fmt)
 let (/) dir file = List.append dir [file]
+let (//) = Filename.concat
 
 module StringSet = struct
   include Set.Make(String)
@@ -327,16 +328,21 @@ module XJob = struct
           >>= fun () ->
           Store.update (t "") (status_p id) (to_str Job.json_status `Pending)
           >>= fun () ->
-          Lwt_list.iter_s (fun (p, i) ->
+          Lwt_list.iter_s (fun m ->
+              let p = Package.pkg m in
               let one (k, v) = match v with
                 | None   -> Lwt.return_unit
                 | Some v ->
                   Store.update (t "") (package_p id p k) (Cstruct.to_string v)
               in
-              Lwt_list.iter_s one [
-                "opam", Some (Package.opam i);
-                "url" , Package.url i;
-              ]
+              let files =
+                List.map (fun (f, c) -> ("files" // f), Some c) (Package.files m)
+              in
+              Lwt_list.iter_s one ([
+                "opam" , Some (Package.opam m);
+                "descr", Package.descr m;
+                "url" , Package.url m;
+                ] @ files)
             ) (Job.packages job)
         )
       >|= fun () ->
