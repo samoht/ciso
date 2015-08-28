@@ -23,19 +23,7 @@ let debug fmt =
   section := "job-worker";
   debug fmt
 
-let fail fmt = Printf.kprintf failwith ("Job_worker: " ^^ fmt)
-
 let (/) = Filename.concat
-
-let chop_prefix t ~prefix =
-  let lt = String.length t in
-  let lp = String.length prefix in
-  let fail () = fail "%s is not a prefix of %s" prefix t in
-  if lt < lp then fail ()
-  else
-    let p = String.sub t 0 lp in
-    if String.compare p prefix <> 0 then fail ()
-    else String.sub t lp (lt - lp)
 
 module OSet = Set.Make(struct
     type t = Object.id
@@ -262,7 +250,7 @@ let collect_outputs t job =
   System.rec_files (prefix / "build") >>= fun files ->
   let files = List.filter is_output files in
   Lwt_list.map_p (fun f ->
-      let name = chop_prefix ~prefix f in
+      let name = OpamStd.String.remove_prefix ~prefix f in
       System.read_file f >|= fun raw ->
       Object.file name raw
     ) files
@@ -410,8 +398,7 @@ let process_job t job =
     List.map (fun m -> Package.to_string @@ Package.pkg m) pkgs
     |> String.concat " "
   in
-  let collect result =
-    collect_outputs t job >>= fun objs ->
+  let complete objs result =
     let s = store t in
     Lwt_list.iter_p (Store.Job.add_output s id) objs >>= fun () ->
     begin match result with
@@ -446,11 +433,15 @@ let process_job t job =
     opam t "repo add ciso %s" repo_root;
     opam t "update";
     opam t "install %s" pkgs_s;
+    collect_outputs t job >>= fun objs ->
+    debug "XXX %d" (List.length objs);
+    assert (objs <> []);
     opam t "remove %s" pkgs_s;
-    collect `Success
+    complete objs `Success
   with Exit ->
     (try opam t "remove %s" pkgs_s with Exit -> ());
-    collect `Failure
+    collect_outputs t job >>= fun objs ->
+    complete objs `Failure
 
 let start = start ~kind:`Job (fun t -> function
     | `Idle
@@ -458,7 +449,7 @@ let start = start ~kind:`Job (fun t -> function
     | `Job id ->
       debug "Got a new job: %s" (Id.to_string id);
       let wid = Worker.id (worker t) in
-      Store.Job.get (store t) id >>= fun job ->
       Store.Job.ack (store t) id wid >>= fun () ->
+      Store.Job.get (store t) id >>= fun job ->
       process_job t job
   )

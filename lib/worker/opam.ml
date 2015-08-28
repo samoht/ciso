@@ -92,10 +92,12 @@ let init_config t dbg =
   debug "init_config: %a %s" pp_t t dbg;
   Unix.putenv "OPAMROOT" t.root;
   Unix.putenv "OPAMSWITCH" (Switch.to_string t.switch);
+  Unix.putenv "OPAMKEEPBUILDDIR" "1";
   let current_switch = opam_switch t.switch in
   let root_dir = OF.Dir.of_string t.root in
   OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
-    ~skip_version_checks:true ~answer:None ();
+    ~skip_version_checks:true ~answer:None ~keep_build_dir:true
+    ();
   check t None
 
 (*

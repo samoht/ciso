@@ -42,15 +42,18 @@ let create ~tick ~store ~opam_root worker =
 
 let heartbeat = ref None
 
+let kill_child () = match !heartbeat with
+  | None     -> ()
+  | Some pid -> Unix.kill pid Sys.sigkill
+
+let () = at_exit kill_child
+
 let execution_loop t fn =
   Store.Worker.watch_status t.store (Worker.id t.worker) (function
       | Some s -> fn t s
       | None   ->
         Fmt.(pf stdout "%a" (styled `Cyan string) "Killed!\n");
-        let () = match !heartbeat with
-          | None     -> ()
-          | Some pid -> Unix.kill pid Sys.sigkill
-        in
+        kill_child ();
         exit 1
     )
 
