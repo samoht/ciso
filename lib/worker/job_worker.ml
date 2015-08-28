@@ -136,8 +136,8 @@ module System = struct
     mkdir dir >>= fun () ->
     let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
     Lwt_pool.use openfile_pool (fun () ->
-        debug "Writing %s (%s)" file tmp;
-        Lwt_unix.(openfile tmp [O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC] 0o644) >>= fun fd ->
+        Lwt_unix.(openfile tmp [O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC] 0o644)
+        >>= fun fd ->
         Lwt.finalize
           (fun () -> protect fn fd >>= fun () -> Lwt_unix.rename tmp file)
           (fun _  -> Lwt_unix.close fd)
