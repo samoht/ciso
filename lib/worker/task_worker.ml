@@ -30,6 +30,7 @@ let start = start ~kind:`Task (fun t -> function
       debug "Got a new task: %s!" (Id.to_string id);
       let store = store t in
       let wid = Worker.id (worker t) in
+      Store.Task.ack store id wid >>= fun () ->
       Store.Task.get store id >>= fun task ->
       let o = Opam.create ~root:(opam_root t) None in
       Opam.repo_clean o;
@@ -37,7 +38,6 @@ let start = start ~kind:`Task (fun t -> function
       Opam.pin_clean o;
       Opam.pin_add o (Task.pins task);
       Opam.update o;
-      Store.Task.ack store id wid >>= fun () ->
       let jobs = Opam.jobs (opam t None) task in
       Lwt_list.iter_p (Store.Job.add store) jobs >>= fun () ->
       Store.Task.add_jobs store id (List.map Job.id jobs) >>= fun () ->
