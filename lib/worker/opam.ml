@@ -17,9 +17,13 @@
  *)
 
 open OpamTypes
-module T = OpamState.Types
 
-module Graph = OpamSolver.ActionGraph
+module OT = OpamState.Types
+module OF = OpamFilename
+module OSC = OpamStateConfig
+module OGraph = OpamSolver.ActionGraph
+module OS = OpamSystem
+
 let (/) = Filename.concat
 
 type t = { root: string; switch: Switch.t; }
@@ -27,7 +31,7 @@ type t = { root: string; switch: Switch.t; }
 let pp_t ppf t = Fmt.pf ppf "root:%s switch:%a" t.root Switch.pp t.switch
 
 type plan = {
-  g: Graph.t;
+  g: OGraph.t;
   h: Host.t;
   s: Switch.t;
 }
@@ -54,8 +58,8 @@ let with_process_in cmd f =
     ignore (Unix.close_process_in ic);
     raise exn
 
-let check t =
-  let assert_eq ~got ~expected =
+let check t o =
+  let assert_eq got expected =
     if got <> expected then (
       let red = Fmt.(styled `Red string) in
       let yellow = Fmt.(styled `Yellow string) in
@@ -68,24 +72,31 @@ let check t =
     let cmd = Fmt.strf "opam config var %s" k in
     with_process_in cmd (fun ic ->
         let got = String.trim (input_line ic) in
-        assert_eq ~got ~expected
+        assert_eq got expected
       )
   in
   check "root"     t.root;
   check "prefix"   (t.root / Switch.to_string t.switch);
-  check "compiler" (Switch.to_string t.switch)
-
-
+  check "compiler" (Switch.to_string t.switch);
+  assert_eq t.root (OF.Dir.to_string OSC.(!r.root_dir));
+  assert_eq
+    (Switch.to_string t.switch) (OpamSwitch.to_string OSC.(!r.current_switch));
+  match o with
+  | None   -> ()
+  | Some o ->
+    assert_eq t.root (OF.Dir.to_string o.OT.root);
+    assert_eq (Switch.to_string t.switch) (OpamSwitch.to_string o.OT.switch);
+    assert_eq (Switch.to_string t.switch) (OpamCompiler.to_string o.OT.compiler)
 
 let init_config t dbg =
   debug "init_config: %a %s" pp_t t dbg;
   Unix.putenv "OPAMROOT" t.root;
   Unix.putenv "OPAMSWITCH" (Switch.to_string t.switch);
   let current_switch = opam_switch t.switch in
-  let root_dir = OpamFilename.Dir.of_string t.root in
+  let root_dir = OF.Dir.of_string t.root in
   OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
     ~skip_version_checks:true ~answer:None ();
-  check t
+  check t None
 
 (*
 let repo t name url =
@@ -93,7 +104,7 @@ let repo t name url =
   let repo_priority = 0 in
   let repo_address, repo_kind = OpamTypesBase.parse_url url in
   let repo_root =
-    OpamRepositoryPath.create (OpamFilename.Dir.of_string t.root) repo_name
+    OpamRepositoryPath.create (OF.Dir.of_string t.root) repo_name
   in
   { repo_root; repo_name; repo_kind; repo_address; repo_priority }
 *)
@@ -101,11 +112,11 @@ let repo t name url =
 let load_state t dbg =
   init_config t dbg;
   debug "load_state %s" dbg;
-  if not OpamFilename.(exists_dir Dir.(of_string (t.root / "system"))) then (
+  if not OF.(exists_dir Dir.(of_string (t.root / "system"))) then (
     (* FIXME: we don't want opam 1.3, so shell out `opam init...`*)
     (*   let repo = repo t "default" default_repo in
          let comp = OpamCompiler.system in
-         let root = OpamFilename.of_string t.root in
+         let root = OF.of_string t.root in
          OpamClient.SafeAPI.init repo comp `bash root `no; *)
     let cmd = Printf.sprintf "opam init --root=%s -n" t.root in
     match Sys.command cmd with
@@ -114,7 +125,7 @@ let load_state t dbg =
   );
   let switch = opam_switch t.switch in
   let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
-  check t;
+  check t (Some o);
   o
 
 let create ~root = function
@@ -122,7 +133,7 @@ let create ~root = function
   | None   ->
     let aliases = root / "aliases"  in
     if Sys.file_exists aliases then
-      let aliases = OpamFile.Aliases.read (OpamFilename.of_string aliases) in
+      let aliases = OpamFile.Aliases.read (OF.of_string aliases) in
       match OpamSwitch.Map.bindings aliases with
       | []        -> { root; switch = Switch.system }
       | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
@@ -172,7 +183,7 @@ let resolve t atoms_s =
   in
   let graph = OpamSolver.get_atomic_action_graph solution in
   let oc = open_out "solver_log" in
-  Graph.Dot.output_graph oc graph; close_out oc;
+  OGraph.Dot.output_graph oc graph; close_out oc;
   graph
 
 let resolve_packages t pkgs = resolve t (List.map Package.to_string pkgs)
@@ -217,7 +228,7 @@ let package_meta o pkg =
   let nv = opam_of_package pkg in
   let mk name f x =
     let file = Filename.temp_file name "tmp" in
-    f (OpamFilename.of_string file) x;
+    f (OF.of_string file) x;
     let fd = Unix.openfile file [Unix.O_RDONLY; Unix.O_NONBLOCK] 0o644 in
     let cstruct = Unix_cstruct.of_fd fd in
     Unix.close fd;
@@ -233,8 +244,8 @@ let package_meta o pkg =
   let mk_files = function
     | None   -> None
     | Some d ->
-      let prefix = OpamFilename.Dir.to_string d in
-      let files = OpamSystem.rec_files prefix in
+      let prefix = OF.Dir.to_string d in
+      let files = OS.rec_files prefix in
       Some (List.map (mk_file prefix) files)
   in
   let opam  = OpamState.opam o nv  |> mk "opam" OpamFile.OPAM.write in
@@ -243,7 +254,7 @@ let package_meta o pkg =
   let files = OpamState.files o nv |> mk_files in
   Package.meta ~opam ~descr ?url ?files pkg
 
-let package_of_action (a:Graph.vertex) =
+let package_of_action (a:OGraph.vertex) =
   let o = match a with
     | `Install target -> target
     | `Change (_, o, t) -> fail "change %s -> %s" (package o) (package t)
@@ -257,12 +268,12 @@ module PMap = Map.Make(Package)
 let atomic_jobs_of_plan t plan =
   let process_queue = Queue.create () in
   let add_stack = Stack.create () in
-  Graph.iter_vertex (fun v ->
-      if Graph.out_degree plan.g v = 0 then Queue.add v process_queue
+  OGraph.iter_vertex (fun v ->
+      if OGraph.out_degree plan.g v = 0 then Queue.add v process_queue
     ) plan.g;
   while not (Queue.is_empty process_queue) do
     let v = Queue.pop process_queue in
-    Graph.iter_pred (fun pred -> Queue.add pred process_queue) plan.g v;
+    OGraph.iter_pred (fun pred -> Queue.add pred process_queue) plan.g v;
     Stack.push v add_stack;
   done;
   let id_map = ref PMap.empty in
@@ -270,7 +281,7 @@ let atomic_jobs_of_plan t plan =
   while not (Stack.is_empty add_stack) do
     let v = Stack.pop add_stack in
     let p = package_of_action v in
-    let inputs = Graph.fold_pred (fun pred i ->
+    let inputs = OGraph.fold_pred (fun pred i ->
         let pred_pkg  = package_of_action pred in
         let pred_id   = PMap.find pred_pkg !id_map in
         pred_id :: i
@@ -284,7 +295,7 @@ let atomic_jobs_of_plan t plan =
   !j_lst
 
 let jobs_of_plan t plan =
-  let actions = Graph.fold_vertex (fun e l -> e :: l) plan.g [] in
+  let actions = OGraph.fold_vertex (fun e l -> e :: l) plan.g [] in
   let pkgs = List.map (fun a -> package_meta t (package_of_action a)) actions in
   Job.create plan.h plan.s pkgs
 
@@ -307,7 +318,7 @@ let install t pkgs =
         | `Successful source ->
           OpamAction.build_package state source nv @@++ fun () ->
           OpamAction.install_package state nv @@++ fun () ->
-          let { T.installed; installed_roots; reinstall; _ } = state in
+          let { OT.installed; installed_roots; reinstall; _ } = state in
           let installed = OpamPackage.Set.add nv installed in
           OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
           |> fun _ -> exit 0
@@ -339,7 +350,7 @@ let remove_switch c =
 
 let switch_install t =
   init_config t "install_switch";
-  let root = OpamStateConfig.(!r.root_dir) in
+  let root = OSC.(!r.root_dir) in
   let aliases = OpamFile.Aliases.safe_read (OpamPath.aliases root) in
   let switch = OpamSwitch.of_string (Switch.to_string t.switch) in
   if OpamSwitch.Map.mem switch aliases then ()
@@ -396,7 +407,7 @@ let update t =
 
 let read_installed t =
   let t = load_state t "read_installed" in
-  t.T.installed
+  t.OT.installed
   |> OpamPackage.Set.elements
   |> List.map OpamPackage.to_string
   |> List.map Package.of_string
@@ -409,12 +420,12 @@ let write_installed t installed =
     |> List.map OpamPackage.of_string
     |> OpamPackage.Set.of_list
   in
-  let file = OpamPath.Switch.installed t.T.root t.T.switch in
+  let file = OpamPath.Switch.installed t.OT.root t.OT.switch in
   OpamFile.Installed.write file installed
 
 let write_pinned t pinned =
   let t = load_state t "write-pinned" in
-  let file = OpamPath.Switch.pinned t.T.root t.T.switch in
+  let file = OpamPath.Switch.pinned t.OT.root t.OT.switch in
   let pinned =
     List.map (fun (n, t) ->
         let t = match t with None -> failwith "TODO" | Some t -> t in
