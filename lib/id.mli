@@ -35,6 +35,9 @@ val of_uuid: 'a -> 'a t
 val digest: 'a -> string -> 'a t
 (** [digest k s] is [s]'s SHA1 digest. *)
 
+val digest_cstruct: 'a -> Cstruct.t -> 'a t
+(** [digest_cstruct k s] is [s]'s SHA1 digest. *)
+
 val compare: 'a t -> 'a t -> int
 (** [compare] is the comparison for identifiers. *)
 
