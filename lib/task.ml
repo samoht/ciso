@@ -19,6 +19,9 @@
 (* name, address option *)
 type repo = string * Uri.t
 
+let default_repo =
+  "default", Uri.of_string "https://github.com/ocaml/opam-repository.git"
+
 (* package, target *)
 type pin = string * Uri.t option
 
@@ -117,7 +120,7 @@ let hash ~repos ~pins ~switches ~hosts ~packages =
     ] in
   Id.digest `Task str
 
-let create ?(repos=[]) ?(pins=[])
+let create ?(repos=[default_repo]) ?(pins=[])
     ?(switches=Switch.defaults) ?(hosts=Host.defaults)
     packages =
   let id = hash ~repos ~pins ~switches ~hosts ~packages in
