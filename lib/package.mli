@@ -52,24 +52,39 @@ val json: t Jsont.codec
 val pp: t Fmt.t
 (** [pp] formats packages. *)
 
-(** {1 Package Information} *)
+(** {1 Package Metadata} *)
 
-type info
-(** The type for package information values. *)
+type meta
+(** The type for package metdata. *)
 
-val info: opam:Cstruct.t -> url:Cstruct.t option -> info
-(** [info ~opam ~url] is the package information value containing the
-    given opam and url file contents. Both files should contains only
-    valid UTF-8 characters. This is {b not} checked by CISO. *)
+val meta:
+  opam:Cstruct.t ->
+  ?descr:Cstruct.t ->
+  ?url:Cstruct.t  ->
+  ?files:(string * Cstruct.t) list ->
+  t -> meta
+(** [info ~opam ~descr ~url ~files t] are all the metadata needed to
+    define a package. All files should contains only valid UTF-8
+    characters. This is {b not} checked by CISO. *)
 
-val opam: info -> Cstruct.t
-(** [opam i] is the contents of [i]'s opam file. *)
+val pkg: meta -> t
+(** [pkg m] is the package that [m] describes. *)
 
-val url: info -> Cstruct.t option
-(** [url i] is the contents of [i]'s url file. *)
+val opam: meta -> Cstruct.t
+(** [opam m] is the contents of the {i opam} file. *)
 
-val pp_info: info Fmt.t
-(** [pp_info] formats package infos. *)
+val descr: meta -> Cstruct.t option
+(** [descr m] is the contents of the {i descr} file (if present). *)
 
-val json_info: info Jsont.codec
-(** [json_info] is the JSON codec for package infos. *)
+val url: meta -> Cstruct.t option
+(** [url m] is the contents of the {i url} file (if present). *)
+
+val files: meta -> (string * Cstruct.t) list
+(** [files m] are the names and contents of files stored under {i
+    files/} (if present). *)
+
+val pp_meta: meta Fmt.t
+(** [pp_meta] formats package metadata. *)
+
+val json_meta: meta Jsont.codec
+(** [json_meta] is the JSON codec for package metadata. *)

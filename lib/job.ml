@@ -23,20 +23,11 @@ type t = {
   inputs  : id list;                 (* the transitive reduction of need jobs *)
   switch  : Switch.t;                       (* switch on which to run the job *)
   host    : Host.t;                           (* host on which to run the job *)
-  packages: (Package.t * Package.info) list; (* the list of packages to build *)
+  packages: Package.meta list;(* the list of metadata anout packages to build *)
 }
 
 let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
-
-let json_package =
-  let o = Jsont.objc ~kind:"job" () in
-  let package = Jsont.(mem o "package" Package.json) in
-  let info = Jsont.(mem o "info" Package.json_info) in
-  let c = Jsont.obj ~seal:true o in
-  let dec o = let get m = Jsont.get m o in `Ok (get package, get info) in
-  let enc (p, i) = Jsont.(new_obj c [ memv package p; memv info i]) in
-  Jsont.view (dec, enc) c
 
 let json =
   let o = Jsont.objc ~kind:"job" () in
@@ -44,7 +35,7 @@ let json =
   let inputs = Jsont.(mem ~opt:`Yes_rem o "inputs" @@ array Id.json) in
   let switch = Jsont.(mem o "switch" Switch.json) in
   let host = Jsont.(mem o "host" Host.json) in
-  let packages = Jsont.(mem o "packages" @@ array json_package) in
+  let packages = Jsont.(mem o "packages" @@ array Package.json_meta) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get m = Jsont.get m o in
@@ -60,8 +51,6 @@ let json =
   in
   Jsont.view (dec, enc) c
 
-let pp_package ppf (p, _) = Package.pp ppf p
-
 let pp ppf t =
   let mk = Fmt.to_to_string in
   let mks pp = List.map (mk pp) in
@@ -72,7 +61,7 @@ let pp ppf t =
     "inputs  ", shorts @@ mks Id.pp t.inputs;
     "switch  ", [mk Switch.pp t.switch];
     "host    ", [Host.short t.host];
-    "packages", mks pp_package t.packages;
+    "packages", mks Package.pp @@ List.map Package.pkg t.packages;
   ] in
   Gol.show_block ppf block
 
@@ -90,12 +79,16 @@ let hash ~host ~switch ~packages =
   let switches = [Fmt.to_to_string Switch.pp switch] in
   let hosts = [Fmt.to_to_string Host.pp host] in
   let packages =
-    List.map (fun (p, i) ->
-        y ([Package.to_string p; digest (Package.opam i)]
-           @
-           match Package.url i with
-           | None   -> []
-           | Some u -> [digest u])
+    List.map (fun m ->
+        let p = Package.to_string (Package.pkg m) in
+        let mk f = digest (f m) in
+        let mko f = match f m with
+          | None   -> []
+          | Some k -> [digest k]
+        in
+        let mkf (f, c) = f ^ digest c in
+        let files = List.map mkf (Package.files m) in
+        y (p :: mk Package.opam :: mko Package.url @ files)
       ) packages
   in
   let str = y [x switches; x hosts; x packages] in
