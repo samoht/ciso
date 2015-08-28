@@ -412,12 +412,13 @@ let process_job t job =
   in
   let collect result =
     collect_outputs t job >>= fun objs ->
-    Store.with_transaction (store t) "Job complete" (fun t ->
-        Lwt_list.iter_p (Store.Job.add_output t id) objs >>= fun () ->
-        match result with
-        | `Success -> Store.Job.success t id
-        | `Failure -> Store.Job.failure t id
-      )
+    let s = store t in
+    Lwt_list.iter_p (Store.Job.add_output s id) objs >>= fun () ->
+    begin match result with
+      | `Success -> Store.Job.success s id
+      | `Failure -> Store.Job.failure s id
+    end >>= fun () ->
+    Store.Worker.idle s (Worker.id @@ worker t)
   in
   try
     let o = Opam.create ~root:(opam_root t) (Some switch) in
