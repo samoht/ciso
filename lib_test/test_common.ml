@@ -101,13 +101,14 @@ let wj1 = List.hd job_workers
 let wt1 = List.hd task_workers
 
 let jobs =
-  let info opam url =
-    Package.info
-      ~opam:(Cstruct.of_string opam) ~url:(Some (Cstruct.of_string url))
+  let info opam url p =
+    Package.meta
+      ~opam:(Cstruct.of_string opam) ~url:(Cstruct.of_string url)
+      p
   in
   let pkgs = [
-    (p1, info "build: [make]" "url: http://example.com");
-    (p2, info "build: [make test]" "url: git://example.com");
+    info "build: [make]" "url: http://example.com" p1;
+    info "build: [make test]" "url: git://example.com" p2;
   ] in
   List.fold_left (fun acc h ->
       List.fold_left (fun jobs c ->
