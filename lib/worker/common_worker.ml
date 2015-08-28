@@ -21,10 +21,6 @@ open Lwt.Infix
 let section = ref "worker"
 let debug fmt = Gol.debug ~section:!section fmt
 
-let () =
-  (* FIXME: why this is even needed? *)
-  Lwt_unix.set_default_async_method Lwt_unix.Async_none
-
 type t = {
   worker   : Worker.t;                           (* the worker configuration. *)
   store    : Store.t;                                     (* the Irmin store. *)
@@ -44,29 +40,39 @@ let create ~tick ~store ~opam_root worker =
   let alive = true in
   { worker; store; opam_root; tick; stop; alive }
 
-let spawn f =
-  Lwt_preemptive.detach (fun () -> Lwt.async (fun () ->  f ())) ()
+let heartbeat = ref None
 
 let execution_loop t fn =
   Store.Worker.watch_status t.store (Worker.id t.worker) (function
-      | Some s -> spawn (fun () -> fn t s)
+      | Some s -> fn t s
       | None   ->
         Fmt.(pf stdout "%a" (styled `Cyan string) "Killed!\n");
+        let () = match !heartbeat with
+          | None     -> ()
+          | Some pid -> Unix.kill pid Sys.sigkill
+        in
         exit 1
     )
 
-let rec heartbeat_loop t =
-  debug "tick %.0fs" t.tick;
-  let id = Worker.id t.worker in
-  Store.Worker.tick t.store id (Unix.time ()) >>= fun () ->
-  Lwt_unix.sleep t.tick >>= fun () ->
-  if t.alive then heartbeat_loop t else Lwt.return_unit
+let heartbeat_loop t =
+  let rec aux () =
+    debug "tick %.0fs" t.tick;
+    let id = Worker.id t.worker in
+    Store.Worker.tick t.store id (Unix.time ()) >>= fun () ->
+    Lwt_unix.sleep t.tick >>= fun () ->
+    if t.alive then aux () else Lwt.return_unit
+  in
+  match Lwt_unix.fork () with
+  | 0   -> aux ()
+  | pid ->
+    heartbeat := Some pid;
+    Lwt.return_unit
 
 let start fn ?(tick=5.) ~opam_root ~kind store =
   let w = Worker.create kind (Host.detect ()) in
   let t = create ~tick ~store ~opam_root w in
   Store.Worker.add t.store w >>= fun () ->
-  Lwt.async (fun () -> heartbeat_loop t);
+  heartbeat_loop    t >>= fun () ->
   execution_loop t fn >|= fun cancel ->
   t.stop <- cancel;
   t
