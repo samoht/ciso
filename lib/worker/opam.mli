@@ -54,8 +54,8 @@ val install: t -> Package.t list -> unit
 val remove: t -> Package.t list -> unit
 (** [remove t pkgs] is {i opam remove [pkgs]}. *)
 
-val switch_to: t -> Switch.t -> unit
-(** [switch_to t s] is {i opam switch [s]}. *)
+val switch_install: t -> unit
+(** [switch_install t] is {i opam switch install [t.switch]}. *)
 
 val update: t -> unit
 (** [update t] is {i opam update}. *)

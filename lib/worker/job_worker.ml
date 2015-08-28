@@ -402,14 +402,12 @@ let opam t fmt =
       if Sys.command cmd <> 0 then raise Exit
     ) fmt
 
-let iter_o f = function None -> Lwt.return_unit | Some x -> f x
-
 let process_job t job =
   let id = Job.id job in
   let pkgs = Job.packages job in
   let switch = Job.switch job in
   let pkgs_s =
-    List.map (fun (p, _) -> Package.to_string p) pkgs
+    List.map (fun m -> Package.to_string @@ Package.pkg m) pkgs
     |> String.concat " "
   in
   let collect result =
@@ -422,25 +420,30 @@ let process_job t job =
       )
   in
   try
-    opam t "switch %a" Switch.pp switch;
     let o = Opam.create ~root:(opam_root t) (Some switch) in
+    Opam.switch_install o;
     Opam.repo_clean o;
     Opam.pin_clean o;
-    let repo_root =
-      Filename.get_temp_dir_name () / Id.to_string id / "packages"
-    in
-    Lwt_list.iter_s (fun (p, info) ->
-        let dir = repo_root / Package.to_string p in
-        let o = Package.opam info in
-        let u  = Package.url info in
-        let opam_f = dir / "opam" in
-        let url_f  = dir / Package.to_string p / "url" in
-        (* FIXME: handle the files *)
-        System.write_file opam_f o >>= fun () ->
-        iter_o (fun u -> System.write_file url_f u) u >|= fun () ->
-        opam t "pin add %a %s -n" Package.pp p dir
+    let repo_root = opam_root t / "ciso" / "jobs" / Id.to_string id in
+    Lwt_list.iter_s (fun m ->
+        let p = Package.pkg m in
+        let dir = repo_root / "packages" / Package.to_string p in
+        let write (k, v) = match v with
+          | None   -> Lwt.return_unit
+          | Some v -> System.write_file (dir / k) v
+        in
+        let files =
+          List.map (fun (f, c) -> "files" / f, Some c) (Package.files m)
+        in
+        Lwt_list.iter_s write ([
+          "opam" , Some (Package.opam m);
+          "descr", Package.descr m;
+          "url"  , Package.url m;
+        ] @ files)
       ) pkgs
     >>= fun () ->
+    opam t "repo add ciso %s" repo_root;
+    opam t "update";
     opam t "install %s" pkgs_s;
     opam t "remove %s" pkgs_s;
     collect `Success
