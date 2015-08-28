@@ -437,10 +437,10 @@ let process_job t job =
           List.map (fun (f, c) -> "files" / f, Some c) (Package.files m)
         in
         Lwt_list.iter_s write ([
-          "opam" , Some (Package.opam m);
-          "descr", Package.descr m;
-          "url"  , Package.url m;
-        ] @ files)
+            "opam" , Some (Package.opam m);
+            "descr", Package.descr m;
+            "url"  , Package.url m;
+          ] @ files)
       ) pkgs
     >>= fun () ->
     opam t "repo add ciso %s" repo_root;
