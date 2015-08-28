@@ -312,8 +312,11 @@ module XJob = struct
   let status_p id = path id / "status"
   let outputs_p id = path id / "outputs"
   let output_p id obj = outputs_p id / "outputs" / Id.to_string obj
-  let file_p id f = path id / "files" / f
   let package_p id pkg f = path id / "packages" / Package.to_string pkg / f
+
+  let file_p id f =
+    let f = List.filter ((<>)"") @@ Stringext.split f ~on:'/' in
+    path id / "files" @ f
 
   let mem t id = Store.mem (mk t "mem job" id) (value_p id)
 
