@@ -19,7 +19,9 @@
 open Lwt.Infix
 include Common_worker
 
-let debug fmt = Gol.debug ~section:"task-worker" fmt
+let debug fmt =
+  section := "task-worker";
+  debug fmt
 
 let start = start ~kind:`Task (fun t -> function
     | `Idle
@@ -29,9 +31,14 @@ let start = start ~kind:`Task (fun t -> function
       let store = store t in
       let wid = Worker.id (worker t) in
       Store.Task.ack store id wid >>= fun () ->
-      Store.Task.get store id >>= fun tasks ->
-      let jobs = if cache t then Opam.atomic_jobs else Opam.jobs in
-      let jobs = jobs (opam t Switch.system) tasks in
+      Store.Task.get store id >>= fun task ->
+      let o = Opam.create ~root:(opam_root t) None in
+      Opam.repo_clean o;
+      Opam.repo_add o (Task.repos task);
+      Opam.pin_clean o;
+      Opam.pin_add o (Task.pins task);
+      Opam.update o;
+      let jobs = Opam.jobs (opam t None) task in
       Lwt_list.iter_p (Store.Job.add store) jobs >>= fun () ->
       Store.Task.add_jobs store id (List.map Job.id jobs) >>= fun () ->
       Store.Task.refresh_status store id >>= fun () ->

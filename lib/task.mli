@@ -73,6 +73,12 @@ val packages: t -> Package.t list
 (** [packages t]'s is the list of packages that [t] wants to
     install. *)
 
+val repos: t -> repo list
+(** [repos t] are [t]'s repositories. *)
+
+val pins: t -> pin list
+(** [pins t] are [t]'s pinned packages. *)
+
 val create:
   ?repos:repo list -> ?pins:pin list ->
   ?switches:Switch.t list -> ?hosts:Host.t list ->

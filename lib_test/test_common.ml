@@ -84,7 +84,14 @@ let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
 
-let hosts = Host.detect () :: Host.defaults
+module HSet = Set.Make(Host)
+
+let hosts =
+  let set =
+    List.fold_left
+      (fun l e -> HSet.add e l) HSet.empty (Host.detect () :: Host.defaults)
+  in
+  HSet.elements set
 
 let job_workers = List.map (Worker.create `Job) hosts
 let task_workers = List.map (Worker.create `Task) hosts
@@ -94,12 +101,14 @@ let wj1 = List.hd job_workers
 let wt1 = List.hd task_workers
 
 let jobs =
-  let info opam url =
-    Package.info ~opam:(Cstruct.of_string opam) ~url:(Cstruct.of_string url)
+  let info opam url p =
+    Package.meta
+      ~opam:(Cstruct.of_string opam) ~url:(Cstruct.of_string url)
+      p
   in
   let pkgs = [
-    (p1, info "build: [make]" "url: http://example.com");
-    (p2, info "build: [make test]" "url: git://example.com");
+    info "build: [make]" "url: http://example.com" p1;
+    info "build: [make test]" "url: git://example.com" p2;
   ] in
   List.fold_left (fun acc h ->
       List.fold_left (fun jobs c ->

@@ -64,29 +64,70 @@ let to_string t = match t.version with
   | None   -> t.name
   | Some v -> t.name ^ "." ^ v
 
-type info = {
-  opam: Cstruct.t;
-  url : Cstruct.t;
+type meta = {
+  pkg  : t;
+  opam : Cstruct.t;
+  descr: Cstruct.t option;
+  url  : Cstruct.t option;
+  files: (string * Cstruct.t) list;
 }
 
-let pp_info ppf i =
-  (* FIXME: to_string *)
-  Fmt.pf ppf "@[<v>%s@;%s@]" (Cstruct.to_string i.opam) (Cstruct.to_string i.url)
+let pp_meta ppf t =
+  let mk x = Id.digest_cstruct `Foo x |> Id.to_string in
+  let mko = function None -> [] | Some x -> [mk x] in
+  let mkf (f, c) = f ^ ":" ^ mk c in
+  let block = [
+    "package", [to_string t.pkg];
+    "opam   ", [mk t.opam];
+    "descr  ", mko t.descr;
+    "url    ", mko t.url;
+    "files  ", List.map mkf t.files
+  ] in
+  Gol.show_block ppf block
 
 let json_cstruct =
   let dec o = `Ok (Cstruct.of_string o) in
   let enc c = Cstruct.to_string c in
   Jsont.view (dec, enc) Jsont.nat_string
 
-let json_info =
-  let o = Jsont.objc ~kind:"package" () in
-  let opam = Jsont.(mem o "opam" json_cstruct) in
-  let url = Jsont.(mem ~opt:`Yes_rem o "url" json_cstruct) in
+let json_file =
+  let o = Jsont.objc ~kind:"file" () in
+  let name = Jsont.(mem o "name" string) in
+  let contents = Jsont.(mem o "contents" json_cstruct) in
   let c = Jsont.obj ~seal:true o in
-  let dec o = `Ok { opam = Jsont.get opam o; url = Jsont.get url o } in
-  let enc t = Jsont.(new_obj c [memv opam t.opam; memv url t.url]) in
+  let dec o = `Ok (Jsont.get name o, Jsont.get contents o) in
+  let enc (n, x) = Jsont.(new_obj c [memv name n; memv contents x]) in
   Jsont.view (dec, enc) c
 
-let info ~opam ~url = { opam; url }
-let opam i = i.opam
-let url i = i.opam
+let json_meta =
+  let o = Jsont.objc ~kind:"meta" () in
+  let pkg = Jsont.(mem o) "package" json in
+  let opam = Jsont.(mem o "opam" json_cstruct) in
+  let descr = Jsont.(mem_opt o "descr" json_cstruct) in
+  let url = Jsont.(mem_opt o "url" json_cstruct) in
+  let files = Jsont.(mem ~opt:`Yes_rem o "files" @@ array json_file) in
+  let c = Jsont.obj ~seal:true o in
+  let dec o =
+    let get x = Jsont.get x o in
+    let t =
+      { pkg = get pkg; opam = get opam; url = get url;
+        descr = get descr; files = get files; }
+    in
+    `Ok t
+  in
+  let enc t = Jsont.(new_obj c [
+      memv pkg t.pkg;
+      memv opam t.opam;
+      memv descr t.descr;
+      memv url t.url;
+      memv files t.files;
+    ]) in
+  Jsont.view (dec, enc) c
+
+let meta ~opam ?descr ?url ?(files=[]) pkg = { pkg; opam; descr; url; files }
+
+let pkg m = m.pkg
+let opam m = m.opam
+let url m = m.url
+let descr m = m.descr
+let files m = m.files

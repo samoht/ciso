@@ -29,23 +29,27 @@ let task =
   Arg.(value & flag & info ["task"] ~doc)
 
 let start store opam_root = function
-  | true  -> Task_worker.start ~opam_root store ~cache:false >>= block
-  | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
+  | true  -> Task_worker.start ~opam_root store >>= block
+  | false -> Job_worker.start ~opam_root store  >>= block
 
 let mk_opam_root x =
+  let return x = info "opam  " x; Lwt.return x in
   let x = match x with
-    | None   -> tmp_dir / (Id.of_uuid `Worker |> Id.to_string)
-    | Some r -> r
+    | Some r -> return r
+    | None   ->
+      config_file () >>= fun config ->
+      match config "opam-root" with
+      | None   -> return (tmp_dir / (Id.of_uuid `Worker |> Id.to_string))
+      | Some r -> return r
   in
-  info "opam " x;
   x
 
 let main =
   let worker store opam_root task =
-    info "task " (string_of_bool task);
-    let opam_root = mk_opam_root opam_root in
+    info "kind  " (if task then "task" else "job");
     Lwt_main.run begin
       store >>= fun store ->
+      mk_opam_root opam_root >>= fun opam_root ->
       start store opam_root task
     end
   in

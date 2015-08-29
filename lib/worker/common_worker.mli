@@ -18,15 +18,16 @@
 
 type t
 
-val opam: t -> Switch.t -> Opam.t
+val debug: ('a, Format.formatter, unit, unit) format4 -> 'a
+val section: string ref
+val opam: t -> Switch.t option -> Opam.t
 val opam_root: t -> string
 val store: t -> Store.t
-val cache: t -> bool
 val worker: t -> Worker.t
 
 val start:
   (t -> Worker.status -> unit Lwt.t) ->
-  ?tick:float -> opam_root:string -> ?cache:bool -> kind:Worker.kind ->
+  ?tick:float -> opam_root:string -> kind:Worker.kind ->
   Store.t -> t Lwt.t
 
 val stop: t -> unit Lwt.t

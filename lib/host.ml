@@ -1,10 +1,28 @@
 (*
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
+ * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+let verbose = ref false
+
+(*
   From opam-depext:
    - https://github.com/ocaml/opam-depext
    - tip: fc183489fb9ee2265b6d969fcab846d38bceb937
 *)
-
-let debug = ref false
 
 let lines_of_channel ic =
   let rec aux acc =
@@ -16,7 +34,7 @@ let lines_of_channel ic =
   List.rev (aux [])
 
 let lines_of_command c =
-  if !debug then Printf.eprintf "+ %s\n%!" c;
+  if not !verbose then Printf.eprintf "+ %s\n%!" c;
   let ic = Unix.open_process_in c in
   let lines = lines_of_channel ic in
   close_in ic;
@@ -122,7 +140,7 @@ let arch_of_string = function
   | "x86" -> `Ok `X86
   | "armv7" -> `Ok `Arm7
   | "ppc" -> `Ok `PPC
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 type os = [
   | `Darwin
@@ -159,7 +177,7 @@ let os_of_string = function
   | "dragonfly" -> `Ok `DragonFly
   | "win32" -> `Ok `Win32
   | "cygwin" -> `Ok `Cygwin
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 type distr = [
   | `Homebrew
@@ -196,7 +214,7 @@ let distr_of_string = function
   | "mageia" -> `Ok `Mageia
   | "archlinux" -> `Ok `Archlinux
   | "gentoo" -> `Ok `Gentoo
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 (* end of copy-pate *)
 
@@ -264,9 +282,8 @@ let json =
 let defaults =
   List.map (fun (a, o, s) -> create a o s)
     [
-      (`X86, `Linux , Some `Ubuntu);
-      (`X86, `Linux , Some `Debian);
-      (`X86, `Darwin, Some `Homebrew);
+      (`X86_64, `Linux , Some `Ubuntu);
+      (`X86_64, `Darwin, Some `Homebrew);
     ]
 
 let equal x y = Id.equal x.id y.id

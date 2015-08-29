@@ -220,7 +220,7 @@ let job_scheduler_1 () =
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
     sleep () >>= fun () ->
-    check "forget" `Pending >>= fun () ->
+    check "forget" `Runnable >>= fun () ->
     Scheduler.stop scheduler
   in
   run test
@@ -242,7 +242,7 @@ let job_scheduler_2 () =
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
     sleep () >>= fun () ->
-    check "forget" `Pending >>= fun () ->
+    check "forget" `Runnable >>= fun () ->
     Scheduler.stop scheduler
   in
   run test
@@ -263,7 +263,7 @@ let job_scheduler_3 () =
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
     sleep () >>= fun () ->
-    check "forget" `Pending >>= fun () ->
+    check "forget" `Runnable >>= fun () ->
     Scheduler.stop scheduler
   in
   run test

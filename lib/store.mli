@@ -181,9 +181,9 @@ module Job: sig
   val failure: t -> Job.id -> unit Lwt.t
   (** [failure t j] set [j]'s status to [`Failure]. *)
 
-  val add_output: t -> Job.id -> Object.id -> unit Lwt.t
-  (** [add_output t j o] adds [o] to the list of objects created by
-      the job [j]. *)
+  val add_output: t -> Job.id -> Object.t -> unit Lwt.t
+  (** [add_output t j o] adds [o] to the object store and to the list
+      of objects created by the job [j]. *)
 
   val outputs: t -> Job.id -> Object.id list Lwt.t
   (** [outputs t job] are [job]'s output objects. *)

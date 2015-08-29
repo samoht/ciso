@@ -19,6 +19,9 @@
 (* name, address option *)
 type repo = string * Uri.t
 
+let default_repo =
+  "default", Uri.of_string "https://github.com/ocaml/opam-repository.git"
+
 (* package, target *)
 type pin = string * Uri.t option
 
@@ -61,6 +64,8 @@ let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
 let hosts t = t.hosts
 let switches t = t.switches
+let repos t = t.repos
+let pins t = t.pins
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
@@ -88,14 +93,12 @@ let json =
 
 let pp ppf t =
   let mk pp = List.map (Fmt.to_to_string pp) in
-  let short id = String.sub id 0 8 in
-  let shorts ids = List.map short ids in
   let block = [
     "id      ", [Id.to_string t.id];
     "repo    ", mk pp_repo t.repos;
     "pins    ", mk pp_pin t.pins;
     "switches", mk Switch.pp t.switches;
-    "hosts   ", shorts @@ mk Id.pp (List.map Host.id t.hosts);
+    "hosts   ", List.map Host.short t.hosts;
     "packages", mk Package.pp t.packages;
   ] in
   Gol.show_block ppf block
@@ -117,7 +120,7 @@ let hash ~repos ~pins ~switches ~hosts ~packages =
     ] in
   Id.digest `Task str
 
-let create ?(repos=[]) ?(pins=[])
+let create ?(repos=[default_repo]) ?(pins=[])
     ?(switches=Switch.defaults) ?(hosts=Host.defaults)
     packages =
   let id = hash ~repos ~pins ~switches ~hosts ~packages in
