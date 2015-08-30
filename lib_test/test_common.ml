@@ -83,6 +83,7 @@ let json codec v =
 let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
 let t1 = Task.create [p1; p2]
+let t2 = Task.create ~rev_deps:true [p1; p2]
 
 module HSet = Set.Make(Host)
 
