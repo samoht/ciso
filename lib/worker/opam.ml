@@ -182,16 +182,20 @@ let resolve t atoms_s =
     OpamSolver.resolve ~orphans:OpamPackage.Set.empty universe request
   in
   let solution = match result with
-    | Success s -> s
+    | Success s -> Some s
     | Conflicts c ->
-       let info = OpamCudf.string_of_conflict OpamFormula.string_of_atom c in
-       let str = String.concat ";" atoms_s in
-       fail "no solution for %s: %s" str info
+      let info = OpamCudf.string_of_conflict OpamFormula.string_of_atom c in
+      let str = String.concat ";" atoms_s in
+      debug "no solution for %s: %s" str info;
+      None
   in
-  let graph = OpamSolver.get_atomic_action_graph solution in
-  let oc = open_out "solver_log" in
-  OGraph.Dot.output_graph oc graph; close_out oc;
-  graph
+  match solution with
+  | None   -> None
+  | Some s ->
+    let graph = OpamSolver.get_atomic_action_graph s in
+    let oc = open_out "solver_log" in
+    OGraph.Dot.output_graph oc graph; close_out oc;
+    Some graph
 
 let resolve_packages t pkgs = resolve t (List.map Package.to_string pkgs)
 
@@ -206,7 +210,11 @@ let plans t task =
   let h = Host.detect () in
   if List.mem h (Task.hosts task) then
     let switches = Task.switches task in
-    List.fold_left (fun acc s -> { g = one s; h; s } :: acc) [] switches
+    List.fold_left (fun acc s ->
+        match one s with
+        | None   -> acc
+        | Some g -> { g; h; s } :: acc
+      ) [] switches
   else
     []
 
