@@ -470,7 +470,7 @@ module XWorker = struct
           | acc  -> acc
         ) t.workers None
     in match w with
-    | None   -> Lwt.return_unit
+    | None   -> Store.Worker.forget t.store id
     | Some w -> remove_worker t w
 
   let watch_workers t = Store.Worker.watch t.store (function
