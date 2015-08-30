@@ -4,7 +4,7 @@ install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/ma
 script: bash -ex .travis-opam.sh
 env:
   global:
-    - REMOTE="https://github.com/samoht/ciso-repo.git"
+    - EXTRA_REMOTES="https://github.com/samoht/ciso-repo.git"
     - PACKAGE=ciso
   matrix:
     - OCAML_VERSION=4.01
