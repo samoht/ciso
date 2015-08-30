@@ -39,7 +39,20 @@ type plan = {
 let debug fmt = Gol.debug ~section:"opam" fmt
 let fail fmt = Printf.ksprintf failwith ("Ciso.Opam: " ^^ fmt)
 
-let package p = OpamPackage.to_string p
+let package_s p = OpamPackage.to_string p
+
+let package_of_opam p =
+  let name = OpamPackage.(Name.to_string @@ name p) in
+  let version = OpamPackage.(Version.to_string @@ version p) in
+  Package.create ~version name
+
+let opam_of_package p =
+  let name = OpamPackage.(Name.of_string @@ Package.name p) in
+  let version = match Package.version p with
+    | None   -> failwith "no version!"
+    | Some v -> OpamPackage.Version.of_string v
+  in
+  OpamPackage.create name version
 
 let parse_atom str =
   match fst OpamArg.atom str with `Ok a -> a | `Error s ->
@@ -199,24 +212,46 @@ let resolve t atoms_s =
 
 let resolve_packages t pkgs = resolve t (List.map Package.to_string pkgs)
 
+let rev_deps t pkgs =
+  let o = load_state t "rev_deps" in
+  let pkgs = List.map opam_of_package pkgs in
+  let pkgs = OpamPackage.Set.of_list pkgs in
+  let universe = OpamState.universe o Depends in
+  let pkgs =
+    OpamSolver.reverse_dependencies
+      ~build:true ~depopts:true ~installed:false ~unavailable:false
+      universe pkgs
+  in
+  List.map package_of_opam pkgs
+
 let plans t task =
-  let one switch =
-    (* FIXME *)
+  (* FIXME: we don't really need to resolve the packages on the
+     current switch. However it is currently not possibe to tweak the
+     solver API to parametrize the environment in which the variables
+     appearing in the opam file are resolved. *)
+  let resolve_switch switch pkgs =
     eval_opam_config_env t;
     let i = Sys.command (Fmt.strf "opam switch %a" Switch.pp switch) in
     if i <> 0 then failwith "error while switching";
-    resolve_packages { t with switch } (Task.packages task)
+    resolve_packages { t with switch } pkgs
   in
-  let h = Host.detect () in
-  if List.mem h (Task.hosts task) then
-    let switches = Task.switches task in
-    List.fold_left (fun acc s ->
-        match one s with
-        | None   -> acc
-        | Some g -> { g; h; s } :: acc
-      ) [] switches
-  else
-    []
+  let resolve acc pkgs =
+    let h = Host.detect () in
+    if not (List.mem h (Task.hosts task)) then acc
+    else
+      let switches = Task.switches task in
+      List.fold_left (fun acc s ->
+          match resolve_switch s pkgs with
+          | None   -> acc
+          | Some g -> { g; h; s } :: acc
+        ) acc switches
+  in
+  let rev_deps pkgs =
+    if not (Task.rev_deps task) then []
+    else List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+  in
+  let pkgs = Task.packages task in
+  List.fold_left resolve [] (pkgs :: rev_deps pkgs)
 
 module IdSet = struct
   include Set.Make(struct
@@ -224,19 +259,6 @@ module IdSet = struct
       let compare = Id.compare
     end)
 end
-
-let package_of_opam p =
-  let name = OpamPackage.(Name.to_string @@ name p) in
-  let version = OpamPackage.(Version.to_string @@ version p) in
-  Package.create ~version name
-
-let opam_of_package p =
-  let name = OpamPackage.(Name.of_string @@ Package.name p) in
-  let version = match Package.version p with
-    | None   -> failwith "no version!"
-    | Some v -> OpamPackage.Version.of_string v
-  in
-  OpamPackage.create name version
 
 let package_meta o pkg =
   debug "package_meta %a" Package.pp pkg;
@@ -272,9 +294,9 @@ let package_meta o pkg =
 let package_of_action (a:OGraph.vertex) =
   let o = match a with
     | `Install target -> target
-    | `Change (_, o, t) -> fail "change %s -> %s" (package o) (package t)
+    | `Change (_, o, t) -> fail "change %s -> %s" (package_s o) (package_s t)
     | `Remove p | `Reinstall p | `Build p ->
-      fail "Not expect delete/recompile %s" (package p)
+      fail "Not expect delete/recompile %s" (package_s p)
   in
   package_of_opam o
 
