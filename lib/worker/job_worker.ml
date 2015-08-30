@@ -238,24 +238,6 @@ let opam_snapshot t job =
   let s = Job.switch job in
   Opam.read_installed (opam t s)
 
-*)
-
-let collect_outputs t job =
-  let is_output f =
-    List.exists
-      (fun suffix -> Filename.check_suffix f suffix)
-      [".info"; ".err"; ".out"; ".env"]
-  in
-  let prefix = prefix_of_job t job in
-  System.rec_files (prefix / "build") >>= fun files ->
-  let files = List.filter is_output files in
-  Lwt_list.map_p (fun f ->
-      let name = OpamStd.String.remove_prefix ~prefix f in
-      System.read_file f >|= fun raw ->
-      Object.file name raw
-    ) files
-
-(*
 let collect_installed t job ~before ~after =
   let module CsMap = Map.Make(String) in
   let cmap =
@@ -384,11 +366,26 @@ let process_job ?(white_list=default_white_list) t job =
     )
 *)
 
-let opam t fmt =
+(* FIXME: Use Bos *)
+let opam t ?output fmt =
+  let open Rresult in
   Fmt.kstrf (fun str ->
-      let cmd = Printf.sprintf "OPAMROOT=%s opam %s" (opam_root t) str in
-      if Sys.command cmd <> 0 then raise Exit
+      let out = match output with
+        | None   -> ""
+        | Some o -> Printf.sprintf " -vv >>%s 2>&1" o
+      in
+      (* FIXME: the OPAMROOT is not necessary but it's good to be
+         extra-carefull in that case. *)
+      let cmd = Printf.sprintf "OPAMROOT=%s opam %s%s" (opam_root t) str out in
+      let err = Sys.command cmd in
+      if err = 0 then Ok () else Error Fmt.(strf "%s: exit %d" cmd err)
     ) fmt
+
+let add_output t job output =
+  let id = Job.id job in
+  System.read_file output >>= fun output ->
+  let obj = Object.file "output" output in
+  Store.Job.add_output (store t) id obj
 
 let process_job t job =
   let id = Job.id job in
@@ -398,50 +395,49 @@ let process_job t job =
     List.map (fun m -> Package.to_string @@ Package.pkg m) pkgs
     |> String.concat " "
   in
-  let complete objs result =
+  let complete result =
     let s = store t in
-    Lwt_list.iter_p (Store.Job.add_output s id) objs >>= fun () ->
     begin match result with
       | `Success -> Store.Job.success s id
       | `Failure -> Store.Job.failure s id
     end >>= fun () ->
     Store.Worker.idle s (Worker.id @@ worker t)
   in
-  try
-    let o = Opam.create ~root:(opam_root t) (Some switch) in
-    Opam.switch_install o;
-    Opam.repo_clean o;
-    Opam.pin_clean o;
-    let repo_root = opam_root t / "ciso" / "jobs" / Id.to_string id in
-    Lwt_list.iter_s (fun m ->
-        let p = Package.pkg m in
-        let dir = repo_root / "packages" / Package.to_string p in
-        let write (k, v) = match v with
-          | None   -> Lwt.return_unit
-          | Some v -> System.write_file (dir / k) v
-        in
-        let files =
-          List.map (fun (f, c) -> "files" / f, Some c) (Package.files m)
-        in
-        Lwt_list.iter_s write ([
-            "opam" , Some (Package.opam m);
-            "descr", Package.descr m;
-            "url"  , Package.url m;
-          ] @ files)
-      ) pkgs
-    >>= fun () ->
-    opam t "repo add ciso %s" repo_root;
-    opam t "update";
-    opam t "install %s" pkgs_s;
-    collect_outputs t job >>= fun objs ->
-    debug "XXX %d" (List.length objs);
-    assert (objs <> []);
-    opam t "remove %s" pkgs_s;
-    complete objs `Success
-  with Exit ->
-    (try opam t "remove %s" pkgs_s with Exit -> ());
-    collect_outputs t job >>= fun objs ->
-    complete objs `Failure
+  let o = Opam.create ~root:(opam_root t) (Some switch) in
+  Opam.switch_install o;
+  Opam.repo_clean o;
+  Opam.pin_clean o;
+  let repo_root = opam_root t / "ciso" / "jobs" / Id.to_string id in
+  let output = repo_root / "output" in
+  Lwt_list.iter_s (fun m ->
+      let p = Package.pkg m in
+      let dir = repo_root / "packages" / Package.to_string p in
+      let write (k, v) = match v with
+        | None   -> Lwt.return_unit
+        | Some v -> System.write_file (dir / k) v
+      in
+      let files =
+        List.map (fun (f, c) -> "files" / f, Some c) (Package.files m)
+      in
+      Lwt_list.iter_s write ([
+          "opam" , Some (Package.opam m);
+          "descr", Package.descr m;
+          "url"  , Package.url m;
+        ] @ files)
+    ) pkgs
+  >>= fun () ->
+  let result =
+    let open Rresult in
+    opam t "repo add ciso %s" repo_root >>= fun () ->
+    opam t "update" >>= fun () ->
+    opam t "install %s" ~output pkgs_s >>= fun () ->
+    opam t "remove %s" ~output pkgs_s
+  in
+  add_output t job output >>= fun () ->
+  let r = if Rresult.R.is_ok result then `Success else `Failure in
+  complete r >|= fun () ->
+  let _x = opam t "remove --force %s" pkgs_s in
+  ()
 
 let start = start ~kind:`Job (fun t -> function
     | `Idle
