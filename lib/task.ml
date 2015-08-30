@@ -58,6 +58,7 @@ type t = {
   switches: Switch.t list;
   hosts: Host.t list;
   packages: Package.t list;
+  rev_deps: bool;
 }
 
 let equal x y = Id.equal x.id y.id
@@ -66,6 +67,9 @@ let hosts t = t.hosts
 let switches t = t.switches
 let repos t = t.repos
 let pins t = t.pins
+let rev_deps t = t.rev_deps
+
+let json_rev_deps = Jsont.enum ~default:false ["ALL", true]
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
@@ -75,19 +79,20 @@ let json =
   let switches = Jsont.(mem ~opt:`Yes_rem o "switches" @@ array Switch.json) in
   let hosts = Jsont.(mem o ~opt:`Yes_rem "hosts" @@ array Host.json) in
   let packages = Jsont.(mem o "packages" @@ array Package.json) in
+  let rev_deps = Jsont.(mem o ~opt:`Yes_rem "rev-deps" @@ json_rev_deps ) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get m = Jsont.get m o in
     `Ok {
       id = get id; repos = get repos; pins = get pins;
       switches = get switches; hosts = get hosts;
-      packages = get packages
+      packages = get packages; rev_deps = get rev_deps;
     } in
   let enc t =
     Jsont.(new_obj c [
         memv id t.id; memv repos t.repos; memv pins t.pins;
         memv switches t.switches; memv hosts t.hosts;
-        memv packages t.packages])
+        memv packages t.packages; memv rev_deps t.rev_deps])
   in
   Jsont.view (dec, enc) c
 
@@ -99,6 +104,7 @@ let pp ppf t =
     "pins    ", mk pp_pin t.pins;
     "switches", mk Switch.pp t.switches;
     "hosts   ", List.map Host.short t.hosts;
+    "rev-deps", if t.rev_deps then ["ALL"] else [];
     "packages", mk Package.pp t.packages;
   ] in
   Gol.show_block ppf block
@@ -106,7 +112,7 @@ let pp ppf t =
 let id t = t.id
 let packages t = t.packages
 
-let hash ~repos ~pins ~switches ~hosts ~packages =
+let hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
   let x l = String.concat "+" (List.sort String.compare l) in
   let y   = String.concat "-" in
   let repos = List.map (Fmt.to_to_string pp_repo) repos in
@@ -114,17 +120,18 @@ let hash ~repos ~pins ~switches ~hosts ~packages =
   let switches = List.map (Fmt.to_to_string Switch.pp) switches in
   let hosts = List.map (Fmt.to_to_string Host.pp) hosts in
   let packages = List.map Package.to_string packages in
+  let rev_deps = if rev_deps then ["ALL"] else [] in
   let str = y [
       y repos; (* the order in which we stack the repos is important *)
-      x pins; x switches; x hosts; x packages
+      x pins; x switches; x hosts; x packages; x rev_deps;
     ] in
   Id.digest `Task str
 
 let create ?(repos=[default_repo]) ?(pins=[])
     ?(switches=Switch.defaults) ?(hosts=Host.defaults)
-    packages =
-  let id = hash ~repos ~pins ~switches ~hosts ~packages in
-  { id; repos; pins; switches; hosts; packages }
+    ?(rev_deps=false) packages =
+  let id = hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages in
+  { id; repos; pins; switches; hosts; rev_deps; packages }
 
 type core = [ `New | `Pending | `Cancelled ]
 type dispatch =  [`Pending | `Started]

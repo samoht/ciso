@@ -39,7 +39,20 @@ type plan = {
 let debug fmt = Gol.debug ~section:"opam" fmt
 let fail fmt = Printf.ksprintf failwith ("Ciso.Opam: " ^^ fmt)
 
-let package p = OpamPackage.to_string p
+let package_s p = OpamPackage.to_string p
+
+let package_of_opam p =
+  let name = OpamPackage.(Name.to_string @@ name p) in
+  let version = OpamPackage.(Version.to_string @@ version p) in
+  Package.create ~version name
+
+let opam_of_package p =
+  let name = OpamPackage.(Name.of_string @@ Package.name p) in
+  let version = match Package.version p with
+    | None   -> failwith "no version!"
+    | Some v -> OpamPackage.Version.of_string v
+  in
+  OpamPackage.create name version
 
 let parse_atom str =
   match fst OpamArg.atom str with `Ok a -> a | `Error s ->
@@ -92,10 +105,10 @@ let init_config t dbg =
   debug "init_config: %a %s" pp_t t dbg;
   Unix.putenv "OPAMROOT" t.root;
   Unix.putenv "OPAMSWITCH" (Switch.to_string t.switch);
-  Unix.putenv "OPAMKEEPBUILDDIR" "1";
   let current_switch = opam_switch t.switch in
   let root_dir = OF.Dir.of_string t.root in
-  OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
+  OpamClientConfig.opam_init
+    ~root_dir ~current_switch ~strict:false
     ~skip_version_checks:true ~answer:None ~keep_build_dir:true
     ();
   check t None
@@ -114,33 +127,38 @@ let repo t name url =
 let load_state t dbg =
   init_config t dbg;
   debug "load_state %s" dbg;
+  let switch = opam_switch t.switch in
+  let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
+  check t (Some o);
+  o
+
+let create ~root switch =
+  let t = match switch with
+    | Some s -> { root; switch = s}
+    | None   ->
+      let aliases = root / "aliases"  in
+      if Sys.file_exists aliases then
+        let aliases = OpamFile.Aliases.read (OF.of_string aliases) in
+        match OpamSwitch.Map.bindings aliases with
+        | []        -> { root; switch = Switch.system }
+        | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
+      else
+        { root; switch = Switch.system }
+  in
   if not OF.(exists_dir Dir.(of_string (t.root / "system"))) then (
     (* FIXME: we don't want opam 1.3, so shell out `opam init...`*)
     (*   let repo = repo t "default" default_repo in
          let comp = OpamCompiler.system in
          let root = OF.of_string t.root in
          OpamClient.SafeAPI.init repo comp `bash root `no; *)
+    (* FIXME: use Bos *)
     let cmd = Printf.sprintf "opam init --root=%s -n" t.root in
     match Sys.command cmd with
     | 0 -> ()
     | i -> Printf.ksprintf failwith "%s failed (exit %d)!" cmd i
   );
-  let switch = opam_switch t.switch in
-  let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
-  check t (Some o);
-  o
-
-let create ~root = function
-  | Some s -> { root; switch = s}
-  | None   ->
-    let aliases = root / "aliases"  in
-    if Sys.file_exists aliases then
-      let aliases = OpamFile.Aliases.read (OF.of_string aliases) in
-      match OpamSwitch.Map.bindings aliases with
-      | []        -> { root; switch = Switch.system }
-      | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
-    else
-      { root; switch = Switch.system }
+  init_config t "create";
+  t
 
 let get_var t v =
   let t = load_state t "get-var" in
@@ -177,33 +195,63 @@ let resolve t atoms_s =
     OpamSolver.resolve ~orphans:OpamPackage.Set.empty universe request
   in
   let solution = match result with
-    | Success s -> s
+    | Success s -> Some s
     | Conflicts c ->
-       let info = OpamCudf.string_of_conflict OpamFormula.string_of_atom c in
-       let str = String.concat ";" atoms_s in
-       fail "no solution for %s: %s" str info
+      let info = OpamCudf.string_of_conflict OpamFormula.string_of_atom c in
+      let str = String.concat ";" atoms_s in
+      debug "no solution for %s: %s" str info;
+      None
   in
-  let graph = OpamSolver.get_atomic_action_graph solution in
-  let oc = open_out "solver_log" in
-  OGraph.Dot.output_graph oc graph; close_out oc;
-  graph
+  match solution with
+  | None   -> None
+  | Some s ->
+    let graph = OpamSolver.get_atomic_action_graph s in
+    let oc = open_out "solver_log" in
+    OGraph.Dot.output_graph oc graph; close_out oc;
+    Some graph
 
 let resolve_packages t pkgs = resolve t (List.map Package.to_string pkgs)
 
+let rev_deps t pkgs =
+  let o = load_state t "rev_deps" in
+  let pkgs = List.map opam_of_package pkgs in
+  let pkgs = OpamPackage.Set.of_list pkgs in
+  let universe = OpamState.universe o Depends in
+  let pkgs =
+    OpamSolver.reverse_dependencies
+      ~build:true ~depopts:true ~installed:false ~unavailable:false
+      universe pkgs
+  in
+  List.map package_of_opam pkgs
+
 let plans t task =
-  let one switch =
-    (* FIXME *)
+  (* FIXME: we don't really need to resolve the packages on the
+     current switch. However it is currently not possibe to tweak the
+     solver API to parametrize the environment in which the variables
+     appearing in the opam file are resolved. *)
+  let resolve_switch switch pkgs =
     eval_opam_config_env t;
     let i = Sys.command (Fmt.strf "opam switch %a" Switch.pp switch) in
     if i <> 0 then failwith "error while switching";
-    resolve_packages { t with switch } (Task.packages task)
+    resolve_packages { t with switch } pkgs
   in
-  let h = Host.detect () in
-  if List.mem h (Task.hosts task) then
-    let switches = Task.switches task in
-    List.fold_left (fun acc s -> { g = one s; h; s } :: acc) [] switches
-  else
-    []
+  let resolve acc pkgs =
+    let h = Host.detect () in
+    if not (List.mem h (Task.hosts task)) then acc
+    else
+      let switches = Task.switches task in
+      List.fold_left (fun acc s ->
+          match resolve_switch s pkgs with
+          | None   -> acc
+          | Some g -> { g; h; s } :: acc
+        ) acc switches
+  in
+  let rev_deps pkgs =
+    if not (Task.rev_deps task) then []
+    else List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+  in
+  let pkgs = Task.packages task in
+  List.fold_left resolve [] (pkgs :: rev_deps pkgs)
 
 module IdSet = struct
   include Set.Make(struct
@@ -211,19 +259,6 @@ module IdSet = struct
       let compare = Id.compare
     end)
 end
-
-let package_of_opam p =
-  let name = OpamPackage.(Name.to_string @@ name p) in
-  let version = OpamPackage.(Version.to_string @@ version p) in
-  Package.create ~version name
-
-let opam_of_package p =
-  let name = OpamPackage.(Name.of_string @@ Package.name p) in
-  let version = match Package.version p with
-    | None   -> failwith "no version!"
-    | Some v -> OpamPackage.Version.of_string v
-  in
-  OpamPackage.create name version
 
 let package_meta o pkg =
   debug "package_meta %a" Package.pp pkg;
@@ -259,9 +294,9 @@ let package_meta o pkg =
 let package_of_action (a:OGraph.vertex) =
   let o = match a with
     | `Install target -> target
-    | `Change (_, o, t) -> fail "change %s -> %s" (package o) (package t)
+    | `Change (_, o, t) -> fail "change %s -> %s" (package_s o) (package_s t)
     | `Remove p | `Reinstall p | `Build p ->
-      fail "Not expect delete/recompile %s" (package p)
+      fail "Not expect delete/recompile %s" (package_s p)
   in
   package_of_opam o
 

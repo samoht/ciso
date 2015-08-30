@@ -30,11 +30,40 @@ let packages =
   let doc = "The package to install" in
   Arg.(value & pos_all package_c [] & info [] ~docv:"PKGS" ~doc)
 
+let rev_deps =
+  let doc = "Test reverse dependencies." in
+  Arg.(value & flag & info ["rev-deps"] ~doc)
+
+let repos =
+  let doc = "Specify opam repositories." in
+  Arg.(value & opt (list string) [] & info ["repos"] ~docv:"REPOS" ~doc)
+
+let pins =
+  let doc = "Specify pinned packages." in
+  Arg.(value & opt (list string) [] & info ["pins"] ~docv:"PKGS" ~doc)
+
+let mk_repo str =
+  match Stringext.cut str ~on:":" with
+  | Some (n, r) -> n, Uri.of_string r
+  | None        -> str ^ string_of_int (Random.int 1024), Uri.of_string str
+
+let mk_pin str =
+  match Stringext.cut str ~on:":" with
+  | Some (n, r) -> n, Some (Uri.of_string r)
+  | None        -> str, None
+
+let to_option = function
+  | [] -> None
+  | l  -> Some l
+
 let main =
-  let master store packages =
+  let master store packages repos pins rev_deps =
+    if rev_deps then info "rev-deps" "ALL";
     if packages = [] then ()
     else
-      let task = Task.create packages in
+      let repos = List.map mk_repo repos |> to_option in
+      let pins = List.map mk_pin pins |> to_option in
+      let task = Task.create ~rev_deps ?pins ?repos packages in
       Lwt_main.run begin
         store >>= fun store ->
         Store.Task.add store task

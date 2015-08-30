@@ -79,9 +79,13 @@ val repos: t -> repo list
 val pins: t -> pin list
 (** [pins t] are [t]'s pinned packages. *)
 
+val rev_deps: t -> bool
+(** [rev_deps t] is true if [t] has to test reverse dependencies. *)
+
 val create:
   ?repos:repo list -> ?pins:pin list ->
   ?switches:Switch.t list -> ?hosts:Host.t list ->
+  ?rev_deps:bool ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
     possible compiler switches and on all possible host
@@ -99,6 +103,7 @@ val create:
     {- [hosts] restricts the list of host configurations to test to only
        the ones appearing in the list. An empty list means all the
        {{!Host.defaults}supported} hosts.}
+    {- [rev_deps] test the reverse dependencies.}
     }
 *)
 

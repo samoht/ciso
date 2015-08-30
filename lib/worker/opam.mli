@@ -46,6 +46,13 @@ val write_pinned: t -> Task.pin list -> unit
 (** [write_pinned t pkgs] update [t]'s metadata so that the packages
     [pkgs] are pinned. *)
 
+(** {1 OPAM queries} *)
+
+val rev_deps: t -> Package.t list -> Package.t list
+(** [rev_deps t pkgs] is the list of direct reverse dependencies of
+    the packages [pkgs]. Similar to {i opam list --depends-on
+    [pkgs]}. *)
+
 (** {1 OPAM commands} *)
 
 val install: t -> Package.t list -> unit

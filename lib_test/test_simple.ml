@@ -26,8 +26,7 @@ let simple_task () =
   List.iter (fun t ->
       let id = Id.to_string (Task.id t) in
       Alcotest.(check task_t) id t1 (json Task.json t1)
-    ) [t1]
-
+    ) [t1; t2]
 
 let simple_host () =
   List.iter (fun h ->

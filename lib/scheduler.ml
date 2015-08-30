@@ -104,6 +104,7 @@ module XTask = struct
     if TMap.mem task t.tasks then Lwt.return_unit
     else (
       let id = Task.id task in
+      Store.Task.reset t.store id >>= fun () ->
       Store.Task.status t.store id >>= function
       | None -> Store.Task.forget t.store id
       | Some `Cancelled -> todo "cancelled tasks"
@@ -470,7 +471,7 @@ module XWorker = struct
           | acc  -> acc
         ) t.workers None
     in match w with
-    | None   -> Lwt.return_unit
+    | None   -> Store.Worker.forget t.store id
     | Some w -> remove_worker t w
 
   let watch_workers t = Store.Worker.watch t.store (function

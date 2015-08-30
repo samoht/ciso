@@ -22,7 +22,7 @@ open Irmin_unix
 let debug fmt = Gol.debug ~section:"store" fmt
 let err fmt = Printf.ksprintf failwith ("Store: " ^^ fmt)
 let (/) dir file = List.append dir [file]
-let (//) = Filename.concat
+let split_path f = List.filter ((<>)"") @@ Stringext.split f ~on:'/'
 
 module StringSet = struct
   include Set.Make(String)
@@ -312,11 +312,8 @@ module XJob = struct
   let status_p id = path id / "status"
   let outputs_p id = path id / "outputs"
   let output_p id obj = outputs_p id / "outputs" / Id.to_string obj
-  let package_p id pkg f = path id / "packages" / Package.to_string pkg / f
-
-  let file_p id f =
-    let f = List.filter ((<>)"") @@ Stringext.split f ~on:'/' in
-    path id / "files" @ f
+  let package_p id pkg f = path id / "packages" / Package.to_string pkg @ f
+  let file_p id f = path id / "files" @ split_path f
 
   let mem t id = Store.mem (mk t "mem job" id) (value_p id)
 
@@ -338,13 +335,14 @@ module XJob = struct
                 | Some v ->
                   Store.update (t "") (package_p id p k) (Cstruct.to_string v)
               in
+              let files = Package.files m in
               let files =
-                List.map (fun (f, c) -> ("files" // f), Some c) (Package.files m)
+                List.map (fun (f, c) -> "files" :: split_path f, Some c) files
               in
               Lwt_list.iter_s one ([
-                "opam" , Some (Package.opam m);
-                "descr", Package.descr m;
-                "url" , Package.url m;
+                ["opam"] , Some (Package.opam m);
+                ["descr"], Package.descr m;
+                ["url"]  , Package.url m;
                 ] @ files)
             ) (Job.packages job)
         )
