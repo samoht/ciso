@@ -74,7 +74,7 @@ module System = struct
       ) in
     Lwt_pool.use mkdir_pool (fun () -> aux dirname)
 
-  let list_files kind dir =
+(*  let list_files kind dir =
     Lwt_pool.use openfile_pool (fun () ->
         if Sys.file_exists dir then (
           let s = Lwt_unix.files_of_directory dir in
@@ -97,13 +97,14 @@ module System = struct
         try not (Sys.is_directory f) with Sys_error _ -> false
       ) dir
 
-  let rec_files dir =
+   let rec_files dir =
     let rec aux accu dir =
       directories dir >>= fun ds ->
       files dir       >>= fun fs ->
       Lwt_list.fold_left_s aux (fs @ accu) ds
     in
     aux [] dir
+*)
 
   let write_cstruct fd b =
     let rec rwrite fd buf ofs len =
@@ -199,11 +200,9 @@ end
 (*
 let archive_of_id id =
   Filename.get_temp_dir_name () / Id.to_string id  ^ ".tar.gz"
-*)
 
 let prefix_of_job t job = opam_root t / Switch.to_string (Job.switch job)
 
-(*
 let snapshots t ?white_list job =
   let prefix = prefix_of_job t job in
   let rec loop checksums = function
