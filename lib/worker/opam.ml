@@ -92,10 +92,10 @@ let init_config t dbg =
   debug "init_config: %a %s" pp_t t dbg;
   Unix.putenv "OPAMROOT" t.root;
   Unix.putenv "OPAMSWITCH" (Switch.to_string t.switch);
-  Unix.putenv "OPAMKEEPBUILDDIR" "1";
   let current_switch = opam_switch t.switch in
   let root_dir = OF.Dir.of_string t.root in
-  OpamClientConfig.opam_init ~root_dir ~current_switch ~strict:false
+  OpamClientConfig.opam_init
+    ~root_dir ~current_switch ~strict:false
     ~skip_version_checks:true ~answer:None ~keep_build_dir:true
     ();
   check t None
@@ -114,33 +114,38 @@ let repo t name url =
 let load_state t dbg =
   init_config t dbg;
   debug "load_state %s" dbg;
+  let switch = opam_switch t.switch in
+  let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
+  check t (Some o);
+  o
+
+let create ~root switch =
+  let t = match switch with
+    | Some s -> { root; switch = s}
+    | None   ->
+      let aliases = root / "aliases"  in
+      if Sys.file_exists aliases then
+        let aliases = OpamFile.Aliases.read (OF.of_string aliases) in
+        match OpamSwitch.Map.bindings aliases with
+        | []        -> { root; switch = Switch.system }
+        | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
+      else
+        { root; switch = Switch.system }
+  in
   if not OF.(exists_dir Dir.(of_string (t.root / "system"))) then (
     (* FIXME: we don't want opam 1.3, so shell out `opam init...`*)
     (*   let repo = repo t "default" default_repo in
          let comp = OpamCompiler.system in
          let root = OF.of_string t.root in
          OpamClient.SafeAPI.init repo comp `bash root `no; *)
+    (* FIXME: use Bos *)
     let cmd = Printf.sprintf "opam init --root=%s -n" t.root in
     match Sys.command cmd with
     | 0 -> ()
     | i -> Printf.ksprintf failwith "%s failed (exit %d)!" cmd i
   );
-  let switch = opam_switch t.switch in
-  let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
-  check t (Some o);
-  o
-
-let create ~root = function
-  | Some s -> { root; switch = s}
-  | None   ->
-    let aliases = root / "aliases"  in
-    if Sys.file_exists aliases then
-      let aliases = OpamFile.Aliases.read (OF.of_string aliases) in
-      match OpamSwitch.Map.bindings aliases with
-      | []        -> { root; switch = Switch.system }
-      | (s, _)::_ -> { root; switch = Switch.of_string (OpamSwitch.to_string s)}
-    else
-      { root; switch = Switch.system }
+  init_config t "create";
+  t
 
 let get_var t v =
   let t = load_state t "get-var" in
