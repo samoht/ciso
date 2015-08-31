@@ -80,10 +80,13 @@ let json codec v =
   Fmt.(pf stdout) "%s\n" s;
   of_str codec s
 
+let r1 = "example", Uri.of_string "http://example.com"
+let r2 = "example2", Uri.of_string "http://example.com/2"
+
 let p1 = Package.create "foo"
 let p2 = Package.create "foo" ~version:"bar"
-let t1 = Task.create [p1; p2]
-let t2 = Task.create ~rev_deps:true [p1; p2]
+let t1 = Task.create ~repos:[Task.default_repo; r1; r2] [p1; p2]
+let t2 = Task.create ~rev_deps:`All [p1; p2]
 
 module HSet = Set.Make(Host)
 
