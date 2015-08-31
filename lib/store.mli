@@ -44,6 +44,12 @@ val with_transaction:
     exponential back-off. Raise [Invalid_argument] if the transaction
     is still not successful after all the retries. *)
 
+val cancel_all_watches: t -> unit Lwt.t
+(** [cancel_all_watches t] cancel all the watches set-up on [t]. *)
+
+val nb_watches: t -> int
+(** [nb_watches t] is the number of watches set on [t]. *)
+
 (** The signature for objects kept in the store. *)
 module type S = sig
 

@@ -41,11 +41,13 @@ type store =
   | RV of RV.t
   | LV of LV.t
 
-type t = string -> store
-
 type 'a callback = 'a -> unit Lwt.t
 
 type cancel = unit callback
+
+type t = { t: string -> store; mutable cancels: (int * cancel) list }
+
+let create t = { t; cancels = [] }
 
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
@@ -55,7 +57,7 @@ let task msg =
 let remote ?(uri = Uri.of_string "http://127.0.0.1:8888") () =
   let config = Irmin_http.config uri in
   R.create config task >|= fun t ->
-  fun x -> R (t x)
+  create (fun x -> R (t x))
 
 let err_invalid_version v =
   err "invalid /version: got %s, expecting %s." v Version.current
@@ -70,10 +72,10 @@ let local ?root () =
   let config = Irmin_git.config ?root ~bare:true () in
   L.create config task >>= fun t ->
   check_version t >|= fun () ->
-  fun x -> L (t x)
+  create (fun x -> L (t x))
 
-let rv t = fun _ -> (RV t)
-let lv t = fun _ -> (LV t)
+let rv t = create (fun _ -> (RV t))
+let lv t = create (fun _ -> (LV t))
 
 (* FIXME: should be in Irmin *)
 let retry ?(n=5) f =
@@ -96,7 +98,7 @@ let err_cannot_commit_transaction () = err "Cannot commit the transaction"
 (* FIXME: this doesn't really work as expected, see
    https://github.com/mirage/irmin/issues/272 *)
 let with_transaction ?retry:n t msg f =
-  let aux () = match t msg with
+  let aux () = match t.t msg with
     | R t ->
       retry ?n (fun () ->
           RV.of_path t [] >>= fun v ->
@@ -183,13 +185,28 @@ module Store = struct
 
   let don't_watch _k ?init:_ _f = Lwt.return (fun () -> Lwt.return_unit)
 
-  let watch_key = function
-    | R t  -> R.watch_key t
-    | L t  -> L.watch_key t
-    | RV _ | LV _ ->
-      (* cannot watch transactions *)
-      (* FIXME: fix this in Irmin *)
-      don't_watch
+  let remember t cancel =
+    let id = Random.int 1024_000 in
+    let cancel () =
+      let cancels = List.filter (fun (i,_) -> i<>id) t.cancels in
+      t.cancels <- cancels;
+      cancel ()
+    in
+    t.cancels <- (id, cancel) :: t.cancels;
+    cancel
+
+  let check t f x = assert (t.cancels <> []);  f x
+
+  let watch_key t msg k f =
+    begin match t.t msg with
+      | R x  -> R.watch_key x k (check t f)
+      | L x  -> L.watch_key x k (check t f)
+      | RV _ | LV _ ->
+        (* cannot watch transactions *)
+        (* FIXME: fix this in Irmin *)
+        don't_watch k f
+    end >|= fun cancel ->
+    remember t cancel
 
   (* FIXME: move that into Irmin *)
 
@@ -219,31 +236,31 @@ module Store = struct
       LV.of_path (t ()) key >|= fun v ->
       Some (h, v)
 
-  let watch_key_rec t key f =
-    head t >>= fun h ->
-    match t with
-    | R t ->
-      init_of_l t key h >>= fun init ->
-      RV.watch_path t key ?init (fun d -> list_diff rv d >>= f)
-    | L t ->
-      init_of_r t key h >>= fun init ->
-      LV.watch_path t key ?init (fun d -> list_diff lv d >>=  f)
+  let watch_key_rec t msg key f =
+    head (t.t msg)  >>= fun h ->
+    match t.t msg  with
+    | R x ->
+      init_of_l x key h >>= fun init ->
+      RV.watch_path x key ?init (fun d -> list_diff rv d >>= check t f)
+    | L x ->
+      init_of_r x key h >>= fun init ->
+      LV.watch_path x key ?init (fun d -> list_diff lv d >>= check t f)
     | RV _ | LV _ ->
       (* cannot watch transactions *)
       don't_watch t key
 
-  let watch t root f =
+  let watch t msg root f =
     let process a children =
       Lwt_list.fold_left_s (fun acc id -> match a with
           | `Removed -> Lwt.return (`Removed id :: acc)
           | `Added   ->
-            read t (root / id / "value") >|= function
+            read (t.t msg) (root / id / "value") >|= function
             | Some v -> `Added v :: acc
             | None   -> acc
         ) [] children >>=
       Lwt_list.iter_p f
     in
-    watch_key_rec t root (function
+    watch_key_rec t msg root (function
         | `Added l   -> process `Added l
         | `Removed l -> process `Removed l
         | `Updated (o, n) ->
@@ -255,7 +272,8 @@ module Store = struct
             process `Added (StringSet.elements added);
             process `Removed (StringSet.elements removed);
           ]
-      )
+      ) >|= fun cancel ->
+    remember t cancel
 
 end
 
@@ -271,7 +289,7 @@ end
 
 let pretty id = Id.to_string id
 let fmt msg id = msg ^ " " ^ pretty id
-let mk t msg id = t (fmt msg id)
+let mk t msg id = t.t (fmt msg id)
 
 module XObject = struct
 
@@ -280,7 +298,7 @@ module XObject = struct
   let value_p id = path id / "value"
 
   let list t =
-    Store.list (t "list objects") root >|= List.map (Id.of_string `Object)
+    Store.list (t.t "list objects") root >|= List.map (Id.of_string `Object)
 
   let forget t id =
     debug "forget object:%a" Id.pp id;
@@ -324,16 +342,16 @@ module XJob = struct
     | true  -> Lwt.return_unit
     | false ->
       with_transaction t (fmt "add job" id) (fun t ->
-          Store.update (t "") (value_p id) (to_str Job.json job)
+          Store.update (t.t "") (value_p id) (to_str Job.json job)
           >>= fun () ->
-          Store.update (t "") (status_p id) (to_str Job.json_status `Pending)
+          Store.update (t.t "") (status_p id) (to_str Job.json_status `Pending)
           >>= fun () ->
           Lwt_list.iter_s (fun m ->
               let p = Package.pkg m in
               let one (k, v) = match v with
                 | None   -> Lwt.return_unit
                 | Some v ->
-                  Store.update (t "") (package_p id p k) (Cstruct.to_string v)
+                  Store.update (t.t "") (package_p id p k) (Cstruct.to_string v)
               in
               let files = Package.files m in
               let files =
@@ -384,14 +402,14 @@ module XJob = struct
     List.map (Id.of_string `Object)
 
   let list t =
-    Store.list (t "list jobs") root >|= List.map (Id.of_string `Job)
+    Store.list (t.t "list jobs") root >|= List.map (Id.of_string `Job)
 
   let forget t id =
     debug "forget job:%a" Id.pp id;
     Store.rmdir (mk t "forget job" id) (path id)
 
   let watch_status t id f =
-    Store.watch_key (mk t "watch job status" id) (status_p id) (function
+    Store.watch_key t (fmt "watch job status" id) (status_p id) (function
         | `Updated (_, (_, s))
         | `Added (_, s) -> f (Some (of_str Job.json_status s))
         | `Removed _    -> f None
@@ -399,7 +417,7 @@ module XJob = struct
 
   let watch t f =
     let mk v = of_str Job.json v in
-    Store.watch (t "watch jobs") root (function
+    Store.watch t "watch jobs" root (function
         | `Added v   -> f (mk v)
         | `Removed _ -> Lwt.return_unit
       )
@@ -416,7 +434,7 @@ module XTask = struct
   let job_p id j = jobs_p id / Id.to_string j
 
   let list t =
-    Store.list (t "list tasks") root >|= List.map (Id.of_string `Task)
+    Store.list (t.t "list tasks") root >|= List.map (Id.of_string `Task)
 
   let forget t id =
     debug "forget task:%a" Id.pp id;
@@ -431,8 +449,8 @@ module XTask = struct
     | true  -> Lwt.return_unit
     | false ->
       with_transaction t (fmt "add task" id) (fun t ->
-          Store.update (t "") (value_p id) (to_str Task.json task) >>= fun () ->
-          Store.update (t "") (status_p id) (to_str Task.json_status `New)
+          Store.update (t.t "") (value_p id) (to_str Task.json task) >>= fun () ->
+          Store.update (t.t "") (status_p id) (to_str Task.json_status `New)
         )
       >|= fun () ->
       debug "add: task %s published!" (pretty id)
@@ -441,7 +459,7 @@ module XTask = struct
     Store.read_exn (mk t "find task" id) (value_p id) >|=
     of_str Task.json
 
-  let add_job t id j = Store.update (t "") (job_p id j) ""
+  let add_job t id j = Store.update (mk t "add job" id) (job_p id j) ""
 
   let jobs t id =
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
@@ -467,7 +485,7 @@ module XTask = struct
     in
     let status = Job.task_status status |> to_str Task.json_status in
     (* FIXME: because of https://github.com/mirage/irmin/issues/272  *)
-    begin Store.read (t "") (status_p id) >|= function
+    begin Store.read (t.t "") (status_p id) >|= function
       | None    -> true
       | Some s -> s <> status
     end >>= function
@@ -480,7 +498,7 @@ module XTask = struct
     | Some s -> Some (of_str Task.json_status s)
 
   let watch_status t id f =
-    Store.watch_key (mk t "watch task status" id) (status_p id) (function
+    Store.watch_key t (fmt "watch task status" id) (status_p id) (function
         | `Updated (_, (_, s))
         | `Added (_, s) -> f (Some (of_str Task.json_status s))
         | `Removed _    -> f None
@@ -488,7 +506,7 @@ module XTask = struct
 
   let watch t f =
     let mk v = of_str Task.json v in
-    Store.watch (t "watch taks") root (function
+    Store.watch t "watch taks" root (function
         | `Added v   -> f (mk v)
         | `Removed _ -> Lwt.return_unit
       )
@@ -504,7 +522,7 @@ module XWorker = struct
   let status_p id = path id / "status"
 
   let list t =
-    Store.list (t "list workers") root >|= List.map (Id.of_string `Worker)
+    Store.list (t.t "list workers") root >|= List.map (Id.of_string `Worker)
 
   let mem t id = Store.mem (mk t "mem worker" id) (value_p id)
 
@@ -516,8 +534,8 @@ module XWorker = struct
     | false ->
       let w = to_str Worker.json w in
       with_transaction t (fmt "publish worker" id) (fun t ->
-          Store.update (t "") (value_p id) w >>= fun () ->
-          Store.update (t "") (status_p id) (to_str Worker.json_status `Idle)
+          Store.update (t.t "") (value_p id) w >>= fun () ->
+          Store.update (t.t "") (status_p id) (to_str Worker.json_status `Idle)
         ) >|= fun () ->
       debug "add: worker %s published!" (pretty id)
 
@@ -550,15 +568,14 @@ module XWorker = struct
   let idle t id = start t id `Idle
 
   let watch_ticks t id f =
-    Store.watch_key (mk t "watch_ticks" id) (tick_p id) (function
+    Store.watch_key t (fmt "watch_ticks" id) (tick_p id) (function
         | `Updated (_, (_, tick))
         | `Added   (_, tick) -> f (float_of_string tick)
         | `Removed _         -> f 0. (* FIXME: ? *)
       )
 
   let watch_status t id f =
-    (* FIXME: small race here ... *)
-    Store.watch_key (mk t "watch status" id) (status_p id) (function
+    Store.watch_key t (fmt "watch status" id) (status_p id) (function
         | `Updated (_, (_, s))
         | `Added (_, s) -> f (Some (of_str Worker.json_status s))
         | `Removed _    -> f None
@@ -567,7 +584,7 @@ module XWorker = struct
   type diff = [`Added of Worker.t | `Removed of Worker.id]
 
   let watch t f =
-    Store.watch (t "watch workers") root (function
+    Store.watch t "watch workers" root (function
         | `Added v    -> f (`Added (of_str Worker.json v))
         | `Removed id -> f (`Removed (Id.of_string `Worker id))
       )
@@ -578,3 +595,6 @@ module Task = XTask
 module Job = XJob
 module Object = XObject
 module Worker = XWorker
+
+let cancel_all_watches t = Lwt_list.iter_p (fun (_, t) -> t ()) t.cancels
+let nb_watches t = List.length t.cancels
