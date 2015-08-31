@@ -91,6 +91,11 @@ val pins: t -> pin list
 val rev_deps: t -> rev_deps
 (** [rev_deps t] is true if [t] has to test reverse dependencies. *)
 
+val date: t -> float
+(** [date t] is [t]'s date of creation. The date is number of seconds
+    since 12:00 midnight January 1, 1970, UTC without accounting for
+    leap seconds with an optional timezone info. *)
+
 val create:
   ?repos:repo list -> ?pins:pin list ->
   ?switches:Switch.t list -> ?hosts:Host.t list ->

@@ -55,6 +55,7 @@ type id = [`Task] Id.t
 
 type t = {
   id: id;
+  date: float;
   repos: repo list;
   pins: pin list;
   switches: Switch.t list;
@@ -65,6 +66,7 @@ type t = {
 
 let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
+let date t = t.date
 let hosts t = t.hosts
 let switches t = t.switches
 let repos t = t.repos
@@ -94,6 +96,7 @@ let json =
   let hosts = Jsont.(mem o ~opt:`Yes_rem "hosts" @@ array Host.json) in
   let packages = Jsont.(mem o "packages" @@ array Package.json) in
   let rev_deps = Jsont.(mem o ~opt:`Yes_rem "rev-deps" @@ json_rev_deps ) in
+  let date = Jsont.(mem o "date" float) in
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get m = Jsont.get m o in
@@ -101,12 +104,14 @@ let json =
       id = get id; repos = get repos; pins = get pins;
       switches = get switches; hosts = get hosts;
       packages = get packages; rev_deps = get rev_deps;
+      date = get date;
     } in
   let enc t =
     Jsont.(new_obj c [
         memv id t.id; memv repos t.repos; memv pins t.pins;
         memv switches t.switches; memv hosts t.hosts;
-        memv packages t.packages; memv rev_deps t.rev_deps])
+        memv packages t.packages; memv rev_deps t.rev_deps;
+        memv date t.date])
   in
   Jsont.view (dec, enc) c
 
@@ -118,10 +123,16 @@ let strings_of_rev_deps = function
 let pp_rev_deps =
   Fmt.of_to_string (fun r -> String.concat "," (strings_of_rev_deps r))
 
+let string_of_date f =
+  let tm = Unix.localtime f in
+  let open Unix in
+  Printf.sprintf "%d:%d:%d" tm.tm_hour tm.tm_min tm.tm_sec
+
 let pp ppf t =
   let mk pp = List.map (Fmt.to_to_string pp) in
   let block = [
     "id      ", [Id.to_string t.id];
+    "date    ", [string_of_date t.date];
     "repo    ", mk pp_repo t.repos;
     "pins    ", mk pp_pin t.pins;
     "switches", mk Switch.pp t.switches;
@@ -134,7 +145,7 @@ let pp ppf t =
 let id t = t.id
 let packages t = t.packages
 
-let hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
+let hash ~date ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
   let x l = String.concat "+" (List.sort String.compare l) in
   let y   = String.concat "-" in
   let repos = List.map (Fmt.to_to_string pp_repo) repos in
@@ -143,17 +154,19 @@ let hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
   let hosts = List.map (Fmt.to_to_string Host.pp) hosts in
   let packages = List.map Package.to_string packages in
   let rev_deps = strings_of_rev_deps rev_deps in
+  let date = [string_of_date date] in
   let str = y [
       y repos; (* the order in which we stack the repos is important *)
-      x pins; x switches; x hosts; x packages; x rev_deps;
+      x pins; x switches; x hosts; x packages; x rev_deps; x date;
     ] in
   Id.digest `Task str
 
 let create ?(repos=[default_repo]) ?(pins=[])
     ?(switches=Switch.defaults) ?(hosts=Host.defaults)
     ?(rev_deps=`None) packages =
-  let id = hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages in
-  { id; repos; pins; switches; hosts; rev_deps; packages }
+  let date = Unix.gettimeofday () in
+  let id = hash ~date ~repos ~pins ~switches ~hosts ~rev_deps ~packages in
+  { id; date; repos; pins; switches; hosts; rev_deps; packages }
 
 type core = [ `New | `Pending | `Cancelled ]
 type dispatch =  [`Pending | `Started]
