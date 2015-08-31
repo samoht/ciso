@@ -25,12 +25,16 @@ let debug ~section fmt =
       Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
     ) fmt
 
-let show_block ppf block =
-  let block = List.filter (fun (_, l) -> l <> []) block in
-  List.iteri (fun i (k, v) ->
-      Fmt.(styled `Bold string) ppf k;
-      Fmt.pf ppf ": ";
-      let color = if i = 0 then Fmt.(styled `Cyan) else (fun x -> x) in
-      color Fmt.string ppf (String.concat " " v);
-      Fmt.pf ppf "\n"
-    ) block
+let show_block =
+  let pp_field ppf (i, k, v) =
+    let color = if i = 0 then Fmt.(styled `Cyan) else (fun x -> x) in
+    Fmt.pf ppf "@[%a: @[<4>%a@]@]@."
+      Fmt.(styled `Bold string) k
+      Fmt.(color (list string)) v
+  in
+  let pp_fields ppf block =
+    let block = List.filter (fun (_, l) -> l <> []) block in
+    let block = List.mapi (fun i (k, v) -> i, k, v) block in
+    List.iter (pp_field ppf) block
+  in
+  fun ppf block -> Fmt.pf ppf "@[<v>%a@]" pp_fields block
