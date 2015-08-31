@@ -268,6 +268,40 @@ let job_scheduler_3 () =
   in
   run test
 
+(* - add a task
+   - assign it to a dead worker
+   - start the scheduler
+   - the task should be new *)
+let task_and_dead_worker () =
+  let test () =
+    store () >>= fun s ->
+    Store.Task.add s t1 >>= fun () ->
+    Store.Task.ack s (Task.id t1) (Worker.id wt1) >>= fun () ->
+    Scheduler.start s >>= fun scheduler ->
+    let check = task_check s ~section:"task to dead worker" scheduler in
+    sleep () >>= fun () ->
+    check "start" `New >>= fun () ->
+    Scheduler.stop scheduler
+  in
+  run test
+
+(* - add a job
+   - assign it to a dead worker
+   - start the scheduler
+   - the job should be runnable *)
+let job_and_dead_worker () =
+  let test () =
+    store () >>= fun s ->
+    Store.Job.add s jr1 >>= fun () ->
+    Store.Job.ack s (Job.id jr1) (Worker.id wt1) >>= fun () ->
+    Scheduler.start s >>= fun scheduler ->
+    let check = job_check s ~section:"task to dead worker" scheduler in
+    sleep () >>= fun () ->
+    check "start" `Runnable >>= fun () ->
+    Scheduler.stop scheduler
+  in
+  run test
+
 let suite = [
   "basic tasks"    , `Quick, basic_tasks;
   "basic jobs"     , `Quick, basic_jobs;
@@ -278,4 +312,6 @@ let suite = [
   "job schduler 1" , `Quick, job_scheduler_1;
   "job schduler 2" , `Quick, job_scheduler_2;
   "job schduler 3" , `Quick, job_scheduler_3;
+  "task & dead worker", `Quick, task_and_dead_worker;
+  "job & dead worker" , `Quick, job_and_dead_worker;
 ]
