@@ -26,8 +26,8 @@ type t = {
   store    : Store.t;                                     (* the Irmin store. *)
   opam_root: string;                          (* the OPAM root of the worker. *)
   tick     : float;                  (* how often do the worker need to tick. *)
+  mutable heartbeat: int option;
   mutable stop: unit -> unit Lwt.t;                    (* stop the scheduler. *)
-  mutable alive: bool;
 }
 
 let opam t s = Opam.create ~root:t.opam_root s
@@ -37,23 +37,27 @@ let worker t = t.worker
 
 let create ~tick ~store ~opam_root worker =
   let stop () = Lwt.return_unit in
-  let alive = true in
-  { worker; store; opam_root; tick; stop; alive }
+  let heartbeat = None in
+  { worker; store; opam_root; tick; stop; heartbeat; }
 
-let heartbeat = ref None
+let pids = ref []
+let add_to_kill pid = pids := pid :: !pids
+let remove_from_kill pid = pids := List.filter ((<>)pid) !pids
+let kill pid = Unix.kill pid Sys.sigkill
 
-let kill_child () = match !heartbeat with
+let () =
+  at_exit (fun () -> List.iter kill !pids)
+
+let kill_child t = match t.heartbeat with
   | None     -> ()
-  | Some pid -> Unix.kill pid Sys.sigkill
-
-let () = at_exit kill_child
+  | Some pid -> remove_from_kill pid; kill pid
 
 let execution_loop t fn =
   Store.Worker.watch_status t.store (Worker.id t.worker) (function
       | Some s -> fn t s
       | None   ->
         Fmt.(pf stdout "%a" (styled `Cyan string) "Killed!\n");
-        kill_child ();
+        kill_child t;
         exit 1
     )
 
@@ -63,12 +67,13 @@ let heartbeat_loop t =
     let id = Worker.id t.worker in
     Store.Worker.tick t.store id (Unix.time ()) >>= fun () ->
     Lwt_unix.sleep t.tick >>= fun () ->
-    if t.alive then aux () else Lwt.return_unit
+    aux ()
   in
   match Lwt_unix.fork () with
   | 0   -> aux ()
   | pid ->
-    heartbeat := Some pid;
+    t.heartbeat <- Some pid;
+    add_to_kill pid;
     Lwt.return_unit
 
 let start fn ?(tick=5.) ~opam_root ~kind store =
@@ -82,4 +87,4 @@ let start fn ?(tick=5.) ~opam_root ~kind store =
 
 let stop t =
   t.stop () >|= fun () ->
-  t.alive <- false
+  kill_child t
