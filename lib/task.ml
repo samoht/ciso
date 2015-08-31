@@ -25,6 +25,8 @@ let default_repo =
 (* package, target *)
 type pin = string * Uri.t option
 
+type rev_deps = [`All | `None | `Packages of Package.t list ]
+
 let json_uri =
   let dec s = `Ok (Uri.of_string s) in
   let enc u = Uri.to_string u in
@@ -58,7 +60,7 @@ type t = {
   switches: Switch.t list;
   hosts: Host.t list;
   packages: Package.t list;
-  rev_deps: bool;
+  rev_deps: rev_deps;
 }
 
 let equal x y = Id.equal x.id y.id
@@ -69,7 +71,19 @@ let repos t = t.repos
 let pins t = t.pins
 let rev_deps t = t.rev_deps
 
-let json_rev_deps = Jsont.enum ~default:false ["ALL", true]
+let json_rev_deps =
+  let dec = function
+    | [] -> `Ok `None
+    | o  ->
+      if List.mem "*" o then `Ok `All
+      else `Ok (`Packages (List.map Package.of_string o))
+  in
+  let enc = function
+    | `None          -> []
+    | `All           -> ["*"]
+    | `Packages pkgs -> List.map Package.to_string pkgs
+  in
+  Jsont.(view ~default:`None (dec, enc) (array string))
 
 let json =
   let o = Jsont.objc ~kind:"task" () in
@@ -96,6 +110,11 @@ let json =
   in
   Jsont.view (dec, enc) c
 
+let strings_of_rev_deps = function
+  | `None          -> []
+  | `All           -> ["*"]
+  | `Packages pkgs -> List.map Package.to_string pkgs
+
 let pp ppf t =
   let mk pp = List.map (Fmt.to_to_string pp) in
   let block = [
@@ -104,7 +123,7 @@ let pp ppf t =
     "pins    ", mk pp_pin t.pins;
     "switches", mk Switch.pp t.switches;
     "hosts   ", List.map Host.short t.hosts;
-    "rev-deps", if t.rev_deps then ["ALL"] else [];
+    "rev-deps", strings_of_rev_deps t.rev_deps;
     "packages", mk Package.pp t.packages;
   ] in
   Gol.show_block ppf block
@@ -120,7 +139,7 @@ let hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
   let switches = List.map (Fmt.to_to_string Switch.pp) switches in
   let hosts = List.map (Fmt.to_to_string Host.pp) hosts in
   let packages = List.map Package.to_string packages in
-  let rev_deps = if rev_deps then ["ALL"] else [] in
+  let rev_deps = strings_of_rev_deps rev_deps in
   let str = y [
       y repos; (* the order in which we stack the repos is important *)
       x pins; x switches; x hosts; x packages; x rev_deps;
@@ -129,7 +148,7 @@ let hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages =
 
 let create ?(repos=[default_repo]) ?(pins=[])
     ?(switches=Switch.defaults) ?(hosts=Host.defaults)
-    ?(rev_deps=false) packages =
+    ?(rev_deps=`None) packages =
   let id = hash ~repos ~pins ~switches ~hosts ~rev_deps ~packages in
   { id; repos; pins; switches; hosts; rev_deps; packages }
 

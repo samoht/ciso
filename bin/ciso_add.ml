@@ -31,8 +31,12 @@ let packages =
   Arg.(value & pos_all package_c [] & info [] ~docv:"PKGS" ~doc)
 
 let rev_deps =
-  let doc = "Test reverse dependencies." in
-  Arg.(value & flag & info ["rev-deps"] ~doc)
+  let doc =
+    "Disabled by default, use '*' to test every dependent packages allowed by \
+     the constraints. If you want to test only specific dependent packages, \
+     they may be provided in a comma-separated list."
+  in
+  Arg.(value & opt (list string) [] & info ["rev-deps"] ~doc)
 
 let repos =
   let doc = "Specify opam repositories." in
@@ -52,17 +56,23 @@ let mk_pin str =
   | Some (n, r) -> n, Some (Uri.of_string r)
   | None        -> str, None
 
+let mk_rev_deps = function
+  | []    -> `None
+  | ["*"] -> `All
+  | l     -> `Packages (List.map Package.of_string l)
+
 let to_option = function
   | [] -> None
   | l  -> Some l
 
 let main =
   let master store packages repos pins rev_deps =
-    if rev_deps then info "rev-deps" "ALL";
+    if rev_deps <> [] then info "rev-deps" (String.concat "," rev_deps);
     if packages = [] then ()
     else
       let repos = List.map mk_repo repos |> to_option in
       let pins = List.map mk_pin pins |> to_option in
+      let rev_deps = mk_rev_deps rev_deps in
       let task = Task.create ~rev_deps ?pins ?repos packages in
       Lwt_main.run begin
         store >>= fun store ->

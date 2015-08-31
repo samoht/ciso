@@ -247,8 +247,10 @@ let plans t task =
         ) acc switches
   in
   let rev_deps pkgs =
-    if not (Task.rev_deps task) then []
-    else List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+    match Task.rev_deps task with
+    | `None          -> []
+    | `All           -> List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+    | `Packages deps -> List.map (fun d -> d :: pkgs) deps
   in
   let pkgs = Task.packages task in
   List.fold_left resolve [] (pkgs :: rev_deps pkgs)
