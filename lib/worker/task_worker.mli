@@ -26,7 +26,7 @@
 type t
 (** The type for task workers. *)
 
-type callback = t -> Task.t -> unit Lwt.t
+type callback = t -> Task.t -> (Job.t -> unit Lwt.t) -> unit Lwt.t
 (** Type for task workers' callbacks. *)
 
 val default_callback: callback

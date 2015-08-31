@@ -441,10 +441,7 @@ module XTask = struct
     Store.read_exn (mk t "find task" id) (value_p id) >|=
     of_str Task.json
 
-  let add_jobs t id jobs =
-    with_transaction t (fmt "add jobs" id) (fun t ->
-        Lwt_list.iter_p (fun j -> Store.update (t "") (job_p id j) "") jobs
-      )
+  let add_job t id j = Store.update (t "") (job_p id j) ""
 
   let jobs t id =
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=

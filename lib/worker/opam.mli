@@ -25,10 +25,10 @@ val create: root:string -> Switch.t option -> t
 (** [create ~root s h] create an OPAM state using [root] as OPAM's
     root and [s] as the current switch. *)
 
-val jobs: t -> Task.t -> Job.t list
+val jobs: t -> Task.t -> (Job.t -> unit) -> unit
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
 
-val atomic_jobs: t -> Task.t -> Job.t list
+val atomic_jobs: t -> Task.t -> (Job.t -> unit) -> unit
 (** [atomic_jobs t] is similar to {!jobs} but it builds jobs with only
     one package to install. *)
 

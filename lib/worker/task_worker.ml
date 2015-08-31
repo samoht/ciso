@@ -23,20 +23,19 @@ let debug fmt =
   section := "task-worker";
   debug fmt
 
-type callback = t -> Task.t -> unit Lwt.t
+type callback = t -> Task.t -> (Job.t -> unit Lwt.t) -> unit Lwt.t
 
-let default_callback t task =
-  let store = store t in
-  let id = Task.id task in
+let default_callback t task f =
   let o = Opam.create ~root:(opam_root t) None in
   Opam.repo_clean o;
   Opam.repo_add o (Task.repos task);
   Opam.pin_clean o;
   Opam.pin_add o (Task.pins task);
   Opam.update o;
-  let jobs = Opam.jobs (opam t None) task in
-  Lwt_list.iter_p (Store.Job.add store) jobs >>= fun () ->
-  Store.Task.add_jobs store id (List.map Job.id jobs)
+  let stream, push = Lwt_stream.create () in
+  Opam.jobs (opam t None) task (fun x -> push (Some x));
+  push None;
+  Lwt_stream.iter_p f stream
 
 let start ?(callback=default_callback) =
   let callback t = function
@@ -48,7 +47,11 @@ let start ?(callback=default_callback) =
       let wid = Worker.id (worker t) in
       Store.Task.ack store id wid >>= fun () ->
       Store.Task.get store id >>= fun task ->
-      callback t task >>= fun () ->
+      let add job =
+        Store.Job.add store job >>= fun () ->
+        Store.Task.add_job store id (Job.id job)
+      in
+      callback t task add >>= fun () ->
       Store.Task.refresh_status store id >>= fun () ->
       Store.Worker.idle store wid
   in
