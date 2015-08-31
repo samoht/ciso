@@ -44,6 +44,9 @@ type repo = string * Uri.t
 val pp_repo: repo Fmt.t
 (** [pp_repository] formats a repository. *)
 
+val default_repo: repo
+(** [default_repo] is {i https://github.com/ocaml/opam-repository.git}. *)
+
 type pin = string * Uri.t option
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
@@ -53,6 +56,9 @@ type pin = string * Uri.t option
 
 type rev_deps = [`All | `None | `Packages of Package.t list ]
 (** The type for specifying reverse dependencies. *)
+
+val pp_rev_deps: rev_deps Fmt.t
+(** [pp_rev_deps] formats reverse dependencies. *)
 
 val pp_pin: pin Fmt.t
 (** [pp_pin] formats a pin package. *)

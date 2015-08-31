@@ -115,6 +115,9 @@ let strings_of_rev_deps = function
   | `All           -> ["*"]
   | `Packages pkgs -> List.map Package.to_string pkgs
 
+let pp_rev_deps =
+  Fmt.of_to_string (fun r -> String.concat "," (strings_of_rev_deps r))
+
 let pp ppf t =
   let mk pp = List.map (Fmt.to_to_string pp) in
   let block = [
