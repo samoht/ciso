@@ -252,7 +252,7 @@ module XJob = struct
     in
     aux ()
 
-  let status t id =
+  let status_of_id t id =
     JMap.fold (fun j status -> function
         | None -> if Id.equal (Job.id j) id then Some status else None
         | s    -> s
@@ -264,7 +264,7 @@ module XJob = struct
     JMap.iter (fun job -> function
         | `Pending ->
           let inputs = Job.inputs job in
-          let is_success j = status t j = Some (`Complete `Success) in
+          let is_success j = status_of_id t j = Some (`Complete `Success) in
           if List.for_all is_success inputs then jobs := job :: !jobs
         | _ -> ()
       ) t.jobs;
@@ -548,10 +548,34 @@ let job t = t.j
 let task t = t.t
 let worker t = t.w
 
+let cleanup_dead_workers t =
+  let workers = XWorker.list t.w in
+  let is_dead id =
+    let has_same_id w = Id.equal id (Worker.id w) in
+    not (List.exists has_same_id workers)
+  in
+  let tasks = XTask.list t.t in
+  let jobs = XJob.list t.j in
+  Lwt_list.iter_p (fun task ->
+      match XTask.status t.t task with
+      | Some (`Dispatched (w,_)) when is_dead w ->
+        Store.Task.reset t.t.XTask.store (Task.id task)
+      | _ -> Lwt.return_unit
+    ) tasks
+  >>= fun () ->
+  Lwt_list.iter_p (fun job ->
+      match XJob.status t.j job with
+      | Some (`Dispatched (w,_)) when is_dead w ->
+        Store.Job.runnable t.j.XJob.store (Job.id job)
+      | _ -> Lwt.return_unit
+    ) jobs
+
 let start store =
   XJob.start store    >>= fun j ->
   XTask.start store   >>= fun t ->
-  XWorker.start store >|= fun w ->
+  XWorker.start store >>= fun w ->
+  let scheduler = { j; t; w } in
+  cleanup_dead_workers scheduler >|= fun () ->
   let peek_job host = XJob.peek_s j host >|= fun j -> `Job j in
   let peek_task () = XTask.peek_s t >|= fun t -> `Task t in
   let peek_worker () = XWorker.peek_s w in
@@ -588,7 +612,7 @@ let start store =
     Lwt.join [loop (); dispatch ()]
   in
   Lwt.async loop;
-  { j; t; w }
+  scheduler
 
 let stop t =
   Lwt.join [
