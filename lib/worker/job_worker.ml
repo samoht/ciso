@@ -432,6 +432,8 @@ let default_callback t job =
 type result = [`Success | `Failure]
 type callback = t -> Job.t -> result Lwt.t
 
+let worker = worker
+
 let start ?(callback=default_callback) =
   let callback t = function
     | `Idle

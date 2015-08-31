@@ -26,6 +26,9 @@
 type t
 (** The type for job workers. *)
 
+val worker: t -> Worker.t
+(** [worker t] is [t]'s worker value. *)
+
 type result = [`Success | `Failure]
 (** The type for job results. *)
 

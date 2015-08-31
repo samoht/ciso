@@ -26,6 +26,9 @@
 type t
 (** The type for task workers. *)
 
+val worker: t -> Worker.t
+(** [worker t] is [t]'s worker value. *)
+
 type callback = t -> Task.t -> (Job.t -> unit Lwt.t) -> unit Lwt.t
 (** Type for task workers' callbacks. *)
 
