@@ -62,25 +62,29 @@ let execution_loop t fn =
     )
 
 let heartbeat_loop t =
-  let rec aux () =
+  let rec beat () =
     debug "tick %.0fs" t.tick;
     let id = Worker.id t.worker in
-    Store.Worker.tick t.store id (Unix.time ()) >>= fun () ->
-    Lwt_unix.sleep t.tick >>= fun () ->
-    aux ()
+    Lwt_main.run (Store.Worker.tick t.store id (Unix.time ()));
+    Unix.sleep (int_of_float t.tick);
+    beat ()
   in
+  Lwt_io.flush_all () >>= fun () ->
   match Lwt_unix.fork () with
-  | 0   -> aux ()
+  | 0   ->
+    Store.cancel_all_watches t.store >>= fun () ->
+    beat ()
   | pid ->
     t.heartbeat <- Some pid;
     add_to_kill pid;
     Lwt.return_unit
 
-let start fn ?(tick=5.) ~opam_root ~kind store =
-  let w = Worker.create kind (Host.detect ()) in
+let start fn ?host ?(tick=5.) ~opam_root ~kind store =
+  let host = match host with None -> Host.detect () | Some h -> h in
+  let w = Worker.create kind host in
   let t = create ~tick ~store ~opam_root w in
   Store.Worker.add t.store w >>= fun () ->
-  heartbeat_loop    t >>= fun () ->
+  heartbeat_loop t >>= fun () ->
   execution_loop t fn >|= fun cancel ->
   t.stop <- cancel;
   t
