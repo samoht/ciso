@@ -53,7 +53,7 @@ let json =
   Jsont.view (dec, enc) c
 
 let create kind host =
-  let id = Id.of_uuid `Worker in
+  let id = Id.uuid `Worker in
   { id; kind; host }
 
 let id t = t.id

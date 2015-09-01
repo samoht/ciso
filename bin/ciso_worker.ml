@@ -39,7 +39,7 @@ let mk_opam_root x =
     | None   ->
       config_file () >>= fun config ->
       match config "opam-root" with
-      | None   -> return (tmp_dir / (Id.of_uuid `Worker |> Id.to_string))
+      | None   -> return (tmp_dir / (Id.uuid `Worker |> Id.to_string))
       | Some r -> return r
   in
   x
