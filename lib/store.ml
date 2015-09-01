@@ -195,7 +195,16 @@ module Store = struct
     t.cancels <- (id, cancel) :: t.cancels;
     cancel
 
-  let check t f x = assert (t.cancels <> []);  f x
+  let check t f x =
+    let c = ref 0 in
+    let rec aux n =
+      if n <= 0 then assert (t.cancels <> []);
+      if t.cancels <> [] then
+        Lwt_unix.sleep 0.01 >>= fun () -> aux (n-1)
+      else
+        f x
+    in
+    aux 100
 
   let watch_key t msg k f =
     begin match t.t msg with
