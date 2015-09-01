@@ -21,8 +21,18 @@
 type t
 (** The type for host configuration. *)
 
+type id = [`Host] Id.t
+(** The type for deterministic host identifiers. *)
+
+val id: t -> id
+(** [id t] is [t]'s deterministic identifier. Is it obtaining by
+    hashing a stable representation of [t]'s components. *)
+
 val detect: unit -> t
 (** Detects the host configuration. *)
+
+val compare: t -> t -> int
+(** [compare] compares host configurations. *)
 
 val equal: t -> t -> bool
 (** [equal] is the equality for host configurations. *)

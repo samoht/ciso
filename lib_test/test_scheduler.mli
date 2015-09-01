@@ -1,7 +1,5 @@
 (*
- * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
- * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
- * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,19 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Cmdliner
-open Lwt.Infix
-include Ciso_common
-
-let main =
-  let master store =
-    Lwt_main.run begin
-      store >>= fun store ->
-      Scheduler.start store >>= block
-    end
-  in
-  Term.(pure master $ store),
-  Term.info ~version:Version.current ~doc:"Run the CISO scheduler" "ciso-master"
-
-let () =
-  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0
+val suite: Alcotest.test_case list

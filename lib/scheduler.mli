@@ -41,20 +41,27 @@ module type S = sig
   val list: t -> value list
   (** [list t] lists the values which are being scheduled. *)
 
-  val peek: t -> value option
-  (** [peel t] picks a value if it is available. *)
-
-  val peek_s: t -> value Lwt.t
-  (** [peek_s t] blocks until a value is available. *)
+  val is_runnable: t -> value -> bool
+  (** [is_runnable t v] checks if [v] can be scheduled by [t]. *)
 
 end
 
-(** Task scheduler.
+(** Task scheduler. *)
+module Task: sig
 
-    Tasks can only be added. When a new task is submitted by the
-    users, the task scheduler start managing it. A task can later be
-    cancelled. *)
-module Task: S with type value := Task.t
+  (** Tasks can only be added. When a new task is submitted by the
+      users, the task scheduler start managing it. A task can later be
+      cancelled. *)
+
+  include S with type value := Task.t
+
+  val peek: t -> Task.t option
+  (** [peel t] picks a task if it is available. *)
+
+  val peek_s: t -> Task.t Lwt.t
+  (** [peek_s t] blocks until a task becomes available. *)
+
+end
 
 (** Job scheduler. *)
 module Job: sig
@@ -75,12 +82,38 @@ module Job: sig
 
 end
 
-(** Worker scheduler.
+(** Worker scheduler. *)
+module Worker: sig
+  (** Workers can be added and can become inactive. The worker
+      scheduler manage new workers, keep track of idle workers and
+      remove inactive workers. *)
 
-    Workers can be added and can become inactive. The worker scheduler
-    manage new workers, keep track of idle workers and remove inactive
-    workers. *)
-module Worker: S with type value := Worker.t
+  include S with type value := Worker.t
 
-val start: Store.t -> unit Lwt.t
-(** Start all the schedulers. *)
+  val peek: t -> Worker.kind -> Worker. t option
+  (** [peek t k] picks a worker of kind [k]. *)
+
+  val peek_s: t -> Worker.kind -> Worker.t Lwt.t
+  (** [peek_s t k] blocks until a worker of kind [k] becomes
+      available. *)
+
+end
+
+type t
+(** The type for global schedulers. *)
+
+val job: t -> Job.t
+(** [job t] is [t]'s job scheduler. *)
+
+val task: t -> Task.t
+(** [task t] is [t]'s task scheduler. *)
+
+val worker: t -> Worker.t
+(** [worker t] is [t]'s work scheduler. *)
+
+val start: Store.t -> t Lwt.t
+(** [start s] connects the three schedulers: the {{!Worker.t}worker},
+    the {{!Task.t}task} and the {{!Job.t}job} ones. *)
+
+val stop: t -> unit Lwt.t
+(** [stop t] stops the three schdulers. *)

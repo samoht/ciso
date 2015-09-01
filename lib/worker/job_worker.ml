@@ -19,21 +19,11 @@
 open Lwt.Infix
 include Common_worker
 
-let debug fmt = Gol.debug ~section:"job-worker" fmt
-let err fmt  = Printf.ksprintf Lwt.fail_with ("Job_worker: " ^^ fmt)
-let fail fmt = Printf.kprintf failwith ("Job_worker: " ^^ fmt)
+let debug fmt =
+  section := "job-worker";
+  debug fmt
 
 let (/) = Filename.concat
-
-let chop_prefix t ~prefix =
-  let lt = String.length t in
-  let lp = String.length prefix in
-  let fail () = fail "%s is not a prefix of %s" prefix t in
-  if lt < lp then fail ()
-  else
-    let p = String.sub t 0 lp in
-    if String.compare p prefix <> 0 then fail ()
-    else String.sub t lp (lt - lp)
 
 module OSet = Set.Make(struct
     type t = Object.id
@@ -80,12 +70,11 @@ module System = struct
         in
         clear >>= fun () ->
         aux (Filename.dirname dir) >>= fun () ->
-        debug "mkdir %s" dir;
         protect (Lwt_unix.mkdir dir) 0o755;
       ) in
     Lwt_pool.use mkdir_pool (fun () -> aux dirname)
 
-  let list_files kind dir =
+(*  let list_files kind dir =
     Lwt_pool.use openfile_pool (fun () ->
         if Sys.file_exists dir then (
           let s = Lwt_unix.files_of_directory dir in
@@ -108,13 +97,14 @@ module System = struct
         try not (Sys.is_directory f) with Sys_error _ -> false
       ) dir
 
-  let rec_files dir =
+   let rec_files dir =
     let rec aux accu dir =
       directories dir >>= fun ds ->
       files dir       >>= fun fs ->
       Lwt_list.fold_left_s aux (fs @ accu) ds
     in
     aux [] dir
+*)
 
   let write_cstruct fd b =
     let rec rwrite fd buf ofs len =
@@ -135,8 +125,8 @@ module System = struct
     mkdir dir >>= fun () ->
     let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
     Lwt_pool.use openfile_pool (fun () ->
-        debug "Writing %s (%s)" file tmp;
-        Lwt_unix.(openfile tmp [O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC] 0o644) >>= fun fd ->
+        Lwt_unix.(openfile tmp [O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC] 0o644)
+        >>= fun fd ->
         Lwt.finalize
           (fun () -> protect fn fd >>= fun () -> Lwt_unix.rename tmp file)
           (fun _  -> Lwt_unix.close fd)
@@ -158,18 +148,8 @@ module System = struct
 
   (* end of ocaml-git *)
 
-  let niet () = Lwt.return_unit
 
-  let exec ?on_failure ?(on_success=niet) cmd =
-    let on_failure = match on_failure with
-      | None   -> (fun () -> err "%S: failure" cmd)
-      | Some f -> f
-    in
-    let open Lwt_unix in
-    Lwt_unix.system cmd >>= function
-    | WEXITED rc when rc = 0 -> on_success ()
-    | WEXITED _ | WSIGNALED _ | WSTOPPED _ -> on_failure ()
-
+(*
   let install_archive (name, content) =
     let tmp = "/tmp/ciso-" / name in
     if Sys.file_exists tmp then Sys.remove tmp;
@@ -214,16 +194,10 @@ module System = struct
     let on_failure () = err "cannot remove %s and %s" file dir in
     exec ~on_failure ~on_success comm
 
+*)
 end
 
-module JSet = struct
-  include Set.Make(struct
-      type t = Job.id
-      let compare = Id.compare
-    end)
-  let of_list = List.fold_left (fun s e -> add e s) empty
-end
-
+(*
 let archive_of_id id =
   Filename.get_temp_dir_name () / Id.to_string id  ^ ".tar.gz"
 
@@ -246,34 +220,22 @@ let snapshots t ?white_list job =
         in
         loop checksums (List.rev_append files tl)
   in
-  let sub_dirs =
-    Sys.readdir prefix
-    |> Array.to_list
-    |> (fun lst -> match white_list with
-        | Some wl -> List.filter (fun n -> List.mem n wl) lst
-        | None    -> lst)
-    |> List.rev_map (fun n -> prefix / n)
-  in
-  loop [] sub_dirs
+  if not (Sys.file_exists prefix) then []
+  else (
+    let sub_dirs =
+      Sys.readdir prefix
+      |> Array.to_list
+      |> (fun lst -> match white_list with
+          | Some wl -> List.filter (fun n -> List.mem n wl) lst
+          | None    -> lst)
+      |> List.rev_map (fun n -> prefix / n)
+    in
+    loop [] sub_dirs
+  )
 
 let opam_snapshot t job =
   let s = Job.switch job in
   Opam.read_installed (opam t s)
-
-let collect_outputs t job =
-  let is_output f =
-    List.exists
-      (fun suffix -> Filename.check_suffix f suffix)
-      [".info"; ".err"; ".out"; ".env"]
-  in
-  let prefix = prefix_of_job t job in
-  System.rec_files (prefix / "build") >>= fun files ->
-  let files = List.filter is_output files in
-  Lwt_list.map_p (fun f ->
-      let name = chop_prefix ~prefix f in
-      System.read_file f >|= fun raw ->
-      Object.file name raw
-    ) files
 
 let collect_installed t job ~before ~after =
   let module CsMap = Map.Make(String) in
@@ -350,7 +312,7 @@ let find_obj_deps t j =
 
 let prepare t job  =
   find_obj_deps t (Job.id job) >>= fun objs ->
-  Opam.switch_to (opam t Switch.system) (Job.switch job) >>= fun () ->
+  Opam.switch_to (opam t Switch.system) (Job.switch job);
   (* URGENT FIXME: installation order IS important *)
   Lwt_list.iter_p (fun oid ->
       Store.Object.get (store t) oid >>=
@@ -362,7 +324,7 @@ let default_white_list = ["lib"; "bin"; "sbin"; "doc"; "share"; "etc"; "man"]
 let process_job ?(white_list=default_white_list) t job =
   let cache = cache t in
   let id = Job.id job in
-  prepare t job >>= fun () ->
+  prepare t job >|= fun () ->
   debug "build: %s, pre-snapshot" (Id.to_string id);
   let before = snapshots t ~white_list job in
   let old_pkgs = opam_snapshot t job in
@@ -372,8 +334,8 @@ let process_job ?(white_list=default_white_list) t job =
   begin
     Lwt.catch
       (fun () ->
-         Opam.install (opam t @@ Job.switch job) pkgs >|= fun () ->
-         `Success)
+         Opam.install (opam t @@ Job.switch job) pkgs;
+         Lwt.return `Success)
       (fun exn ->
          debug "Job %s exited with: %s" (Id.to_string id) (Printexc.to_string exn);
          Lwt.return `Failure)
@@ -389,25 +351,104 @@ let process_job ?(white_list=default_white_list) t job =
   collect_installed t job ~before ~after >>= fun installed ->
   create_archive t job installed ~old_pkgs ~new_pkgs >>= fun archive ->
   System.clean_tmp "pkg_build" (archive_of_id id) >>= fun () ->
-  Opam.remove (opam t @@ Job.switch job) pkgs >>= fun () ->
+  Opam.remove (opam t @@ Job.switch job) pkgs;
   Store.with_transaction (store t) "Job complete" (fun t ->
-      let add_one o =
-        (if cache then Store.Object.add t archive else Lwt.return_unit)
-        >>= fun () ->
-        Store.Job.add_output t id (Object.id o)
+      let add_one obj =
+        Store.Object.add t obj >>= fun () ->
+        Store.Job.add_output t id (Object.id obj)
       in
-      Lwt_list.iter_p add_one (archive :: outputs) >>= fun () ->
+      let objs = if cache then archive :: outputs else outputs in
+      Lwt_list.iter_p add_one objs >>= fun () ->
       match result with
       | `Success -> Store.Job.success t id
       | `Failure -> Store.Job.success t id
     )
+*)
 
-let start = start (fun t -> function
+(* FIXME: Use Bos *)
+let opam t ?output fmt =
+  let open Rresult in
+  Fmt.kstrf (fun str ->
+      let out = match output with
+        | None   -> ""
+        | Some o -> Printf.sprintf " -vv >>%s 2>&1" o
+      in
+      (* FIXME: the OPAMROOT is not necessary but it's good to be
+         extra-carefull in that case. *)
+      let cmd = Printf.sprintf "OPAMROOT=%s opam %s%s" (opam_root t) str out in
+      let err = Sys.command cmd in
+      if err = 0 then Ok () else Error Fmt.(strf "%s: exit %d" cmd err)
+    ) fmt
+
+let add_output t job output =
+  let id = Job.id job in
+  System.read_file output >>= fun output ->
+  let obj = Object.file "output" output in
+  Store.Job.add_output (store t) id obj
+
+let default_callback t job =
+  let id = Job.id job in
+  let pkgs = Job.packages job in
+  let switch = Job.switch job in
+  let pkgs_s =
+    List.map (fun m -> Package.to_string @@ Package.pkg m) pkgs
+    |> String.concat " "
+  in
+  let o = Opam.create ~root:(opam_root t) (Some switch) in
+  Opam.switch_install o;
+  Opam.repo_clean o;
+  Opam.pin_clean o;
+  let repo_root = opam_root t / "ciso" / "jobs" / Id.to_string id in
+  let output = repo_root / "output" in
+  Lwt_list.iter_s (fun m ->
+      let p = Package.pkg m in
+      let dir = repo_root / "packages" / Package.to_string p in
+      let write (k, v) = match v with
+        | None   -> Lwt.return_unit
+        | Some v -> System.write_file (dir / k) v
+      in
+      let files =
+        List.map (fun (f, c) -> "files" / f, Some c) (Package.files m)
+      in
+      Lwt_list.iter_s write ([
+          "opam" , Some (Package.opam m);
+          "descr", Package.descr m;
+          "url"  , Package.url m;
+        ] @ files)
+    ) pkgs
+  >>= fun () ->
+  let result =
+    let open Rresult in
+    opam t "repo add ciso %s" repo_root >>= fun () ->
+    opam t "update" >>= fun () ->
+    opam t "install %s" ~output pkgs_s >>= fun () ->
+    opam t "remove %s" ~output pkgs_s
+  in
+  add_output t job output >|= fun () ->
+  let _x = opam t "remove --force %s" pkgs_s in
+  if Rresult.R.is_ok result then `Success else `Failure
+
+
+type result = [`Success | `Failure]
+type callback = t -> Job.t -> result Lwt.t
+
+let worker = worker
+
+let start ?(callback=default_callback) =
+  let callback t = function
     | `Idle
     | `Task _ -> Lwt.return_unit
     | `Job id ->
       debug "Got a new job: %s" (Id.to_string id);
-      Store.Job.get (store t) id >>= fun job ->
-      Store.Job.running (store t) id >>= fun () ->
-      process_job t job
-  )
+      let wid = Worker.id (worker t) in
+      let store = store t in
+      Store.Job.ack store id wid >>= fun () ->
+      Store.Job.get store id >>= fun job ->
+      callback t job >>= fun result ->
+      begin match result with
+        | `Success -> Store.Job.success store id
+        | `Failure -> Store.Job.failure store id
+      end >>= fun () ->
+      Store.Worker.idle store wid
+  in
+  start ~kind:`Job callback

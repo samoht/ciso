@@ -20,24 +20,40 @@ open Cmdliner
 open Lwt.Infix
 include Ciso_common
 
+let (/) = Filename.concat
+
+let tmp_dir = Filename.get_temp_dir_name ()
+
 let task =
   let doc = "Start a task worker." in
   Arg.(value & flag & info ["task"] ~doc)
 
-let with_default d f = function None -> d | Some x -> f x
+let start store opam_root = function
+  | true  -> Task_worker.start ~opam_root store >>= block
+  | false -> Job_worker.start ~opam_root store  >>= block
 
-let start { store; opam_root } = function
-  | true  -> Task_worker.start ~opam_root store ~cache:false >>= block
-  | false -> Job_worker.start ~opam_root store ~cache:false  >>= block
+let mk_opam_root x =
+  let return x = info "opam  " x; Lwt.return x in
+  let x = match x with
+    | Some r -> return r
+    | None   ->
+      config_file () >>= fun config ->
+      match config "opam-root" with
+      | None   -> return (tmp_dir / (Id.uuid `Worker |> Id.to_string))
+      | Some r -> return r
+  in
+  x
 
 let main =
-  let worker t task =
+  let worker store opam_root task =
+    info "kind  " (if task then "task" else "job");
     Lwt_main.run begin
-      t >>= fun t ->
-      start t task
+      store >>= fun store ->
+      mk_opam_root opam_root >>= fun opam_root ->
+      start store opam_root task
     end
   in
-  Term.(pure worker $ t $ task),
+  Term.(pure worker $ store $ opam_root $ task),
   Term.info ~version:Version.current ~doc:"Start a CISO worker" "ciso-worker"
 
 let () =

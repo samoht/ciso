@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0058d1ea1575eae9ce564c0095b8ae89)
+# DO NOT EDIT (digest: 4d9daf030bfef9c1bba73605200164db)
 version = "0.1.0"
 description = "distributed integration engine for opam packages"
 requires = "irmin.unix lwt uuidm fmt nocrypto uri jsont.jsonm hex"
@@ -11,7 +11,8 @@ exists_if = "ciso.cma"
 package "worker" (
  version = "0.1.0"
  description = "distributed integration engine for opam packages"
- requires = "ciso irmin.unix opam-lib.client ocamlgraph lwt"
+ requires =
+ "ciso irmin.unix opam-lib.client ocamlgraph threads cstruct.unix rresult"
  archive(byte) = "ciso-worker.cma"
  archive(byte, plugin) = "ciso-worker.cma"
  archive(native) = "ciso-worker.cmxa"

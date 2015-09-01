@@ -26,7 +26,21 @@
 type t
 (** The type for job workers. *)
 
-val start: ?tick:float -> opam_root:string -> ?cache:bool -> Store.t -> t Lwt.t
+val worker: t -> Worker.t
+(** [worker t] is [t]'s worker value. *)
+
+type result = [`Success | `Failure]
+(** The type for job results. *)
+
+type callback = t -> Job.t -> result Lwt.t
+(** The type for job workers' callback. *)
+
+val default_callback: callback
+(** [default_callback] is the function which builds the jobs using
+    opam invocations. *)
+
+val start: ?callback:callback -> ?host:Host.t -> ?tick:float ->
+  opam_root:string -> Store.t -> t Lwt.t
 (** [starts ~opam_root store] starts a job worker. *)
 
 val stop: t -> unit Lwt.t

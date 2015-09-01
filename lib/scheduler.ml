@@ -21,91 +21,131 @@ open Lwt.Infix
 let debug fmt = Gol.debug ~section:"scheduler" fmt
 let err fmt = Printf.ksprintf failwith ("Scheduler: " ^^ fmt)
 let todo f = err "TODO %s" f
+let count name =
+  let c = ref 0 in fun () -> incr c; name ^ "-" ^ string_of_int !c
+
+let some x = Some x
+let none () = None
+
+let opt ppf =
+  let none ppf () = Fmt.pf ppf "-" in
+  Fmt.(option ~none) ppf
 
 module XTask = struct
 
-  module TSet = Set.Make(Task)
+  module TMap = Map.Make(Task)
+
+  type status = [ Task.status | `Await ]
+
+  let pp_status ppf = function
+    | `Await -> Fmt.string ppf "await"
+    | #Task.status as x -> Task.pp_status ppf x
 
   type t = {
     cond: unit Lwt_condition.t;
     store: Store.t;                                            (* local store *)
-    mutable new_tasks: TSet.t;                                   (* new tasks *)
-    mutable tasks: TSet.t;          (* resolving, dispatched or pending tasks *)
-    cancels: (Task.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable tasks: status TMap.t;        (* new, dispatched and pending tasks *)
     mutable stop: unit -> unit Lwt.t;
+    mutable cancels: (unit -> unit Lwt.t) TMap.t;
   }
 
-  let list t = TSet.elements t.new_tasks
+  let list t = TMap.fold (fun t _ acc -> t :: acc) t.tasks []
+
+  let is_runnable t task = try TMap.find task t.tasks = `New with Not_found -> false
+
+  let status t task =
+    TMap.fold (fun t s -> function
+        | None -> if Task.equal t task then Some s else None
+        | x    -> x
+      ) t.tasks None
+
+  let cancel t task =
+    try
+      TMap.find task t.cancels () >|= fun () ->
+      t.cancels <- TMap.remove task t.cancels
+    with Not_found ->
+      Lwt.return_unit
 
   let remove_task t task =
     let id = Task.id task in
-    debug "remove taks %s" (Id.to_string id);
-    Hashtbl.remove t.cancels id;
-    t.new_tasks <- TSet.remove task t.new_tasks;
-    t.tasks <- TSet.remove task t.tasks
+    debug "remove taks:%a" Id.pp id;
+    cancel t task >|= fun () ->
+    t.tasks <- TMap.remove task t.tasks
 
-  let set_new t task =
-    t.new_tasks <- TSet.add task t.new_tasks;
-    Lwt_condition.broadcast t.cond ()
-
-  let set_not_new t task =
-    t.new_tasks <- TSet.remove task t.new_tasks
+  let update_status t task s =
+    let old_s = status t task in
+    if old_s <> Some s && not (old_s = Some `Await && s = `New) then (
+      debug "task:%a: %a => %a"
+        Id.pp (Task.id task) (opt pp_status ) old_s pp_status s;
+      t.tasks <- TMap.add task s t.tasks;
+      if s = `New then Lwt_condition.broadcast t.cond ()
+    )
 
   (* FIXME: need to watch the related jobs status updates to update
      the task status. *)
   let watch_task_status t task =
-    let id = Task.id task in
-    let cancel = ref (fun () -> Lwt.return_unit) in
-    Store.Task.watch_status t.store id (function
-        | `Resolving
-        | `Dispatched
-        | `Pending   -> set_not_new t task; Lwt.return_unit
-        | `New       -> set_new t task; Lwt.return_unit
-        | `Cancelled -> todo "Task.cancel"
-        | `Success
-        | `Failure   -> remove_task t task; !cancel ()
-      ) >|= fun c ->
-    assert (not (Hashtbl.mem t.cancels id));
-    Hashtbl.add t.cancels id c;
-    cancel := c
+    if TMap.mem task t.cancels then Lwt.return_unit
+    else (
+      let id = Task.id task in
+      Store.Task.watch_status t.store id (function
+          | None ->
+            remove_task t task  >>= fun () ->
+            Store.Task.forget t.store id
+          | Some (`Complete _) -> remove_task t task
+          | Some (`New | `Pending | `Dispatched _ as s) ->
+            update_status t task s;
+            Lwt.return_unit
+          | Some `Cancelled -> todo "Task.cancel"
+        ) >|= fun c ->
+      t.cancels <- TMap.add task c t.cancels
+    )
 
   let add_task t task =
-    if TSet.mem task t.tasks then Lwt.return_unit
+    if TMap.mem task t.tasks then Lwt.return_unit
     else (
       let id = Task.id task in
       Store.Task.status t.store id >>= function
-      | `Cancelled -> todo "cancelled tasks"
-      | `Success | `Failure -> Lwt.return_unit
-      | `Pending | `Resolving | `Dispatched | `New as s ->
-        debug "add task %s" (Id.to_string id);
-        if s = `New then set_new t task;
+      | None -> Store.Task.forget t.store id
+      | Some `Cancelled -> todo "cancelled tasks"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`New | `Pending | `Dispatched _ as s) ->
+        update_status t task s;
         watch_task_status t task
     )
 
   let empty store =
     let cond = Lwt_condition.create () in
     let stop () = Lwt.return_unit in
-    let cancels = Hashtbl.create 16 in
-    let new_tasks = TSet.empty in
-    let tasks = TSet.empty in
-    { cond; store; new_tasks; tasks; stop; cancels; }
+    let cancels = TMap.empty in
+    let tasks = TMap.empty in
+    { cond; store; tasks; stop; cancels; }
 
-  let peek t =
-    if TSet.cardinal t.new_tasks = 0 then None
-    else Some (TSet.choose t.new_tasks)
+  let new_tasks t =
+    TMap.fold (fun v status acc -> match status with
+        | `New -> v :: acc
+        | _    -> acc
+      ) t.tasks []
 
-  let rec peek_s t =
-    match peek t with
-    | None ->
-      debug "waiting for a new task to appear ...";
-      Lwt_condition.wait t.cond >>= fun () ->
-      debug "there's a new task!";
-      peek_s t
-    | Some ta ->
-      set_not_new t ta;
-      (* FIXME: set a timer to switch back the to new if no
-         progress? *)
-      Lwt.return ta
+  let peek t = match new_tasks t with
+    | []   -> None
+    | h::_ -> Some h
+
+  let count_task = count "task"
+
+  let peek_s t =
+    let name = count_task () in
+    let rec aux () = match peek t with
+      | None ->
+        debug "[%s] waiting for a new task ..." name;
+        Lwt_condition.wait t.cond >>= fun () ->
+        aux ()
+      | Some ta ->
+        let id = Task.id ta in
+        debug "[%s] task:%a can be started" name Id.pp id;
+        update_status t ta `Await;
+        Lwt.return ta
+    in
+    aux ()
 
   let watch_task t = Store.Task.watch t.store (add_task t)
 
@@ -113,7 +153,11 @@ module XTask = struct
     debug "starting the task scheduler";
     let t = empty store in
     Store.Task.list store >>=
-    Lwt_list.map_p (Store.Task.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Task.mem store id >>= function
+        | true  -> Store.Task.get store id >|= some
+        | false -> Store.Task.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_task t) >>= fun () ->
     watch_task t >|= fun cancel ->
     t.stop <- cancel;
@@ -122,109 +166,175 @@ module XTask = struct
   let stop t =
     debug "stopping the task scheduler";
     t.stop () >>= fun () ->
-    let cancels = Hashtbl.fold (fun _ v l -> v :: l) t.cancels [] in
+    let cancels = TMap.fold (fun _ v l -> v :: l) t.cancels [] in
     Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
 
 module XJob = struct
 
+  module JSet = Set.Make(Job)
+  module JMap = Map.Make(Job)
+
+  type status = [ Job.status | `Await ]
+
+  let pp_status ppf = function
+    | `Await -> Fmt.string ppf "await"
+    | #Job.status as x -> Job.pp_status ppf x
+
+  (* FIXME: add formard deps caching, a la TUP. *)
   type t = {
     cond  : unit Lwt_condition.t;
     store : Store.t;
-    jobs  : (Job.id, Job.t) Hashtbl.t;
-    status: (Job.id, Job.status) Hashtbl.t;
-    cancels: (Job.id, unit -> unit Lwt.t) Hashtbl.t;
+    mutable jobs: status JMap.t;
     mutable stop: unit -> unit Lwt.t;
+    mutable cancels: (unit -> unit Lwt.t) JMap.t;
+    mutable on_complete: (unit -> unit Lwt.t) JMap.t;
   }
 
-  let list t = Hashtbl.fold (fun _ v l -> v :: l) t.jobs []
+  let on_complete t j f = t.on_complete <- JMap.add j f t.on_complete
 
-  let status t j = try Hashtbl.find t.status j with Not_found -> `Pending
+  let complete t j =
+    try
+      let f = JMap.find j t.on_complete in
+      t.on_complete <- JMap.remove j t.on_complete;
+      f ()
+    with Not_found ->
+      Lwt.return_unit
 
-  let set_running t j = Hashtbl.replace t.status j `Running
+  let list t = JMap.fold (fun k _ acc -> k :: acc) t.jobs []
 
-  let runnables t host =
-    Hashtbl.fold (fun id j acc ->
-        if status t id = `Runnable && Host.equal (Job.host j) host
-        then j :: acc
-        else acc
+  let _dump ppf t =
+    Fmt.pf ppf "[%d] " (Unix.getpid ());
+    JMap.bindings t.jobs
+    |> List.iter (fun (w, s) ->
+        Fmt.pf ppf "%a:%s:%a "
+          Id.pp (Job.id w) (Host.short @@ Job.host w) pp_status s
+      )
+
+  let runnable_jobs t h =
+    JMap.fold (fun job status acc ->
+        let h' = Job.host job in
+        if not (Host.equal h' h) then acc
+        else match status with
+          | `Runnable -> job :: acc
+          | _ -> acc
       ) t.jobs []
 
-  let peek t host = match runnables t host with
+  let is_runnable t j = try JMap.find j t.jobs = `Runnable with Not_found -> false
+
+  let status t job =
+    JMap.fold (fun j s -> function
+        | None -> if Job.equal j job then Some s else None
+        | x    -> x
+      ) t.jobs None
+
+  let cancel t j =
+    try
+      JMap.find j t.cancels () >|= fun () ->
+      t.cancels <- JMap.remove j t.cancels
+    with Not_found ->
+      Lwt.return_unit
+
+  let remove_job t j reason =
+    debug "remove job:%a (%s)" Id.pp (Job.id j) reason;
+    cancel t j >|= fun () ->
+    t.jobs <- JMap.remove j t.jobs
+
+  let update_status t j s =
+    let old_s = status t j in
+    if old_s <> Some s && not (old_s = Some `Await && s = `Runnable) then (
+      debug "job:%a: %a => %a"
+        Id.pp (Job.id j) (opt pp_status) old_s pp_status s;
+      t.jobs <- JMap.add j s t.jobs;
+      if s = `Runnable then Lwt_condition.broadcast t.cond ()
+    )
+
+  let peek t host = match runnable_jobs t host with
     | []   -> None
     | h::_ -> Some h
 
-  let rec peek_s t host =
-    match peek t host with
-    | Some j -> set_running t (Job.id j); Lwt.return j
-    | None   ->
-      debug "[%s] waiting for a runnable job to appear" (Host.short host);
-      Lwt_condition.wait t.cond >>= fun () ->
-      debug "[%s] there's a new runnable job!" (Host.short host);
-      peek_s t host
+  let count_job = count "job"
+
+  let peek_s t host =
+    let name = count_job () in
+    let rec aux () = match peek t host with
+      | Some j ->
+        let id = Job.id j in
+        debug "[%s] job:%a can run on %s" name Id.pp id (Host.short host);
+        update_status t j `Await;
+        Lwt.return j
+      | None   ->
+        debug "[%s] waiting for a job on %s ..." name (Host.short host);
+        Lwt_condition.wait t.cond >>= fun () ->
+        aux ()
+    in
+    aux ()
+
+  let status_of_id t id =
+    JMap.fold (fun j status -> function
+        | None -> if Id.equal (Job.id j) id then Some status else None
+        | s    -> s
+      ) t.jobs None
 
   (* FIXME: use rev-deps to make it fast (a al TUP). *)
   let update_runnable t =
-    let jobs = Hashtbl.fold (fun k v acc -> (k, v) :: acc) t.jobs [] in
-    let broadcast = ref false in
-    List.iter (fun (id, job) ->
-        match status t id with
+    let jobs = ref [] in
+    JMap.iter (fun job -> function
         | `Pending ->
           let inputs = Job.inputs job in
-          if List.for_all (fun j -> status t j = `Success) inputs then (
-            debug "%s is now runnable" (Id.to_string id);
-            Hashtbl.replace t.status id `Runnable;
-            (* FIXME: could broadcast only to the workers with the right
-               host configuration *)
-            broadcast := true;
-          )
+          let is_success j =
+            match status_of_id t j with
+            | Some (`Complete `Success) -> true
+            | _ -> false
+          in
+          if List.for_all is_success inputs then jobs := job :: !jobs
         | _ -> ()
-      ) jobs;
-    if !broadcast then Lwt_condition.broadcast t.cond ()
-
-  let remove_job t id =
-    Hashtbl.remove t.jobs id;
-    Hashtbl.remove t.status id
-
-  let add_job_aux t job =
-    let id = Job.id job in
-    Store.Job.mem t.store id >>= function
-    | false ->
-      Store.Job.add t.store job >|= fun () ->
-      Hashtbl.add t.jobs id job;
-      Hashtbl.add t.status id `Pending
-    | true ->
-      Store.Job.status t.store id >|= fun status ->
-      Hashtbl.replace t.jobs id job;
-      Hashtbl.replace t.status id status
+      ) t.jobs;
+    Lwt_list.iter_p (fun job ->
+        Store.Job.runnable t.store (Job.id job) >|= fun () ->
+        update_status t job `Runnable
+      ) !jobs
 
   let watch_job_status t j =
-    let id = Job.id j in
-    let cancel = ref (fun () -> Lwt.return_unit) in
-    Store.Job.watch_status t.store id (function
-        | `Cancelled -> todo "job cancelled"
-        | `Running   -> set_running t id; Lwt.return_unit
-        | `Pending   (* we already watch it, so nothing to do *)
-        | `Runnable  -> Lwt.return_unit
-        | `Success
-        | `Failure   -> remove_job t id; !cancel ()
-      ) >|= fun c ->
-    assert (not (Hashtbl.mem t.cancels id));
-    Hashtbl.add t.cancels id c;
-    cancel := c
+    if JMap.mem j t.cancels then Lwt.return_unit
+    else (
+      let id = Job.id j in
+      Store.Job.watch_status t.store id (function
+          | None ->
+            remove_job t j "removed">>= fun () ->
+            Store.Job.forget t.store id
+          | Some `Cancelled -> todo "job cancelled"
+          | Some (`Pending | `Runnable | `Dispatched _  as s) ->
+            update_status t j s;
+            Lwt.return_unit
+          (* FIXME: decide if we want to keep the jobs in memory... *)
+          (* remove_job t j "complete" *)
+          | Some (`Complete `Success as s) ->
+            update_status t j s;
+            complete t j >>= fun () ->
+            update_runnable t
+          | Some (`Complete `Failure as s) ->
+            update_status t j s;
+            complete t j >>= fun () ->
+            Lwt.return_unit
+        ) >|= fun c ->
+      t.cancels <- JMap.add j c t.cancels;
+    )
 
   let add_job t job =
-    if Hashtbl.mem t.jobs (Job.id job) then Lwt.return_unit
+    if JMap.mem job t.jobs then Lwt.return_unit
     else (
-      Store.Job.status t.store (Job.id job) >>= function
-      | `Cancelled -> todo "cancelled job"
-      | `Failure | `Success -> Lwt.return_unit
-      | `Pending | `Running | `Runnable  ->
-        debug "add job %s" (Id.to_string @@ Job.id job);
-        add_job_aux t job >>= fun () ->
-        watch_job_status t job >|= fun () ->
-        update_runnable t
+      let id = Job.id job in
+      debug "add job:%a" Id.pp id;
+      Store.Job.status t.store id >>= function
+      | None -> Store.Job.forget t.store id
+      | Some `Cancelled -> todo "cancelled job"
+      | Some (`Complete _) -> Lwt.return_unit
+      | Some (`Pending | `Dispatched _ | `Runnable as s) ->
+        update_status t job s;
+        update_runnable t >>= fun () ->
+        watch_job_status t job
     )
 
   let watch_jobs t = Store.Job.watch t.store (add_job t)
@@ -232,16 +342,20 @@ module XJob = struct
   let empty store =
     let stop () = Lwt.return_unit in
     { store; stop;
-      cond    = Lwt_condition.create ();
-      jobs     = Hashtbl.create 16;
-      status   = Hashtbl.create 16;
-      cancels  = Hashtbl.create 16; }
+      cond = Lwt_condition.create ();
+      jobs = JMap.empty;
+      cancels  = JMap.empty;
+      on_complete = JMap.empty; }
 
   let start store =
     debug "starting the job scheduler.";
     let t = empty store in
     Store.Job.list store >>=
-    Lwt_list.map_p (Store.Job.get store) >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Job.mem store id >>= function
+        | true  -> Store.Job.get store id >|= some
+        | false -> Store.Job.forget store id >|= none
+      ) >>=
     Lwt_list.iter_p (add_job t) >>= fun () ->
     watch_jobs t >|= fun cancel ->
     t.stop <- cancel;
@@ -250,7 +364,7 @@ module XJob = struct
   let stop t =
     debug "stoping the job scheduler";
     t.stop () >>= fun () ->
-    let cancels = Hashtbl.fold (fun _ c acc -> c :: acc) t.cancels [] in
+    let cancels = JMap.fold (fun _ c acc -> c :: acc) t.cancels [] in
     Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
@@ -258,198 +372,327 @@ end
 module XWorker = struct
 
   module WSet = Set.Make(Worker)
+  module WMap = Map.Make(Worker)
+
+  type status = [ Worker.status | `Await ]
+
+  let pp_status ppf = function
+    | `Await -> Fmt.string ppf "await"
+    | #Worker.status as x -> Worker.pp_status ppf x
 
   type t = {
     cond   : unit Lwt_condition.t;
     store  : Store.t;
-    cancels: (Worker.id, (unit -> unit Lwt.t) list) Hashtbl.t;
+    mutable cancels: (unit -> unit Lwt.t) WMap.t;
+    mutable ticks  : (unit -> unit Lwt.t) WMap.t;
     mutable stop   : unit -> unit Lwt.t;    (* stop the main scheduler watch. *)
-    mutable workers     : WSet.t;                         (* all the workers. *)
-    mutable idle_workers: WSet.t;                            (* idle workers. *)
+    mutable workers: status WMap.t;                       (* all the workers. *)
   }
 
-  let list t = WSet.elements t.workers
+  let list t = WMap.fold (fun e _ l -> e :: l)  t.workers []
 
-  let cancels t id = try Hashtbl.find t.cancels id with Not_found -> []
-
-  let add_to_cancel t id f =
-    let cs = cancels t id in
-    Hashtbl.replace t.cancels id (f :: cs)
+  let cancel t w =
+    let aux map =
+    try
+      WMap.find w map () >|= fun () ->
+      WMap.remove w map
+    with Not_found ->
+      Lwt.return map
+    in
+    aux t.cancels >>= fun cancels ->
+    aux t.ticks   >|= fun ticks ->
+    t.cancels <- cancels;
+    t.ticks   <- ticks
 
   (* reset the job a dead worker was working on. This will trigger the
      job scheduler to distribute it to someone else. *)
-  let reset_job t id =
-    Store.Worker.status t.store id >>= function
-    | Some (`Job id)  -> Store.Job.pending t.store id
-    | Some (`Task id) -> Store.Task.reset t.store id
-    | _ -> Lwt.return_unit
+  let reset_job t = function
+    | `Job id  -> Store.Job.runnable t.store id
+    | `Task id -> Store.Task.reset t.store id
+    | `Await
+    | `Idle    -> Lwt.return_unit
 
-  let cancel_worker t id =
-    let fs = cancels t id in
-    Hashtbl.remove t.cancels id;
-    Lwt_list.iter_p (fun f -> f ()) fs
+  let status t w =
+    WMap.fold (fun w' s -> function
+        | None -> if Worker.equal w w' then Some s else None
+        | x    -> x
+      ) t.workers None
 
-  let remove_worker t id =
-    let has_id w = Id.equal id (Worker.id w) in
-    let not_ f x = not (f x) in
-    if not (WSet.exists has_id t.workers) then Lwt.return_unit
-    else (
-      debug "remove worker %s" (Id.to_string id);
-      t.workers <- WSet.filter (not_ has_id) t.workers;
-      t.idle_workers <- WSet.filter (not_ has_id) t.idle_workers;
-      cancel_worker t id >>= fun () ->
-      reset_job t id
-    )
+  let remove_worker t w =
+    let id = Worker.id w in
+    debug "remove worker:%a" Id.pp id;
+    let reset () = match status t w with
+      | None   -> Lwt.return_unit
+      | Some s -> reset_job t s
+    in
+    reset () >>= fun () ->
+    cancel t w >|= fun () ->
+    t.workers <- WMap.remove w t.workers
 
   (* watch for worker ticks, clean-up the worker state if it's dead. *)
   let watch_woker_ticks t w =
-    let id = Worker.id w in
-    let now () = Unix.time () in
-    let last_tick = ref (now ()) in
-    let is_dead = 10. in
-    Store.Worker.watch_ticks t.store id (fun _tick ->
-        last_tick := now ();
-        Lwt.return_unit
-      )
-    >|= fun cancel ->
-    add_to_cancel t id cancel;
-    let forget () =
-      debug "%s is dead!" (Id.to_string id);
-      remove_worker t id >>= fun () ->
-      Store.Worker.forget t.store id
-    in
-    let rec loop () =
-      if now () -. !last_tick > is_dead then forget ()
-      else
-        Store.Worker.mem t.store id >>= function
-        | false -> forget ()
-        | true ->
-          Lwt_unix.sleep is_dead >>= fun () ->
-          loop ()
-    in
-    Lwt.async loop
-
-  let add_idle_worker t w =
-    if not (WSet.mem w t.workers) then (
-      debug "%s is idle!" (Id.to_string @@ Worker.id w);
-      t.idle_workers <- WSet.add w t.idle_workers;
-      Lwt_condition.broadcast t.cond ()
-    )
-
-  let remove_idle_worket t w =
-    debug "%s is not idle!" (Id.to_string @@ Worker.id w);
-    t.idle_workers <- WSet.remove w t.idle_workers
-
-  let watch_worker_status t w =
-    let id = Worker.id w in
-    Store.Worker.watch_status t.store id (fun status ->
-        match status with
-        | Some `Idle     -> add_idle_worker t w; Lwt.return_unit
-        | Some (`Job _)
-        | Some (`Task _) -> remove_idle_worket t w; Lwt.return_unit
-        | None           -> remove_worker t id
-      )
-    >|= fun cancel ->
-    add_to_cancel t id cancel
-
-  let add_worker t w =
-    if WSet.mem w t.workers then Lwt.return_unit
+    if WMap.mem w t.ticks then Lwt.return_unit
     else (
       let id = Worker.id w in
-      debug "add worker %s" (Id.to_string id);
-      t.workers <- WSet.add w t.workers;
-      watch_woker_ticks t w   >>= fun () ->
-      watch_worker_status t w >>= fun () ->
-      Store.Worker.status t.store id >>= function
-      | Some `Idle -> add_idle_worker t w; Lwt.return_unit
-      | None       -> remove_worker t id
-      | _          -> Lwt.return_unit
+      let now () = Unix.time () in
+      let last_tick = ref (now ()) in
+      let is_dead = 10. in
+      Store.Worker.watch_ticks t.store id (fun _tick ->
+          last_tick := now ();
+          Lwt.return_unit
+        )
+      >|= fun cancel ->
+      t.ticks <- WMap.add w cancel t.ticks;
+      let forget () =
+        remove_worker t w >>= fun () ->
+        Store.Worker.forget t.store id
+      in
+      let rec loop () =
+        if now () -. !last_tick > is_dead then forget ()
+        else
+          Store.Worker.mem t.store id >>= function
+          | false -> forget ()
+          | true ->
+            Lwt_unix.sleep is_dead >>= fun () ->
+            loop ()
+      in
+      Lwt.async loop
     )
 
-  let watch_workers t =
-    Store.Worker.watch t.store (function
-        | `Removed id -> remove_worker t id
-        | `Added   w  -> add_worker t w
+  let _dump ppf t =
+    WMap.bindings t.workers
+    |> List.iter (fun (w, s) ->
+        Fmt.pf ppf "%a:%a " Id.pp (Worker.id w) pp_status s
       )
 
-  let peek t =
-    if WSet.cardinal t.workers = 0 then None
-    else Some (WSet.choose t.workers)
+  let update_status t w s =
+    let old_s = status t w in
+    if Some s <> old_s && not (old_s = Some `Await && s = `Idle) then (
+      debug "%a-worker:%a: %a => %a" Worker.pp_kind (Worker.kind w)
+        Id.pp (Worker.id w) (opt pp_status) old_s pp_status s;
+      t.workers <- WMap.add w s t.workers;
+      if s = `Idle then Lwt_condition.broadcast t.cond ()
+    )
 
-  let rec peek_s t =
-    match peek t with
-    | Some w -> Lwt.return w
-    | None   ->
-      debug "waiting for an idle worker ...";
+  let watch_worker_status t w =
+    if WMap.mem w t.cancels then Lwt.return_unit
+    else (
+      let id = Worker.id w in
+      Store.Worker.watch_status t.store id (function
+          | None   ->
+            remove_worker t w >>= fun () ->
+            Store.Worker.forget t.store id
+          | Some s ->
+            update_status t w (s :> status);
+            Lwt.return_unit
+        ) >|= fun cancel ->
+      t.cancels <- WMap.add w cancel t.cancels
+    )
+
+  let add_worker t w =
+    if WMap.mem w t.workers then Lwt.return_unit
+    else (
+      let id = Worker.id w in
+      Store.Worker.status t.store id >>= function
+      | None   -> Store.Worker.forget t.store id
+      | Some s ->
+        update_status t w (s :> status);
+        watch_worker_status t w >>= fun () ->
+        watch_woker_ticks t w
+    )
+
+  let remove_worker_id t id =
+    let w =
+      WMap.fold (fun w _ -> function
+          | None -> if Id.equal (Worker.id w) id then Some w else None
+          | acc  -> acc
+        ) t.workers None
+    in match w with
+    | None   -> Store.Worker.forget t.store id
+    | Some w -> remove_worker t w
+
+  let watch_workers t = Store.Worker.watch t.store (function
+      | `Added w    -> add_worker t w
+      | `Removed id -> remove_worker_id t id
+    )
+
+  let idle_workers t k =
+    WMap.fold (fun w status acc ->
+        match status with
+        | `Idle -> if Worker.kind w = k then w :: acc else acc
+        | _     -> acc
+      ) t.workers []
+
+  let is_runnable t w =
+    try WMap.find w t.workers = `Idle with Not_found -> false
+
+  let peek t k = match idle_workers t k with
+    | []   -> None
+    | h::_ -> Some h
+
+  let count_worker = count "worker"
+
+  let peek_s t k =
+    let name = count_worker () in
+    let rec aux () = match peek t k with
+      | Some w ->
+        let id = Worker.id w in
+        debug "[%s] %a-worker:%a is ready to start"
+          name Worker.pp_kind k Id.pp id;
+        update_status t w `Await;
+        Lwt.return w
+      | None   ->
+      debug "[%s] waiting for a %a-worker ..." name Worker.pp_kind k;
       Lwt_condition.wait t.cond >>= fun () ->
-      debug "there's a new idle worker!";
-      peek_s t
+      aux ()
+    in
+    aux ()
 
   let empty store =
     let cond = Lwt_condition.create () in
-    let cancels = Hashtbl.create 12 in
-    let idle_workers = WSet.empty in
-    let workers = WSet.empty in
+    let cancels = WMap.empty in
+    let ticks   = WMap.empty in
+    let workers = WMap.empty in
     let stop () = Lwt.return_unit in
-    { cond; store; cancels; idle_workers; workers; stop }
+    { cond; store; ticks; cancels; workers; stop }
 
   let start store =
     debug "starting the work scheduler";
     let t = empty store in
-    Store.Worker.list store >>=
-    Lwt_list.map_s (Store.Worker.get store) >>=
-    Lwt_list.iter_p (add_worker t) >>= fun () ->
-    watch_workers t >|= fun cancel ->
+    watch_workers t >>= fun cancel ->
     t.stop <- cancel;
+    Store.Worker.list store >>=
+    Lwt_list.filter_map_p (fun id ->
+        Store.Worker.mem store id >>= function
+        | true  -> Store.Worker.get store id >|= some
+        | false -> remove_worker_id t id >|= none
+      ) >>= fun workers ->
+    Lwt_list.iter_p (add_worker t) workers >|= fun () ->
     t
 
   let stop t =
     debug "stoping the work scheduler";
     t.stop () >>= fun () ->
-    let cancels = Hashtbl.fold (fun _ l acc -> l @ acc) t.cancels [] in
+    let cancels = WMap.fold (fun _ l acc -> l :: acc) t.cancels [] in
+    let cancels = WMap.fold (fun _ l acc -> l :: acc) t.ticks cancels in
     Lwt_list.iter_p (fun f -> f ()) cancels
 
 end
 
 let fmt s id = s ^ " " ^ Id.to_string id
 
+type t = {
+  j: XJob.t; t: XTask.t; w: XWorker.t;
+  mutable cancels: (unit -> unit);  }
+
+let job t = t.j
+let task t = t.t
+let worker t = t.w
+
+let cleanup_dead_workers t =
+  let workers = XWorker.list t.w in
+  let is_dead id =
+    let has_same_id w = Id.equal id (Worker.id w) in
+    not (List.exists has_same_id workers)
+  in
+  let tasks = XTask.list t.t in
+  let jobs = XJob.list t.j in
+  Lwt_list.iter_p (fun task ->
+      match XTask.status t.t task with
+      | Some (`Dispatched (w,_)) when is_dead w ->
+        Store.Task.reset t.t.XTask.store (Task.id task)
+      | _ -> Lwt.return_unit
+    ) tasks
+  >>= fun () ->
+  Lwt_list.iter_p (fun job ->
+      match XJob.status t.j job with
+      | Some (`Dispatched (w,_)) when is_dead w ->
+        Store.Job.runnable t.j.XJob.store (Job.id job)
+      | _ -> Lwt.return_unit
+    ) jobs
+
+let refresh_task t =
+  debug "refresh task";
+  let store = t.t.XTask.store in
+  let tasks = XTask.list t.t in
+  Lwt_list.iter_p (fun task ->
+      match XTask.status t.t task with
+      | Some `Pending ->
+        Store.Task.jobs store (Task.id task) >>= fun jobs ->
+        let status =
+          List.map (XJob.status_of_id t.j) jobs
+          |> List.map (function
+              | None        -> `Pending
+              | Some `Await -> `Runnable
+              | Some (#Job.status as s) -> s )
+          |> Job.task_status
+        in
+        if status <> `Pending then
+          Store.Task.update_status store (Task.id task) status
+        else
+          Lwt.return_unit
+      | _ -> Lwt.return_unit
+    ) tasks
+
 let start store =
   XJob.start store    >>= fun j ->
   XTask.start store   >>= fun t ->
-  XWorker.start store >|= fun w ->
-  let peek_job host = XJob.peek_s j host >|= fun j -> `Job j in
-  let peek_task () = XTask.peek_s t >|= fun t -> `Task t in
-  let schedule w =
-    let host = Worker.host w in
-    let wid = Worker.id w in
-    Lwt.pick [peek_job host; peek_task ()] >>= function
-    | `Job j  ->
-      let id = Job.id j in
-      Store.with_transaction store (fmt "starting job" id) (fun t ->
-          Store.Job.runnable t id >>= fun () ->
-          Store.Worker.start_job t wid id
-        )
-    | `Task t ->
-      let id = Task.id t in
-      Store.with_transaction store (fmt "starting task" id) (fun t ->
-          Store.Task.dispatched t id >>= fun () ->
-          Store.Worker.start_task t wid id
-        )
+  XWorker.start store >>= fun w ->
+  let scheduler = { j; t; w; cancels = (fun () -> ()); } in
+  cleanup_dead_workers scheduler >|= fun () ->
+  let peek_job host = XJob.peek_s j host in
+  let peek_task () = XTask.peek_s t in
+  let peek_worker kind = XWorker.peek_s w kind in
+  let dbg worker =
+    debug "DISPATCH: %a-worker:%a (%s) is available"
+      Worker.pp_kind (Worker.kind worker)
+      Id.pp (Worker.id worker)
+      (Host.short @@ Worker.host worker);
   in
-  let rec loop () =
-    (* FIXME: this scheduler loop is a bit wrong. We should be
-       listening for jobs available for the current workers, and then
-       dispatch. The current loop will block if there are no jobs
-       available for the given host (event if there is job for other
-       workers). *)
-    XWorker.peek_s w >>= fun w ->
-    Lwt.pick [
-      Lwt_unix.sleep 5.; (* in case the worker dies ... FIXME *)
-      schedule w
-    ] >>= fun () ->
-    loop ()
+  let rec dispatch_job () =
+    peek_worker `Job >>= fun worker ->
+    dbg worker;
+    let wid = Worker.id worker in
+    let host = Worker.host worker in
+    peek_job host >>= fun j ->
+    XJob.on_complete scheduler.j j (fun () -> refresh_task scheduler);
+    let id = Job.id j in
+    Store.with_transaction store (fmt "starting job" id) (fun t ->
+        debug "DISPATCH: job:%a to worker:%a" Id.pp id Id.pp wid;
+        Store.Job.dispatch_to t id wid >>= fun () ->
+        Store.Worker.start_job t wid id
+      ) >>= fun () ->
+    dispatch_job ()
   in
-  Lwt.async loop
+  let rec dispatch_task () =
+    peek_worker `Task >>= fun worker ->
+    dbg worker;
+    let wid = Worker.id worker in
+    peek_task () >>= fun t ->
+    let id = Task.id t in
+    Store.with_transaction store (fmt "starting task" id) (fun t ->
+        debug "DISPATCH: task:%a to worker:%a" Id.pp id Id.pp wid;
+        Store.Task.dispatch_to t id wid >>= fun () ->
+        Store.Worker.start_task t wid id
+      ) >>= fun () ->
+    dispatch_task ()
+  in
+  let loop =
+    Lwt.catch
+      (fun () -> Lwt.join [dispatch_job (); dispatch_task ()])
+      (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+  in
+  scheduler.cancels <- (fun () -> Lwt.cancel loop);
+  Lwt.async (fun () -> loop);
+  scheduler
+
+let stop t =
+  t.cancels ();
+  Lwt.join [
+    XJob.stop t.j;
+    XWorker.stop t.w;
+    XTask.stop t.t;
+  ]
 
 module type S = sig
   type t
@@ -457,8 +700,7 @@ module type S = sig
   val start: Store.t -> t Lwt.t
   val stop: t -> unit Lwt.t
   val list: t -> value list
-  val peek: t -> value option
-  val peek_s: t -> value Lwt.t
+  val is_runnable: t -> value -> bool
 end
 
 module Job = XJob

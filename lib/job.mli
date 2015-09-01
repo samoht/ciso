@@ -38,9 +38,7 @@ type id = [`Job] Id.t
 type t
 (** The type for job values. *)
 
-val create:
-  ?inputs:id list ->
-  Host.t -> Switch.t -> (Package.t * Package.info) list -> t
+val create: ?inputs:id list -> Host.t -> Switch.t -> Package.meta list -> t
 (** [create h c pkgs] is the job of building the list of packages
     [pkgs] using the OCaml compiler switch [c] on a worker having [h]
     as host configuration.
@@ -61,8 +59,9 @@ val host: t -> Host.t
 val inputs: t -> id list
 (** [input t] are [t]'s job inputs. *)
 
-val packages: t -> (Package.t * Package.info) list
-(** [packages t] are the packages that [t] has to build. *)
+val packages: t -> Package.meta list
+(** [packages t] are the package metadata that [t] needs to know
+    about. *)
 
 val equal: t -> t -> bool
 (** [equal] is the job equality. *)
@@ -81,9 +80,8 @@ val pp: t Fmt.t
 type status = [
   | `Pending
   | `Runnable
-  | `Running
-  | `Success
-  | `Failure
+  | `Dispatched of [`Worker] Id.t * [`Pending | `Started]
+  | `Complete of [`Success | `Failure]
   | `Cancelled
 ]
 (** The type for job status. *)

@@ -20,18 +20,20 @@ type 'a t = string
 
 let compare x y = String.compare x y
 let equal x y = compare x y = 0
-let pp = Fmt.string
 let json = Jsont.string
 let of_string _ x = x
 let to_string x = x
+let pp = Format.pp_print_string
 
-let digest _kind str =
+let digest_cstruct _kind buf =
   let `Hex h =
-    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest (Cstruct.of_string str))
+    Hex.of_cstruct (Nocrypto.Hash.SHA1.digest buf)
   in
   h
 
-let of_uuid _kind =
+let digest kind str = digest_cstruct kind (Cstruct.of_string str)
+
+let uuid _kind =
   let `Hex h =
     Hex.of_string (Uuidm.to_bytes (Uuidm.create `V4))
   in

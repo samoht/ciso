@@ -29,6 +29,7 @@ depends: [
   "jsont"
   "opam-lib"
   "ocamlgraph"
+  "rresult"
   "js_of_ocaml" # needed because of https://github.com/dbuenzli/jsont/issues/3
 #  "cmdliner"
 ]

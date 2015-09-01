@@ -21,14 +21,14 @@
 type t
 (** The type for OPAM state. *)
 
-val create: root:string -> Switch.t -> t
-(** [create ~root s] create an OPAM state using [root] as OPAM's root
-    and [s] as the current switch. *)
+val create: root:string -> Switch.t option -> t
+(** [create ~root s h] create an OPAM state using [root] as OPAM's
+    root and [s] as the current switch. *)
 
-val jobs: t -> Task.t -> Job.t list
+val jobs: t -> Task.t -> (Job.t -> unit) -> unit
 (** [jobs p] are the jobs needed to execute the plan [p]. *)
 
-val atomic_jobs: t -> Task.t -> Job.t list
+val atomic_jobs: t -> Task.t -> (Job.t -> unit) -> unit
 (** [atomic_jobs t] is similar to {!jobs} but it builds jobs with only
     one package to install. *)
 
@@ -46,23 +46,42 @@ val write_pinned: t -> Task.pin list -> unit
 (** [write_pinned t pkgs] update [t]'s metadata so that the packages
     [pkgs] are pinned. *)
 
+(** {1 OPAM queries} *)
+
+val rev_deps: t -> Package.t list -> Package.t list
+(** [rev_deps t pkgs] is the list of direct reverse dependencies of
+    the packages [pkgs]. Similar to {i opam list --depends-on
+    [pkgs]}. *)
+
 (** {1 OPAM commands} *)
 
-val install: t -> Package.t list -> unit Lwt.t
+val install: t -> Package.t list -> unit
 (** [install t pkgs] is {i opam install [pkgs]}. *)
 
-val remove: t -> Package.t list -> unit Lwt.t
+val remove: t -> Package.t list -> unit
 (** [remove t pkgs] is {i opam remove [pkgs]}. *)
 
-val switch_to: t -> Switch.t -> unit Lwt.t
-(** [switch_to t s] is {i opam switch [s]}. *)
+val switch_install: t -> unit
+(** [switch_install t] is {i opam switch install [t.switch]}. *)
 
-val update: t -> unit Lwt.t
+val update: t -> unit
 (** [update t] is {i opam update}. *)
+
+val eval_opam_config_env: t -> unit
+(** [eval_opam_config_env t] is {i eval `opam config env`}. *)
+
+val repo_clean: t -> unit
+(** [repo_clean t] removes all the repositories. *)
+
+val repo_add: t -> Task.repo list -> unit
+(** [repo_add t r] is {i opam repo add r}. *)
+
+val pin_clean: t -> unit
+(** [pin_clean] removes all the pinned packages. *)
+
+val pin_add: t -> Task.pin list -> unit
+(** [repo_add t p] is {i opam pin add p}. *)
 
 (* FIXME: review the doc *)
 
 val get_var: t -> string -> string
-val clean_repos: t -> unit
-val add_repos: t -> Task.repo list -> unit Lwt.t
-val add_pins: t -> Task.pin list -> unit Lwt.t

@@ -26,22 +26,83 @@ let package_c: Package.t Arg.converter =
   let print ppf t = Package.pp ppf t in
   parse, print
 
+let repo_c: Task.repo Arg.converter =
+  let parse str =
+    let name = String.sub (Id.digest `Repo str |> Id.to_string) 0 8 in
+    `Ok (name, Uri.of_string str)
+  in
+  parse, Task.pp_repo
+
+let pin_c: Task.pin Arg.converter =
+  let parse str =
+    let r = match Stringext.cut str ~on:":" with
+      | Some (n, r) -> n, Some (Uri.of_string r)
+      | None        -> str, None
+    in `Ok r
+  in
+  parse, Task.pp_pin
+
+let rev_deps_c: Task.rev_deps Arg.converter =
+  let parse str =
+    let r = match Stringext.split str ~on:',' with
+      | []    -> `None
+      | ["*"] -> `All
+      | l     -> `Packages (List.map Package.of_string l)
+    in `Ok r
+  in
+  parse, Task.pp_rev_deps
+
 let packages =
   let doc = "The package to install" in
   Arg.(value & pos_all package_c [] & info [] ~docv:"PKGS" ~doc)
 
+let rev_deps =
+  let doc =
+    "Disabled by default, use '*' to test every dependent packages allowed by \
+     the constraints. If you want to test only specific dependent packages, \
+     they may be provided in a comma-separated list."
+  in
+  Arg.(value & opt rev_deps_c `None & info ["rev-deps"] ~doc)
+
+let base_repo =
+  let doc = "Specify the repository to Initialize OPAM with." in
+  Arg.(value & opt repo_c Task.default_repo & info ["base-repo"] ~doc)
+
+let extra_repos =
+  let doc =
+    "In addition to changing the initial base repositories (see \
+     $(i, --base-repo)) additional OPAM repositories can be layered on top of \
+     the base repository and be used to build the OPAM universe that will be \
+     loaded by the solver."
+  in
+  Arg.(value & opt (list repo_c) [] & info ["repos"] ~docv:"REPOS" ~doc)
+
+let pins =
+  let doc = "Specify pinned packages." in
+  Arg.(value & opt (list pin_c) [] & info ["pins"] ~docv:"PKGS" ~doc)
+
+let to_option = function
+  | [] -> None
+  | l  -> Some l
+
 let main =
-  let master t packages =
+  let master store packages base_repo extra_repos pins rev_deps =
+    if rev_deps <> `None then
+      info "rev-deps" Fmt.(to_to_string Task.pp_rev_deps rev_deps);
     if packages = [] then ()
     else
-      let task = Task.create packages in
+      let repos = base_repo :: extra_repos in
+      let pins = to_option pins in
+      let task = Task.create ~rev_deps ?pins ~repos packages in
       Lwt_main.run begin
-        t >>= fun { store; _ } ->
+        store >>= fun store ->
         Store.Task.add store task
       end
   in
-  Term.(pure master $ t $ packages),
+  Term.(pure master $ store $ packages $ base_repo $ extra_repos $ pins $ rev_deps),
   Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
 
 let () =
-  match Term.eval main with `Error _ -> exit 1 | _ -> exit 0
+  match Term.eval main with
+  | `Error _ -> exit 1
+  | `Ok () | `Version | `Help -> ()

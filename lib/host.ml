@@ -1,10 +1,28 @@
 (*
+ * Copyright (c) 2013-2015 David Sheets <sheets@alum.mit.edu>
+ * Copyright (c)      2015 Qi Li <liqi0425@gmail.com>
+ * Copyright (c)      2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+let verbose = ref false
+
+(*
   From opam-depext:
    - https://github.com/ocaml/opam-depext
    - tip: fc183489fb9ee2265b6d969fcab846d38bceb937
 *)
-
-let debug = ref false
 
 let lines_of_channel ic =
   let rec aux acc =
@@ -16,7 +34,7 @@ let lines_of_channel ic =
   List.rev (aux [])
 
 let lines_of_command c =
-  if !debug then Printf.eprintf "+ %s\n%!" c;
+  if not !verbose then Printf.eprintf "+ %s\n%!" c;
   let ic = Unix.open_process_in c in
   let lines = lines_of_channel ic in
   close_in ic;
@@ -122,7 +140,7 @@ let arch_of_string = function
   | "x86" -> `Ok `X86
   | "armv7" -> `Ok `Arm7
   | "ppc" -> `Ok `PPC
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 type os = [
   | `Darwin
@@ -159,7 +177,7 @@ let os_of_string = function
   | "dragonfly" -> `Ok `DragonFly
   | "win32" -> `Ok `Win32
   | "cygwin" -> `Ok `Cygwin
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 type distr = [
   | `Homebrew
@@ -196,24 +214,32 @@ let distr_of_string = function
   | "mageia" -> `Ok `Mageia
   | "archlinux" -> `Ok `Archlinux
   | "gentoo" -> `Ok `Gentoo
-  | s -> `Ok (`Other (String.lowercase s))
+  | s -> `Ok (`Other s)
 
 (* end of copy-pate *)
 
+type id = [`Host] Id.t
+
 type t = {
+  id: id;
   arch: arch;
   os: os;
   distr: distr option;
 }
 
-let short t =
-  Printf.sprintf "%s:%s:%s"
-    (string_of_arch t.arch) (string_of_os t.os)
-    (match t.distr with None -> "-" | Some d -> string_of_distr d)
+let id t = t.id
 
+let short_aux arch os distr =
+  Printf.sprintf "%s:%s:%s"
+    (string_of_arch arch) (string_of_os os)
+    (match distr with None -> "-" | Some d -> string_of_distr d)
+
+let short t = short_aux t.arch t.os t.distr
 let os t = t.os
 
-let create arch os distr = { arch; os; distr }
+let create arch os distr =
+  let id = Id.digest `Host (short_aux arch os distr) in
+  { id; arch; os; distr }
 
 let detect () =
   let os = guess_os () in
@@ -224,14 +250,14 @@ let pp_os ppf x = Fmt.string ppf (string_of_os x)
 let pp_distr ppf x = Fmt.string ppf (string_of_distr x)
 
 let pp ppf t =
-  Fmt.pf ppf
-    "@[<v>\
-     arch:  %a@;\
-     os:    %a@;\
-     distr: %a@]"
-    pp_arch t.arch
-    pp_os t.os
-    (Fmt.option pp_distr) t.distr
+  let mk pp x = [Fmt.to_to_string pp x] in
+  let block = [
+    "id:  ", mk Id.pp t.id;
+    "arch ", mk pp_arch t.arch;
+    "os:  ", mk pp_os t.os;
+    "distr", match t.distr with None -> [] | Some d -> mk pp_distr d;
+  ] in
+  Gol.show_block ppf block
 
 let json_arch = Jsont.view (arch_of_string, string_of_arch) Jsont.string
 let json_os = Jsont.view (os_of_string, string_of_os) Jsont.string
@@ -245,7 +271,7 @@ let json =
   let c = Jsont.obj ~seal:true o in
   let dec o =
     let get f = Jsont.get f o in
-    `Ok { arch = get arch; os = get os; distr = get distr; }
+    `Ok (create (get arch) (get os) (get distr))
   in
   let enc t =
     Jsont.(new_obj c [memv arch t.arch; memv os t.os; memv distr t.distr])
@@ -256,21 +282,9 @@ let json =
 let defaults =
   List.map (fun (a, o, s) -> create a o s)
     [
-      (`X86, `Linux , Some `Ubuntu);
-      (`X86, `Linux , Some `Debian);
-      (`X86, `Darwin, Some `Homebrew);
+      (`X86_64, `Linux , Some `Ubuntu);
+      (`X86_64, `Darwin, Some `Homebrew);
     ]
 
-let equal_other x y = match x, y with
-  | `Other x, `Other y -> String.(compare (lowercase x) (lowercase y)) = 0
-  | x, y -> x = y
-
-let equal_option eq x y = match x, y with
-  | None  , None   -> true
-  | Some x, Some y -> eq x y
-  | _ -> false
-
-let equal x y =
-  equal_other x.arch y.arch
-  && equal_other x.os y.os
-  && equal_option equal_other x.distr y.distr
+let equal x y = Id.equal x.id y.id
+let compare x y = Id.compare x.id y.id

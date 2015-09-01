@@ -18,33 +18,47 @@
 
 type id = [`Worker] Id.t
 
-type t = { id: id; host: Host.t; }
+type kind = [`Job|`Task]
+
+type t = { id: id; kind: [`Job|`Task]; host: Host.t; }
 
 let equal x y = Id.equal x.id y.id
 let compare x y = Id.compare x.id y.id
 
+let pp_kind =
+  let str = function `Job -> "job" | `Task -> "task" in
+  Fmt.of_to_string str
+
 let pp ppf t =
-  Fmt.pf ppf
-    "@[<v>\
-     id:   %a@;\
-     host: %a@]"
-    Id.pp t.id Host.pp t.host
+  let mk pp x = [Fmt.to_to_string pp x] in
+  let block = [
+    "id    ", mk Id.pp t.id;
+    "kind  ", mk pp_kind t.kind;
+    "host  ", [Host.short t.host];
+  ] in
+  Gol.show_block ppf block
 
 let json =
   let o = Jsont.objc ~kind:"worker" () in
   let id = Jsont.(mem o "id" Id.json) in
   let host = Jsont.(mem o "host" Host.json) in
+  let kind = Jsont.(mem o "kind" @@ enum ["job",`Job; "task",`Task]) in
   let c = Jsont.obj ~seal:true o in
-  let dec o = `Ok { id = Jsont.get id o; host = Jsont.get host o } in
-  let enc t = Jsont.(new_obj c [memv id t.id; memv host t.host]) in
+  let dec o =
+    let get x = Jsont.get x o in
+    `Ok { kind = get kind; id = get id; host = get host } in
+  let enc t =
+    Jsont.(new_obj c [memv id t.id; memv kind t.kind; memv host t.host])
+  in
   Jsont.view (dec, enc) c
 
-let create host =
-  let id = Id.of_uuid `Worker in
-  { id; host }
+let create kind host =
+  let id = Id.uuid `Worker in
+  { id; kind; host }
 
 let id t = t.id
 let host t = t.host
+let kind t = t.kind
 
 type status = [
   | `Idle
@@ -57,11 +71,19 @@ let pp_status ppf = function
   | `Job j  -> Fmt.pf ppf "job %a" Id.pp j
   | `Task t -> Fmt.pf ppf "task %a" Id.pp t
 
+let status = [`Idle; `Job; `Task]
+
+let to_string = function
+  | `Idle -> "idle"
+  | `Job  -> "job"
+  | `Task -> "task"
+
+let status_enum =
+  Jsont.enum ~default:`Idle @@ List.map (fun s -> to_string s, s) status
+
 let json_status =
   let o = Jsont.objc ~kind:"worker-status" () in
-  let status =
-    Jsont.(mem o "status" @@ enum ["idle", `Idle; "job", `Job; "task", `Task])
-  in
+  let status = Jsont.(mem o "status" @@ status_enum) in
   let id = Jsont.(mem_opt o "id" string) in
   let c = Jsont.obj ~seal:true o in
   let dec o =

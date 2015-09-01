@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: daa5dbb2ac59891a4d53f3a16a21bf7d) *)
+(* DO NOT EDIT (digest: ef27c15d7c1093badda1f041c525bd23) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -617,7 +617,7 @@ let package_default =
      flags = [];
      includes =
        [
-          ("lib_test", ["lib"]);
+          ("lib_test", ["lib"; "lib/worker"]);
           ("lib/worker", ["lib"]);
           ("lib/github", ["lib"; "lib/worker"]);
           ("bin", ["lib"; "lib/worker"])
@@ -632,7 +632,10 @@ let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 # 633 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
-(* Ocamlbuild_plugin.mark_tag_used "tests";; *)
+(*
+Ocamlbuild_plugin.mark_tag_used "tests";;
+Ocamlbuild_plugin.mark_tag_used "pkg_github.unix";;
+*)
 let () =
   flag ["ocaml"; "doc"] (A"-colorize-code");
   flag ["ocaml"; "doc"] (A"-short-functors");

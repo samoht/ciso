@@ -44,6 +44,12 @@ val with_transaction:
     exponential back-off. Raise [Invalid_argument] if the transaction
     is still not successful after all the retries. *)
 
+val cancel_all_watches: t -> unit Lwt.t
+(** [cancel_all_watches t] cancel all the watches set-up on [t]. *)
+
+val nb_watches: t -> int
+(** [nb_watches t] is the number of watches set on [t]. *)
+
 (** The signature for objects kept in the store. *)
 module type S = sig
 
@@ -67,15 +73,15 @@ module type S = sig
   val list: t -> id list Lwt.t
   (** [list t] is the list of all the values stored in [t]. *)
 
+  val forget: t -> id -> unit Lwt.t
+  (** [forget t id] removes all metadata about the value. *)
+
 end
 
 (** Persisting state for workers. *)
 module Worker: sig
 
   include S with type id := Worker.id and type value := Worker.t
-
-  val forget: t -> Worker.id -> unit Lwt.t
-  (** [forget t] removes all metadata about the worker. *)
 
   val tick: t -> Worker.id -> float -> unit Lwt.t
   (** [tick t w f] updates the worker [w]'s status with the timestamp
@@ -123,19 +129,26 @@ module Task: sig
   (** [refresh_status t id] refreshes [id]'s status by looking at the
       status of its jobs. See {!Job.task_status}. *)
 
+  val update_status: t -> Task.id -> Task.status -> unit Lwt.t
+  (** [update_status t id s] set [id]'s status to [s]. *)
+
   val reset: t -> Task.id -> unit Lwt.t
   (** [reset t task] resets the status of [t] to be [`New]. *)
 
-  val dispatched: t -> Task.id -> unit Lwt.t
-  (** [dispatched t id] signals that [id] has been dispatched to a
-      worker to be resolved. *)
+  val dispatch_to: t -> Task.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [dispatch_to t id w] dispatches the task [id] to the worker
+      [w]. Set [id]'s state to be [`Dispatched (w, `Pending)]. *)
 
-  val resolving: t -> Task.id -> unit Lwt.t
-  (** [resolving t id] signals that [id] is being resolved into jobs
-      by a worker. *)
+  val ack: t -> Task.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [ack t id w] is the acknoledgement of [w] that it is starting to
+      work on [id]. Set [id]'s state to be [`Dispatched (w,
+      `Started)]. *)
 
-  val status: t -> Task.id -> Task.status Lwt.t
+  val status: t -> Task.id -> Task.status option Lwt.t
   (** [status t task] is [task]'s status in [t]. *)
+
+  val add_job: t -> Task.id -> Job.id -> unit Lwt.t
+  (** [add_job t id j] add the job [j] to [id]. *)
 
   val jobs: t -> Task.id -> Job.id list Lwt.t
   (** [jobs t task] are [task]'s jobs in [t]. *)
@@ -143,7 +156,7 @@ module Task: sig
   val watch: t -> Task.t callback -> cancel Lwt.t
   (** [watch t f] calls [f] on every task added in the store. *)
 
-  val watch_status: t -> Task.id -> Task.status callback -> cancel Lwt.t
+  val watch_status: t -> Task.id -> Task.status option callback -> cancel Lwt.t
   (** [watch_status t ta f] calls [f] everytime [ta]'s status is
       updated. *)
 
@@ -154,7 +167,7 @@ module Job: sig
 
   include S with type id := Job.id and type value := Job.t
 
-  val status: t -> Job.id -> Job.status Lwt.t
+  val status: t -> Job.id -> Job.status option Lwt.t
   (** [status t job] is [job]'s status in [t]. *)
 
   val pending: t -> Job.id -> unit Lwt.t
@@ -163,8 +176,13 @@ module Job: sig
   val runnable: t -> Job.id -> unit Lwt.t
   (** [runnable t j] set [j]'s status to [`Runnable]. *)
 
-  val running: t -> Job.id -> unit Lwt.t
-  (** [runnning t j] sets [j]'s status to [`Running]. *)
+  val dispatch_to: t -> Job.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [dispatch_to t j w] sets [j]'s status to [`Dispatched (w,
+      `Pending)]`. *)
+
+  val ack: t -> Job.id -> [`Worker] Id.t -> unit Lwt.t
+  (** [start t j w] sets [j]'s status to [`Dispatched (w,
+      `Started)]. *)
 
   val success: t -> Job.id -> unit Lwt.t
   (** [success t j] sets [j]'s status to [`Success]. *)
@@ -172,9 +190,9 @@ module Job: sig
   val failure: t -> Job.id -> unit Lwt.t
   (** [failure t j] set [j]'s status to [`Failure]. *)
 
-  val add_output: t -> Job.id -> Object.id -> unit Lwt.t
-  (** [add_output t j o] adds [o] to the list of objects created by
-      the job [j]. *)
+  val add_output: t -> Job.id -> Object.t -> unit Lwt.t
+  (** [add_output t j o] adds [o] to the object store and to the list
+      of objects created by the job [j]. *)
 
   val outputs: t -> Job.id -> Object.id list Lwt.t
   (** [outputs t job] are [job]'s output objects. *)
@@ -182,7 +200,7 @@ module Job: sig
   val watch: t -> Job.t callback -> cancel Lwt.t
   (** [watch t f] calls [f] on every job added in the store. *)
 
-  val watch_status: t -> Job.id -> Job.status callback -> cancel Lwt.t
+  val watch_status: t -> Job.id -> Job.status option callback -> cancel Lwt.t
   (** [watch_status t j f] calls [f] everytime [j]'s status is
       updated. *)
 

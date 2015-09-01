@@ -27,13 +27,16 @@
 type 'a t
 (** The type for deterministic or random dentifiers. *)
 
-val of_uuid: 'a -> 'a t
+val uuid: 'a -> 'a t
 (** [uuid k] is a a 128 bits universally unique identifiers (UUID)
     version 4 (random based) according to
     {{:http://tools.ietf.org/html/rfc4122}RFC 4122}. *)
 
 val digest: 'a -> string -> 'a t
 (** [digest k s] is [s]'s SHA1 digest. *)
+
+val digest_cstruct: 'a -> Cstruct.t -> 'a t
+(** [digest_cstruct k s] is [s]'s SHA1 digest. *)
 
 val compare: 'a t -> 'a t -> int
 (** [compare] is the comparison for identifiers. *)
