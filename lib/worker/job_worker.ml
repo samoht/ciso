@@ -386,21 +386,13 @@ let add_output t job output =
   let obj = Object.file "output" output in
   Store.Job.add_output (store t) id obj
 
-let process_job t job =
+let default_callback t job =
   let id = Job.id job in
   let pkgs = Job.packages job in
   let switch = Job.switch job in
   let pkgs_s =
     List.map (fun m -> Package.to_string @@ Package.pkg m) pkgs
     |> String.concat " "
-  in
-  let complete result =
-    let s = store t in
-    begin match result with
-      | `Success -> Store.Job.success s id
-      | `Failure -> Store.Job.failure s id
-    end >>= fun () ->
-    Store.Worker.idle s (Worker.id @@ worker t)
   in
   let o = Opam.create ~root:(opam_root t) (Some switch) in
   Opam.switch_install o;
@@ -432,19 +424,31 @@ let process_job t job =
     opam t "install %s" ~output pkgs_s >>= fun () ->
     opam t "remove %s" ~output pkgs_s
   in
-  add_output t job output >>= fun () ->
-  let r = if Rresult.R.is_ok result then `Success else `Failure in
-  complete r >|= fun () ->
+  add_output t job output >|= fun () ->
   let _x = opam t "remove --force %s" pkgs_s in
-  ()
+  if Rresult.R.is_ok result then `Success else `Failure
 
-let start = start ~kind:`Job (fun t -> function
+
+type result = [`Success | `Failure]
+type callback = t -> Job.t -> result Lwt.t
+
+let worker = worker
+
+let start ?(callback=default_callback) =
+  let callback t = function
     | `Idle
     | `Task _ -> Lwt.return_unit
     | `Job id ->
       debug "Got a new job: %s" (Id.to_string id);
       let wid = Worker.id (worker t) in
-      Store.Job.ack (store t) id wid >>= fun () ->
-      Store.Job.get (store t) id >>= fun job ->
-      process_job t job
-  )
+      let store = store t in
+      Store.Job.ack store id wid >>= fun () ->
+      Store.Job.get store id >>= fun job ->
+      callback t job >>= fun result ->
+      begin match result with
+        | `Success -> Store.Job.success store id
+        | `Failure -> Store.Job.failure store id
+      end >>= fun () ->
+      Store.Worker.idle store wid
+  in
+  start ~kind:`Job callback

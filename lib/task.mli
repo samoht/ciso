@@ -44,12 +44,21 @@ type repo = string * Uri.t
 val pp_repo: repo Fmt.t
 (** [pp_repository] formats a repository. *)
 
+val default_repo: repo
+(** [default_repo] is {i https://github.com/ocaml/opam-repository.git}. *)
+
 type pin = string * Uri.t option
 (** The type for pinned packages. The first argument is a package
     name, the second one its pin target. It is either a version
     string, or a Git repository. The target is similar to what would
     be passed to {i opam pin add <name> <target>}. If the target is
     not specified, it means {i --dev}. *)
+
+type rev_deps = [`All | `None | `Packages of Package.t list ]
+(** The type for specifying reverse dependencies. *)
+
+val pp_rev_deps: rev_deps Fmt.t
+(** [pp_rev_deps] formats reverse dependencies. *)
 
 val pp_pin: pin Fmt.t
 (** [pp_pin] formats a pin package. *)
@@ -79,13 +88,18 @@ val repos: t -> repo list
 val pins: t -> pin list
 (** [pins t] are [t]'s pinned packages. *)
 
-val rev_deps: t -> bool
+val rev_deps: t -> rev_deps
 (** [rev_deps t] is true if [t] has to test reverse dependencies. *)
+
+val date: t -> float
+(** [date t] is [t]'s date of creation. The date is number of seconds
+    since 12:00 midnight January 1, 1970, UTC without accounting for
+    leap seconds with an optional timezone info. *)
 
 val create:
   ?repos:repo list -> ?pins:pin list ->
   ?switches:Switch.t list -> ?hosts:Host.t list ->
-  ?rev_deps:bool ->
+  ?rev_deps:rev_deps ->
   Package.t list -> t
 (** [create pkgs] is the task of building the packages [pkgs] on all
     possible compiler switches and on all possible host
@@ -103,7 +117,8 @@ val create:
     {- [hosts] restricts the list of host configurations to test to only
        the ones appearing in the list. An empty list means all the
        {{!Host.defaults}supported} hosts.}
-    {- [rev_deps] test the reverse dependencies.}
+    {- [rev_deps] specifies the reverse dependencies to test (default
+       is [`None]).}
     }
 *)
 

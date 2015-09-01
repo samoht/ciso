@@ -73,11 +73,12 @@ let packages t = t.packages
 
 let digest buf = Cstruct.to_string (Nocrypto.Hash.SHA1.digest buf)
 
-let hash ~host ~switch ~packages =
+let hash ~host ~inputs ~switch ~packages =
   let x l = String.concat "+" (List.sort String.compare l) in
   let y   = String.concat "-" in
   let switches = [Fmt.to_to_string Switch.pp switch] in
   let hosts = [Fmt.to_to_string Host.pp host] in
+  let inputs = List.map Id.to_string inputs in
   let packages =
     List.map (fun m ->
         let p = Package.to_string (Package.pkg m) in
@@ -91,11 +92,11 @@ let hash ~host ~switch ~packages =
         y (p :: mk Package.opam :: mko Package.url @ files)
       ) packages
   in
-  let str = y [x switches; x hosts; x packages] in
+  let str = y [x switches; x hosts; x packages; x inputs] in
   Id.digest `Job str
 
 let create ?(inputs=[]) host switch packages =
-  let id = hash ~host ~switch ~packages in
+  let id = hash ~host ~inputs ~switch ~packages in
   { id; inputs; switch; host; packages; }
 
 type core = [ `Pending | `Runnable | `Cancelled ]

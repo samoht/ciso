@@ -44,6 +44,12 @@ val with_transaction:
     exponential back-off. Raise [Invalid_argument] if the transaction
     is still not successful after all the retries. *)
 
+val cancel_all_watches: t -> unit Lwt.t
+(** [cancel_all_watches t] cancel all the watches set-up on [t]. *)
+
+val nb_watches: t -> int
+(** [nb_watches t] is the number of watches set on [t]. *)
+
 (** The signature for objects kept in the store. *)
 module type S = sig
 
@@ -123,6 +129,9 @@ module Task: sig
   (** [refresh_status t id] refreshes [id]'s status by looking at the
       status of its jobs. See {!Job.task_status}. *)
 
+  val update_status: t -> Task.id -> Task.status -> unit Lwt.t
+  (** [update_status t id s] set [id]'s status to [s]. *)
+
   val reset: t -> Task.id -> unit Lwt.t
   (** [reset t task] resets the status of [t] to be [`New]. *)
 
@@ -138,8 +147,8 @@ module Task: sig
   val status: t -> Task.id -> Task.status option Lwt.t
   (** [status t task] is [task]'s status in [t]. *)
 
-  val add_jobs: t -> Task.id -> Job.id list -> unit Lwt.t
-  (** [add_jobs t id js] add the jobs [js] to [id]. *)
+  val add_job: t -> Task.id -> Job.id -> unit Lwt.t
+  (** [add_job t id j] add the job [j] to [id]. *)
 
   val jobs: t -> Task.id -> Job.id list Lwt.t
   (** [jobs t task] are [task]'s jobs in [t]. *)

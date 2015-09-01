@@ -224,7 +224,7 @@ let rev_deps t pkgs =
   in
   List.map package_of_opam pkgs
 
-let plans t task =
+let plans t task f =
   (* FIXME: we don't really need to resolve the packages on the
      current switch. However it is currently not possibe to tweak the
      solver API to parametrize the environment in which the variables
@@ -235,23 +235,30 @@ let plans t task =
     if i <> 0 then failwith "error while switching";
     resolve_packages { t with switch } pkgs
   in
-  let resolve acc pkgs =
+  let resolve pkgs =
     let h = Host.detect () in
-    if not (List.mem h (Task.hosts task)) then acc
-    else
+    if not (List.mem h (Task.hosts task)) then (
+      debug "Task:%a do not need to be resolved on host %a."
+        Id.pp (Task.id task) Host.pp h;
+      ()
+    ) else
       let switches = Task.switches task in
-      List.fold_left (fun acc s ->
+      List.iter (fun s ->
           match resolve_switch s pkgs with
-          | None   -> acc
-          | Some g -> { g; h; s } :: acc
-        ) acc switches
+          | None   ->
+            (* FIXME: log the conflict properly *)
+            ()
+          | Some g -> f { g; h; s }
+        ) switches
   in
   let rev_deps pkgs =
-    if not (Task.rev_deps task) then []
-    else List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+    match Task.rev_deps task with
+    | `None          -> []
+    | `All           -> List.map (fun d -> d :: pkgs) (rev_deps t pkgs)
+    | `Packages deps -> List.map (fun d -> d :: pkgs) deps
   in
   let pkgs = Task.packages task in
-  List.fold_left resolve [] (pkgs :: rev_deps pkgs)
+  List.iter resolve (pkgs :: rev_deps pkgs)
 
 module IdSet = struct
   include Set.Make(struct
@@ -471,10 +478,16 @@ let write_pinned t pinned =
   in
   OpamFile.Lines.write file pinned
 
-let atomic_jobs t p =
+let atomic_jobs t task f =
   let o = load_state t "atomic_jobs" in
-  List.fold_left (fun jobs p -> atomic_jobs_of_plan o p @ jobs) [] (plans t p)
+  plans t task (fun plan ->
+      let jobs =  atomic_jobs_of_plan o plan in
+      List.iter f jobs
+    )
 
-let jobs t p =
+let jobs t task f =
   let o = load_state t "jobs" in
-  List.fold_left (fun jobs p -> jobs_of_plan o p :: jobs) [] (plans t p)
+  plans t task (fun plan ->
+      let job = jobs_of_plan o plan in
+      f job
+    )

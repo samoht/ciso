@@ -33,7 +33,7 @@ let digest_cstruct _kind buf =
 
 let digest kind str = digest_cstruct kind (Cstruct.of_string str)
 
-let of_uuid _kind =
+let uuid _kind =
   let `Hex h =
     Hex.of_string (Uuidm.to_bytes (Uuidm.create `V4))
   in
