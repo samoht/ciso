@@ -18,4 +18,5 @@ let () =
   Alcotest.run "ciso" [
     "simple"   , Test_simple.suite;
     "scheduler", Test_scheduler.suite;
+    "worker"   , Test_worker.suite;
   ]

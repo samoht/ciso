@@ -30,7 +30,7 @@ Executable test_ciso
   MainIs:           test.ml
   CompiledObject:   best
   Install:          false
-  BuildDepends:     alcotest, ciso
+  BuildDepends:     alcotest, ciso, ciso.worker
 
 Test test_ciso
   Run$:             flag(tests)
