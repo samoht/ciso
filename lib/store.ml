@@ -465,14 +465,13 @@ module XTask = struct
     Store.list (mk t "list jobs of task" id) (jobs_p id) >|=
     List.map (Id.of_string `Job)
 
-  let update_status status t id =
+  let update_status t id status =
     let status = to_str Task.json_status status in
     Store.update (mk t ("task " ^ status) id) (status_p id) status
 
-  let reset = update_status `New
-
-  let dispatch_to t id w = update_status (`Dispatched (w, `Pending)) t id
-  let ack t id w = update_status (`Dispatched (w, `Started)) t id
+  let reset t id = update_status t id `New
+  let dispatch_to t id w = update_status t id (`Dispatched (w, `Pending))
+  let ack t id w = update_status t id (`Dispatched (w, `Started))
 
   let refresh_status t id =
     jobs t id >>= fun jobs ->

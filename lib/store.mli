@@ -129,6 +129,9 @@ module Task: sig
   (** [refresh_status t id] refreshes [id]'s status by looking at the
       status of its jobs. See {!Job.task_status}. *)
 
+  val update_status: t -> Task.id -> Task.status -> unit Lwt.t
+  (** [update_status t id s] set [id]'s status to [s]. *)
+
   val reset: t -> Task.id -> unit Lwt.t
   (** [reset t task] resets the status of [t] to be [`New]. *)
 
