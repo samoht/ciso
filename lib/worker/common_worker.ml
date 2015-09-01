@@ -90,5 +90,6 @@ let start fn ?host ?(tick=5.) ~opam_root ~kind store =
   t
 
 let stop t =
-  t.stop () >|= fun () ->
+  t.stop () >>= fun () ->
+  Store.Worker.forget t.store (Worker.id t.worker) >|= fun () ->
   kill_child t
