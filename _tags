@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 14ecda7d953386c399620da0bf95e853)
+# DO NOT EDIT (digest: 3982b538e37be8ba7b6d861ba8c1841e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -24,27 +24,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_uri
 <lib/*.ml{,i,y}>: pkg_uuidm
-# Executable test_ciso
-<lib_test/test.{native,byte}>: pkg_alcotest
-<lib_test/test.{native,byte}>: pkg_fmt
-<lib_test/test.{native,byte}>: pkg_hex
-<lib_test/test.{native,byte}>: pkg_irmin.unix
-<lib_test/test.{native,byte}>: pkg_jsont.jsonm
-<lib_test/test.{native,byte}>: pkg_lwt
-<lib_test/test.{native,byte}>: pkg_nocrypto
-<lib_test/test.{native,byte}>: pkg_uri
-<lib_test/test.{native,byte}>: pkg_uuidm
-<lib_test/test.{native,byte}>: use_ciso
-<lib_test/*.ml{,i,y}>: pkg_alcotest
-<lib_test/*.ml{,i,y}>: pkg_fmt
-<lib_test/*.ml{,i,y}>: pkg_hex
-<lib_test/*.ml{,i,y}>: pkg_irmin.unix
-<lib_test/*.ml{,i,y}>: pkg_jsont.jsonm
-<lib_test/*.ml{,i,y}>: pkg_lwt
-<lib_test/*.ml{,i,y}>: pkg_nocrypto
-<lib_test/*.ml{,i,y}>: pkg_uri
-<lib_test/*.ml{,i,y}>: pkg_uuidm
-<lib_test/*.ml{,i,y}>: use_ciso
 # Library ciso-worker
 "lib/worker/ciso-worker.cmxs": use_ciso-worker
 <lib/worker/*.ml{,i,y}>: pkg_cstruct.unix
@@ -61,6 +40,39 @@ true: annot, bin_annot
 <lib/worker/*.ml{,i,y}>: pkg_uri
 <lib/worker/*.ml{,i,y}>: pkg_uuidm
 <lib/worker/*.ml{,i,y}>: use_ciso
+# Executable test_ciso
+<lib_test/test.{native,byte}>: pkg_alcotest
+<lib_test/test.{native,byte}>: pkg_cstruct.unix
+<lib_test/test.{native,byte}>: pkg_fmt
+<lib_test/test.{native,byte}>: pkg_hex
+<lib_test/test.{native,byte}>: pkg_irmin.unix
+<lib_test/test.{native,byte}>: pkg_jsont.jsonm
+<lib_test/test.{native,byte}>: pkg_lwt
+<lib_test/test.{native,byte}>: pkg_nocrypto
+<lib_test/test.{native,byte}>: pkg_ocamlgraph
+<lib_test/test.{native,byte}>: pkg_opam-lib.client
+<lib_test/test.{native,byte}>: pkg_rresult
+<lib_test/test.{native,byte}>: pkg_threads
+<lib_test/test.{native,byte}>: pkg_uri
+<lib_test/test.{native,byte}>: pkg_uuidm
+<lib_test/test.{native,byte}>: use_ciso
+<lib_test/test.{native,byte}>: use_ciso-worker
+<lib_test/*.ml{,i,y}>: pkg_alcotest
+<lib_test/*.ml{,i,y}>: pkg_cstruct.unix
+<lib_test/*.ml{,i,y}>: pkg_fmt
+<lib_test/*.ml{,i,y}>: pkg_hex
+<lib_test/*.ml{,i,y}>: pkg_irmin.unix
+<lib_test/*.ml{,i,y}>: pkg_jsont.jsonm
+<lib_test/*.ml{,i,y}>: pkg_lwt
+<lib_test/*.ml{,i,y}>: pkg_nocrypto
+<lib_test/*.ml{,i,y}>: pkg_ocamlgraph
+<lib_test/*.ml{,i,y}>: pkg_opam-lib.client
+<lib_test/*.ml{,i,y}>: pkg_rresult
+<lib_test/*.ml{,i,y}>: pkg_threads
+<lib_test/*.ml{,i,y}>: pkg_uri
+<lib_test/*.ml{,i,y}>: pkg_uuidm
+<lib_test/*.ml{,i,y}>: use_ciso
+<lib_test/*.ml{,i,y}>: use_ciso-worker
 # Executable ciso-worker
 <bin/ciso_worker.{native,byte}>: pkg_cmdliner
 <bin/ciso_worker.{native,byte}>: pkg_cstruct.unix
