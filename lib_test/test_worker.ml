@@ -154,7 +154,7 @@ let test_task_worker () =
       jr1 , `Complete `Success;
       jnr1, `Complete `Success;
     ] >>= fun () ->
-    check_t "end task" [t1, `Complete `Success] >>= fun () ->
+    check_t "end task" [] >>= fun () ->
     check_w "end worker" [w1, `Idle; w2, `Idle] >>= fun () ->
 
     Task_worker.stop tw1 >>= fun () ->
