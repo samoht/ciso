@@ -31,6 +31,9 @@ type id = [`Worker] Id.t
 type kind = [`Job|`Task]
 (** The type for worker kind. *)
 
+val pp_kind: kind Fmt.t
+(** [pp_kind] formats worker kinds. *)
+
 type t
 (** The type for worker configration .*)
 
