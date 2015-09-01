@@ -185,8 +185,7 @@ module Store = struct
 
   let don't_watch _k ?init:_ _f = Lwt.return (fun () -> Lwt.return_unit)
 
-  let remember t cancel =
-    let id = Random.int 1024_000 in
+  let remember t id cancel =
     let cancel () =
       let cancels = List.filter (fun (i,_) -> i<>id) t.cancels in
       t.cancels <- cancels;
@@ -195,27 +194,20 @@ module Store = struct
     t.cancels <- (id, cancel) :: t.cancels;
     cancel
 
-  let check t f x =
-    let c = ref 0 in
-    let rec aux n =
-      if n <= 0 then assert (t.cancels <> []);
-      if t.cancels <> [] then
-        Lwt_unix.sleep 0.01 >>= fun () -> aux (n-1)
-      else
-        f x
-    in
-    aux 100
+  let check t id f x =
+    if List.mem_assoc id t.cancels then f x else Lwt.return_unit
 
   let watch_key t msg k f =
+    let id = Random.int 1024_000 in
     begin match t.t msg with
-      | R x  -> R.watch_key x k (check t f)
-      | L x  -> L.watch_key x k (check t f)
+      | R x  -> R.watch_key x k (check t id f)
+      | L x  -> L.watch_key x k (check t id f)
       | RV _ | LV _ ->
         (* cannot watch transactions *)
         (* FIXME: fix this in Irmin *)
         don't_watch k f
     end >|= fun cancel ->
-    remember t cancel
+    remember t id cancel
 
   (* FIXME: move that into Irmin *)
 
@@ -246,14 +238,19 @@ module Store = struct
       Some (h, v)
 
   let watch_key_rec t msg key f =
+    let id = Random.int 1024_000 in
     head (t.t msg)  >>= fun h ->
     match t.t msg  with
     | R x ->
       init_of_l x key h >>= fun init ->
-      RV.watch_path x key ?init (fun d -> list_diff rv d >>= check t f)
+      RV.watch_path x key ?init (fun d -> list_diff rv d >>= check t id f)
+      >|= fun cancel ->
+      remember t id cancel
     | L x ->
       init_of_r x key h >>= fun init ->
-      LV.watch_path x key ?init (fun d -> list_diff lv d >>= check t f)
+      LV.watch_path x key ?init (fun d -> list_diff lv d >>= check t id f)
+      >|= fun cancel ->
+      remember t id cancel
     | RV _ | LV _ ->
       (* cannot watch transactions *)
       don't_watch t key
@@ -281,8 +278,7 @@ module Store = struct
             process `Added (StringSet.elements added);
             process `Removed (StringSet.elements removed);
           ]
-      ) >|= fun cancel ->
-    remember t cancel
+      )
 
 end
 
