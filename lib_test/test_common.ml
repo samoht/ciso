@@ -30,6 +30,16 @@ let set (type a) (a: a Alcotest.testable) compare: a list Alcotest.testable =
 let of_pp (type a) pp: a Alcotest.testable =
   (module struct type t = a let equal = (=) let pp = pp end)
 
+let pair (type a) (type b)
+    (a:a Alcotest.testable) (b:b Alcotest.testable): (a * b) Alcotest.testable =
+  let module A = (val a) in
+  let module B = (val b) in
+  (module struct
+    type t = a * b
+    let equal (a1, b1) (a2, b2) = A.equal a1 a2 && B.equal b1 b2
+    let pp = Fmt.pair A.pp B.pp
+  end)
+
 let package_t: Package.t Alcotest.testable = (module Package)
 let task_t: Task.t Alcotest.testable = (module Task)
 let host_t: Host.t Alcotest.testable = (module Host)
@@ -42,7 +52,7 @@ let tasks_t = set task_t Task.compare
 let workers_t = set worker_t Worker.compare
 let task_status_t = of_pp Task.pp_status
 let job_status_t = of_pp Job.pp_status
-let worker_status_t = of_pp  Worker.pp_status
+let worker_status_t = of_pp Worker.pp_status
 
 let random_cstruct n =
   let t  = Unix.gettimeofday () in
@@ -136,3 +146,41 @@ let job_root host =
     Alcotest.fail (Fmt.strf "no root for host %a" Host.pp host)
 
 let jr1 = job_root (Worker.host wj1)
+let jnr1 = Job.(create ~inputs:[id jr1] (host jr1) (switch jr1) (packages jr1))
+
+let store () =
+  let _ = Sys.command "rm -rf /tmp/ciso-tests" in
+  Store.local ~root:"/tmp/ciso-tests" ()
+
+let ts = 0.01
+
+let retry f =
+  let open Lwt.Infix in
+  let c = ref ts in
+  let rec aux n =
+    if n <= 1 then f ()
+    else
+      Lwt.catch f
+        (fun e ->
+           Fmt.(pf stderr) "RETRY: got %s (%.2f)\n" (Printexc.to_string e) !c;
+           c := 2. *. !c;
+           Lwt_unix.sleep !c >>= fun () ->
+           aux (n-1))
+  in
+  aux 10
+
+let run f =
+  let err e =
+    Fmt.(pf stdout "%!");
+    Fmt.(pf stderr "%!");
+    flush stdout;
+    flush stderr;
+    raise e
+  in
+  Lwt.async_exception_hook := err;
+  let protect f () = try f () with e -> Lwt.fail e in
+  Lwt_main.run (Lwt.catch (protect f) err)
+
+let () =
+  Irmin_unix.install_dir_polling_listener ts;
+  Fmt.(set_style_renderer stdout `Ansi_tty)

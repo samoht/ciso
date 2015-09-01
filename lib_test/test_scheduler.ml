@@ -16,51 +16,34 @@
 
 include Test_common
 
-let ts = 0.01
-
-let () =
-  Irmin_unix.install_dir_polling_listener ts;
-  Fmt.(set_style_renderer stdout `Ansi_tty)
-
-let sleep () = Lwt_unix.sleep (ts *. 2.)
-
-let store () =
-  let _ = Sys.command "rm -rf /tmp/ciso-tests" in
-  Store.local ~root:"/tmp/ciso-tests" ()
-
 open Lwt.Infix
 
-let run f =
-  let err e =
-    Fmt.(pf stdout "%!");
-    Fmt.(pf stderr "%!");
-    flush stdout;
-    flush stderr;
-    raise e
-  in
-  Lwt.async_exception_hook := err;
-  let protect f () = try f () with e -> Lwt.fail e in
-  Lwt_main.run (Lwt.catch (protect f) err)
+let rcheck f msg x y =
+  retry (fun () -> y () >|= fun y -> Alcotest.check f msg x y)
+
+let mk f x () = Lwt.return (f x)
 
 let basic_tasks () =
   let test () =
     store () >>= fun s ->
     Scheduler.Task.start s >>= fun t ->
-    Alcotest.(check @@ tasks_t) "0 tasks" [] (Scheduler.Task.list t);
+    rcheck tasks_t "0 tasks" [] (mk Scheduler.Task.list t)
+    >>= fun () ->
     Store.Task.add s t1 >>= fun () ->
-    sleep () >>= fun () ->
-
-    Alcotest.(check @@ tasks_t) "1 task" [t1] (Scheduler.Task.list t);
+    rcheck tasks_t "1 task" [t1] (mk Scheduler.Task.list t)
+    >>= fun () ->
     Scheduler.Task.stop t >>= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s);
-
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
+    >>= fun () ->
     Scheduler.Task.start s >>= fun t ->
-    Alcotest.(check @@ tasks_t) "2 task" [t1] (Scheduler.Task.list t);
-    Store.Task.status s (Task.id t1) >>= fun status ->
-    Alcotest.(check @@ option task_status_t) "status" (Some `New) status;
-    Scheduler.Task.stop t >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
-
+    rcheck tasks_t "2 task" [t1] (mk Scheduler.Task.list t)
+    >>= fun () ->
+    rcheck Alcotest.(option task_status_t) "status" (Some `New)
+      (fun () -> Store.Task.status s (Task.id t1))
+    >>= fun () ->
+    Scheduler.Task.stop t >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0
+      (fun () -> Lwt.return @@ Store.nb_watches s)
   in
   run test
 
@@ -75,21 +58,21 @@ let basic_jobs () =
     in
     store () >>= fun s ->
     Scheduler.Job.start s >>= fun t ->
-    Alcotest.(check @@ list job_t) "0 jobs" [] (Scheduler.Job.list t);
+    rcheck Alcotest.(list job_t) "0 jobs" [] (mk Scheduler.Job.list t)
+    >>= fun () ->
     Lwt_list.iter_p (Store.Job.add s) jobs >>= fun () ->
-    sleep () >>= fun () ->
-
-    Alcotest.(check @@ jobs_t) "jobs" jobs (Scheduler.Job.list t);
+    rcheck jobs_t "jobs" jobs (mk Scheduler.Job.list t)
+    >>= fun () ->
     check_roots t;
     Scheduler.Job.stop t >>= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s);
-
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
+    >>= fun () ->
     Scheduler.Job.start s >>= fun t ->
-    Alcotest.(check @@ jobs_t) "jobs" jobs (Scheduler.Job.list t);
+    rcheck jobs_t "jobs" jobs (mk Scheduler.Job.list t)
+    >>= fun () ->
     check_roots t;
-    Scheduler.Job.stop t >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
-
+    Scheduler.Job.stop t >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -97,29 +80,31 @@ let basic_workers () =
   let test () =
     store () >>= fun s ->
     Scheduler.Worker.start s >>= fun t ->
-    Alcotest.(check @@ list worker_t) "0 workers" [] (Scheduler.Worker.list t);
+    Alcotest.(rcheck @@ list worker_t) "0 workers" [] (mk Scheduler.Worker.list t)
+    >>= fun () ->
     Lwt_list.iter_p (Store.Worker.add s) workers >>= fun () ->
-    sleep () >>= fun () ->
-    Alcotest.(check @@ workers_t) "workers" workers (Scheduler.Worker.list t);
-    let w = match Scheduler.Worker.peek t `Job with
-      | None   -> Alcotest.fail "worker peek"
-      | Some w -> w
-    in
-    Alcotest.(check bool_t) "worker" true (List.mem w job_workers);
+    rcheck workers_t "workers" workers (mk Scheduler.Worker.list t)
+    >>= fun () ->
+    rcheck bool_t "worker" true (fun () ->
+        let w = match Scheduler.Worker.peek t `Job with
+          | None   -> Alcotest.fail "worker peek"
+          | Some w -> w
+        in
+        Lwt.return (List.mem w job_workers))
+    >>= fun () ->
     Scheduler.Worker.stop t >>= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s);
-
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
+    >>= fun () ->
     Scheduler.Worker.start s >>= fun t ->
-    Alcotest.(check @@ workers_t) "workers" workers (Scheduler.Worker.list t);
+    rcheck workers_t "workers" workers (mk Scheduler.Worker.list t)
+    >>= fun () ->
     Lwt_list.iter_s (fun w -> Store.Worker.forget s (Worker.id w)) workers
     >>= fun () ->
-    sleep () >>= fun () ->
-
-    Alcotest.(check @@ list worker_t) "0 workers again"
-      [] (Scheduler.Worker.list t);
-    Scheduler.Worker.stop t >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
-
+    rcheck Alcotest.(list worker_t) "0 workers again"
+      [] (mk Scheduler.Worker.list t)
+    >>= fun () ->
+    Scheduler.Worker.stop t >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -130,6 +115,9 @@ let task_check s ~section sched msg expected =
   Store.Task.status s (Task.id t1) >>= fun status ->
   Alcotest.(check @@ option task_status_t) msg (Some expected) status;
   Lwt.return_unit
+
+let task_check s ~section sched msg expected =
+  retry (fun () -> task_check s ~section sched msg expected)
 
 (* - add a task
    - start the scheduler
@@ -143,16 +131,13 @@ let task_scheduler_1 () =
     let check = task_check s ~section:"task -> scheduler -> worker" scheduler in
     check "init" `New >>= fun () ->
     Store.Worker.add s wj1 >>= fun () ->
-    sleep () >>= fun () ->
     check "init" `New >>= fun () ->
     Store.Worker.add s wt1 >>= fun () ->
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wt1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wt1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `New >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -166,16 +151,15 @@ let task_scheduler_2 () =
     Store.Worker.add s wt1 >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = task_check s ~section:"worker -> scheduler -> task" scheduler in
-    let tasks = Scheduler.Task.list (Scheduler.task scheduler) in
-    Alcotest.(check @@ tasks_t) "t1 is not monitored" [] tasks;
+    rcheck tasks_t "t1 is not monitored" []
+      (mk Scheduler.Task.list (Scheduler.task scheduler))
+    >>= fun () ->
     Store.Task.add s t1 >>= fun () ->
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wt1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wt1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `New >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -191,13 +175,11 @@ let task_scheduler_3 () =
     Store.Task.add s t1 >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = task_check s ~section:"worker -> task -> scheduler" scheduler in
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wt1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wt1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `New >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -208,6 +190,9 @@ let job_check s ~section sched msg expected =
   Store.Job.status s (Job.id jr1) >>= fun status ->
   Alcotest.(check @@ option job_status_t) msg (Some expected) status;
   Lwt.return_unit
+
+let job_check s ~section sched msg expected =
+  retry (fun () -> job_check s ~section sched msg expected)
 
 (* - add a job
    - start the scheduler
@@ -221,16 +206,13 @@ let job_scheduler_1 () =
     let check = job_check s ~section:"job -> scheduler -> worker" scheduler in
     check "init" `Runnable >>= fun () ->
     Store.Worker.add s wt1 >>= fun () ->
-    sleep () >>= fun () ->
     check "init" `Runnable >>= fun () ->
     Store.Worker.add s wj1 >>= fun () ->
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `Runnable >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -244,16 +226,14 @@ let job_scheduler_2 () =
     Store.Worker.add s wj1 >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = job_check s ~section:"worker -> scheduler -> job" scheduler in
-    let jobs = Scheduler.Job.list (Scheduler.job scheduler) in
-    Alcotest.(check @@ jobs_t) "jr1 is not monitored" [] jobs;
+    rcheck jobs_t "jr1 is not monitored" []
+      (mk Scheduler.Job.list (Scheduler.job scheduler)) >>= fun () ->
     Store.Job.add s jr1 >>= fun () ->
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `Runnable >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -269,13 +249,11 @@ let job_scheduler_3 () =
     Store.Job.add s jr1 >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = job_check s ~section:"worker -> job -> scheduler" scheduler in
-    sleep () >>= fun () ->
     check "start" (`Dispatched (Worker.id wj1, `Pending)) >>= fun () ->
     Store.Worker.forget s (Worker.id wj1) >>= fun () ->
-    sleep () >>= fun () ->
     check "forget" `Runnable >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -290,10 +268,9 @@ let task_and_dead_worker () =
     Store.Task.ack s (Task.id t1) (Worker.id wt1) >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = task_check s ~section:"task to dead worker" scheduler in
-    sleep () >>= fun () ->
     check "start" `New >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
@@ -308,10 +285,9 @@ let job_and_dead_worker () =
     Store.Job.ack s (Job.id jr1) (Worker.id wt1) >>= fun () ->
     Scheduler.start s >>= fun scheduler ->
     let check = job_check s ~section:"task to dead worker" scheduler in
-    sleep () >>= fun () ->
     check "start" `Runnable >>= fun () ->
-    Scheduler.stop scheduler >|= fun () ->
-    Alcotest.(check int) "no more watches" 0 (Store.nb_watches s)
+    Scheduler.stop scheduler >>= fun () ->
+    rcheck Alcotest.int "no more watches" 0 (mk Store.nb_watches s)
   in
   run test
 
