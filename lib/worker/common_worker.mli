@@ -26,7 +26,7 @@ val store: t -> Store.t
 val worker: t -> Worker.t
 
 val start:
-  (t -> Worker.status -> unit Lwt.t) ->
+  (t -> Worker.status -> unit Lwt.t) -> ?host:Host.t ->
   ?tick:float -> opam_root:string -> kind:Worker.kind ->
   Store.t -> t Lwt.t
 
