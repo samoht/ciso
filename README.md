@@ -57,7 +57,7 @@ id      : d73d0a4c65bea9c3cd6dc4fd4409381ab01d2f66
 date    : 15:24:47
 repo    : default:https://github.com/ocaml/opam-repository.git
 switches: 3.12.14.00.14.01.04.02.3
-hosts   : x86_64:linux:ubuntux86_64:osx:homebrew
+hosts   : x86_64:linux:ubuntu x86_64:osx:homebrew
 packages: ctypes
 rev-deps: *
 status  : new
