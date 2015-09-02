@@ -96,11 +96,14 @@ let main =
       let task = Task.create ~rev_deps ?pins ~repos packages in
       Lwt_main.run begin
         store >>= fun store ->
-        Store.Task.add store task
+        Store.Task.add store task >|= fun () ->
+        Fmt.(pf stdout) "Task %a added!\n"
+          Fmt.(styled `Cyan Id.pp) (Task.id task)
       end
   in
-  Term.(pure master $ store $ packages $ base_repo $ extra_repos $ pins $ rev_deps),
-  Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
+  Term.(global master $ store $ packages $ base_repo $ extra_repos
+        $ pins $ rev_deps),
+  term_info ~doc:"Add new tasks to CISO" "ciso-add" ~man:[`P "TODO"]
 
 let () =
   match Term.eval main with

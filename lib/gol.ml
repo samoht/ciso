@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let verbose = ref false
+
 let timestamp () =
   let tm = Unix.localtime (Unix.time ()) in
   let open Unix in
@@ -22,7 +24,8 @@ let timestamp () =
 let debug ~section fmt =
   let header ppf () = Fmt.(pf ppf "[%s %s]" (timestamp ()) section) in
   Fmt.kstrf (fun str ->
-      Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
+      if !verbose then
+        Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
     ) fmt
 
 let show_block =
@@ -30,7 +33,7 @@ let show_block =
     let color = if i = 0 then Fmt.(styled `Cyan) else (fun x -> x) in
     Fmt.pf ppf "@[%a: @[<4>%a@]@]@."
       Fmt.(styled `Bold string) k
-      Fmt.(color (list string)) v
+      Fmt.(color (list ~sep:sp string)) v
   in
   let pp_fields ppf block =
     let block = List.filter (fun (_, l) -> l <> []) block in

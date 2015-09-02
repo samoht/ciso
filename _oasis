@@ -8,6 +8,7 @@ Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
 
 Library ciso
+  Install: false
   Path: lib
   InternalModules: Gol
   Modules:
@@ -16,13 +17,24 @@ Library ciso
   BuildDepends:
     irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
 
+Library "ciso-worker"
+  Install: false
+  Path: lib/worker
+  FindlibParent: ciso
+  FindlibName: worker
+  InternalModules: Opam, Common_worker
+  Modules: Task_worker, Job_worker
+  BuildDepends:
+    ciso, irmin.unix, opam-lib.client, ocamlgraph, threads, cstruct.unix,
+    rresult
+
 Document ciso
   Title:                CISO docs
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib
-  XOCamlbuildLibraries: ciso
+  XOCamlbuildLibraries: ciso, ciso.worker
 
 Executable test_ciso
   Build$:           flag(tests)
@@ -37,25 +49,21 @@ Test test_ciso
   Command:          $test_ciso -q
   WorkingDirectory: lib_test/
 
-Library "ciso-worker"
-  Path: lib/worker
-  FindlibParent: ciso
-  FindlibName: worker
-  InternalModules: Opam, Common_worker
-  Modules: Task_worker, Job_worker
-  BuildDepends:
-    ciso, irmin.unix, opam-lib.client, ocamlgraph, threads, cstruct.unix,
-    rresult
-
-Executable "ciso-worker"
+Executable "ciso-show"
   Path: bin
-  MainIs: ciso_worker.ml
+  MainIs: ciso_show.ml
+  CompiledObject: best
+  BuildDepends: ciso, cmdliner
+
+Executable "ciso-work"
+  Path: bin
+  MainIs: ciso_work.ml
   CompiledObject: best
   BuildDepends: ciso.worker, cmdliner
 
-Executable "ciso-scheduler"
+Executable "ciso-schedule"
   Path: bin
-  MainIs: ciso_scheduler.ml
+  MainIs: ciso_schedule.ml
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 
@@ -65,15 +73,15 @@ Executable "ciso-add"
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 
-Executable "ciso-list"
+Executable "ciso-publish"
   Path: bin
-  MainIs: ciso_list.ml
+  MainIs: ciso_publish.ml
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 
-Executable "ciso-store"
+Executable ciso
   Path: bin
-  MainIs: ciso_store.ml
+  MainIs: ciso.ml
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3982b538e37be8ba7b6d861ba8c1841e)
+# DO NOT EDIT (digest: bc8245f23c5eff95e8daa31588f77217)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -73,40 +73,51 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_uuidm
 <lib_test/*.ml{,i,y}>: use_ciso
 <lib_test/*.ml{,i,y}>: use_ciso-worker
-# Executable ciso-worker
-<bin/ciso_worker.{native,byte}>: pkg_cmdliner
-<bin/ciso_worker.{native,byte}>: pkg_cstruct.unix
-<bin/ciso_worker.{native,byte}>: pkg_fmt
-<bin/ciso_worker.{native,byte}>: pkg_hex
-<bin/ciso_worker.{native,byte}>: pkg_irmin.unix
-<bin/ciso_worker.{native,byte}>: pkg_jsont.jsonm
-<bin/ciso_worker.{native,byte}>: pkg_lwt
-<bin/ciso_worker.{native,byte}>: pkg_nocrypto
-<bin/ciso_worker.{native,byte}>: pkg_ocamlgraph
-<bin/ciso_worker.{native,byte}>: pkg_opam-lib.client
-<bin/ciso_worker.{native,byte}>: pkg_rresult
-<bin/ciso_worker.{native,byte}>: pkg_threads
-<bin/ciso_worker.{native,byte}>: pkg_uri
-<bin/ciso_worker.{native,byte}>: pkg_uuidm
-<bin/ciso_worker.{native,byte}>: use_ciso
-<bin/ciso_worker.{native,byte}>: use_ciso-worker
+# Executable ciso-show
+<bin/ciso_show.{native,byte}>: pkg_cmdliner
+<bin/ciso_show.{native,byte}>: pkg_fmt
+<bin/ciso_show.{native,byte}>: pkg_hex
+<bin/ciso_show.{native,byte}>: pkg_irmin.unix
+<bin/ciso_show.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_show.{native,byte}>: pkg_lwt
+<bin/ciso_show.{native,byte}>: pkg_nocrypto
+<bin/ciso_show.{native,byte}>: pkg_uri
+<bin/ciso_show.{native,byte}>: pkg_uuidm
+<bin/ciso_show.{native,byte}>: use_ciso
+# Executable ciso-work
+<bin/ciso_work.{native,byte}>: pkg_cmdliner
+<bin/ciso_work.{native,byte}>: pkg_cstruct.unix
+<bin/ciso_work.{native,byte}>: pkg_fmt
+<bin/ciso_work.{native,byte}>: pkg_hex
+<bin/ciso_work.{native,byte}>: pkg_irmin.unix
+<bin/ciso_work.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_work.{native,byte}>: pkg_lwt
+<bin/ciso_work.{native,byte}>: pkg_nocrypto
+<bin/ciso_work.{native,byte}>: pkg_ocamlgraph
+<bin/ciso_work.{native,byte}>: pkg_opam-lib.client
+<bin/ciso_work.{native,byte}>: pkg_rresult
+<bin/ciso_work.{native,byte}>: pkg_threads
+<bin/ciso_work.{native,byte}>: pkg_uri
+<bin/ciso_work.{native,byte}>: pkg_uuidm
+<bin/ciso_work.{native,byte}>: use_ciso
+<bin/ciso_work.{native,byte}>: use_ciso-worker
 <bin/*.ml{,i,y}>: pkg_cstruct.unix
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_opam-lib.client
 <bin/*.ml{,i,y}>: pkg_rresult
 <bin/*.ml{,i,y}>: pkg_threads
 <bin/*.ml{,i,y}>: use_ciso-worker
-# Executable ciso-scheduler
-<bin/ciso_scheduler.{native,byte}>: pkg_cmdliner
-<bin/ciso_scheduler.{native,byte}>: pkg_fmt
-<bin/ciso_scheduler.{native,byte}>: pkg_hex
-<bin/ciso_scheduler.{native,byte}>: pkg_irmin.unix
-<bin/ciso_scheduler.{native,byte}>: pkg_jsont.jsonm
-<bin/ciso_scheduler.{native,byte}>: pkg_lwt
-<bin/ciso_scheduler.{native,byte}>: pkg_nocrypto
-<bin/ciso_scheduler.{native,byte}>: pkg_uri
-<bin/ciso_scheduler.{native,byte}>: pkg_uuidm
-<bin/ciso_scheduler.{native,byte}>: use_ciso
+# Executable ciso-schedule
+<bin/ciso_schedule.{native,byte}>: pkg_cmdliner
+<bin/ciso_schedule.{native,byte}>: pkg_fmt
+<bin/ciso_schedule.{native,byte}>: pkg_hex
+<bin/ciso_schedule.{native,byte}>: pkg_irmin.unix
+<bin/ciso_schedule.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_schedule.{native,byte}>: pkg_lwt
+<bin/ciso_schedule.{native,byte}>: pkg_nocrypto
+<bin/ciso_schedule.{native,byte}>: pkg_uri
+<bin/ciso_schedule.{native,byte}>: pkg_uuidm
+<bin/ciso_schedule.{native,byte}>: use_ciso
 # Executable ciso-add
 <bin/ciso_add.{native,byte}>: pkg_cmdliner
 <bin/ciso_add.{native,byte}>: pkg_fmt
@@ -118,28 +129,28 @@ true: annot, bin_annot
 <bin/ciso_add.{native,byte}>: pkg_uri
 <bin/ciso_add.{native,byte}>: pkg_uuidm
 <bin/ciso_add.{native,byte}>: use_ciso
-# Executable ciso-list
-<bin/ciso_list.{native,byte}>: pkg_cmdliner
-<bin/ciso_list.{native,byte}>: pkg_fmt
-<bin/ciso_list.{native,byte}>: pkg_hex
-<bin/ciso_list.{native,byte}>: pkg_irmin.unix
-<bin/ciso_list.{native,byte}>: pkg_jsont.jsonm
-<bin/ciso_list.{native,byte}>: pkg_lwt
-<bin/ciso_list.{native,byte}>: pkg_nocrypto
-<bin/ciso_list.{native,byte}>: pkg_uri
-<bin/ciso_list.{native,byte}>: pkg_uuidm
-<bin/ciso_list.{native,byte}>: use_ciso
-# Executable ciso-store
-<bin/ciso_store.{native,byte}>: pkg_cmdliner
-<bin/ciso_store.{native,byte}>: pkg_fmt
-<bin/ciso_store.{native,byte}>: pkg_hex
-<bin/ciso_store.{native,byte}>: pkg_irmin.unix
-<bin/ciso_store.{native,byte}>: pkg_jsont.jsonm
-<bin/ciso_store.{native,byte}>: pkg_lwt
-<bin/ciso_store.{native,byte}>: pkg_nocrypto
-<bin/ciso_store.{native,byte}>: pkg_uri
-<bin/ciso_store.{native,byte}>: pkg_uuidm
-<bin/ciso_store.{native,byte}>: use_ciso
+# Executable ciso-publish
+<bin/ciso_publish.{native,byte}>: pkg_cmdliner
+<bin/ciso_publish.{native,byte}>: pkg_fmt
+<bin/ciso_publish.{native,byte}>: pkg_hex
+<bin/ciso_publish.{native,byte}>: pkg_irmin.unix
+<bin/ciso_publish.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_publish.{native,byte}>: pkg_lwt
+<bin/ciso_publish.{native,byte}>: pkg_nocrypto
+<bin/ciso_publish.{native,byte}>: pkg_uri
+<bin/ciso_publish.{native,byte}>: pkg_uuidm
+<bin/ciso_publish.{native,byte}>: use_ciso
+# Executable ciso
+<bin/ciso.{native,byte}>: pkg_cmdliner
+<bin/ciso.{native,byte}>: pkg_fmt
+<bin/ciso.{native,byte}>: pkg_hex
+<bin/ciso.{native,byte}>: pkg_irmin.unix
+<bin/ciso.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso.{native,byte}>: pkg_lwt
+<bin/ciso.{native,byte}>: pkg_nocrypto
+<bin/ciso.{native,byte}>: pkg_uri
+<bin/ciso.{native,byte}>: pkg_uuidm
+<bin/ciso.{native,byte}>: use_ciso
 <bin/*.ml{,i,y}>: pkg_cmdliner
 <bin/*.ml{,i,y}>: pkg_fmt
 <bin/*.ml{,i,y}>: pkg_hex
