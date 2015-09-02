@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ef316161d34c8f51fedb025f91a3897a)
+# DO NOT EDIT (digest: bc8245f23c5eff95e8daa31588f77217)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -73,17 +73,17 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_uuidm
 <lib_test/*.ml{,i,y}>: use_ciso
 <lib_test/*.ml{,i,y}>: use_ciso-worker
-# Executable ciso-list
-<bin/ciso_list.{native,byte}>: pkg_cmdliner
-<bin/ciso_list.{native,byte}>: pkg_fmt
-<bin/ciso_list.{native,byte}>: pkg_hex
-<bin/ciso_list.{native,byte}>: pkg_irmin.unix
-<bin/ciso_list.{native,byte}>: pkg_jsont.jsonm
-<bin/ciso_list.{native,byte}>: pkg_lwt
-<bin/ciso_list.{native,byte}>: pkg_nocrypto
-<bin/ciso_list.{native,byte}>: pkg_uri
-<bin/ciso_list.{native,byte}>: pkg_uuidm
-<bin/ciso_list.{native,byte}>: use_ciso
+# Executable ciso-show
+<bin/ciso_show.{native,byte}>: pkg_cmdliner
+<bin/ciso_show.{native,byte}>: pkg_fmt
+<bin/ciso_show.{native,byte}>: pkg_hex
+<bin/ciso_show.{native,byte}>: pkg_irmin.unix
+<bin/ciso_show.{native,byte}>: pkg_jsont.jsonm
+<bin/ciso_show.{native,byte}>: pkg_lwt
+<bin/ciso_show.{native,byte}>: pkg_nocrypto
+<bin/ciso_show.{native,byte}>: pkg_uri
+<bin/ciso_show.{native,byte}>: pkg_uuidm
+<bin/ciso_show.{native,byte}>: use_ciso
 # Executable ciso-work
 <bin/ciso_work.{native,byte}>: pkg_cmdliner
 <bin/ciso_work.{native,byte}>: pkg_cstruct.unix
