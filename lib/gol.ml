@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let verbose = ref false
+
 let timestamp () =
   let tm = Unix.localtime (Unix.time ()) in
   let open Unix in
@@ -22,7 +24,8 @@ let timestamp () =
 let debug ~section fmt =
   let header ppf () = Fmt.(pf ppf "[%s %s]" (timestamp ()) section) in
   Fmt.kstrf (fun str ->
-      Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
+      if !verbose then
+        Fmt.(pf stdout "%a %s\n%!" (styled `Magenta header) () str)
     ) fmt
 
 let show_block =

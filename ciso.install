@@ -1,0 +1,14 @@
+bin: [
+  "?_build/bin/ciso-list.native"     {"ciso-list"}
+  "?_build/bin/ciso-list.byte"       {"ciso-list"}
+  "?_build/bin/ciso-add.native"      {"ciso-add"}
+  "?_build/bin/ciso-add.byte"        {"ciso-add"}
+  "?_build/bin/ciso-work.native"     {"ciso-work"}
+  "?_build/bin/ciso-work.byte"       {"ciso-work"}
+  "?_build/bin/ciso-publish.native"  {"ciso-publish"}
+  "?_build/bin/ciso-publish.byte"    {"ciso-publish"}
+  "?_build/bin/ciso-schedule.native" {"ciso-schedule"}
+  "?_build/bin/ciso-schedule.byte"   {"ciso-schedule"}
+  "?_build/bin/ciso.native"          {"ciso"}
+  "?_build/bin/ciso.byte"            {"ciso"}
+]

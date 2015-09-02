@@ -16,20 +16,33 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val info: string -> string -> unit
-val err: ('a, Format.formatter, unit, unit) format4 -> 'a
-val block: 'a -> unit Lwt.t
-
-val opam_root: string option Cmdliner.Term.t
-
-val local: string option Cmdliner.Term.t
-
-val store: Store.t Lwt.t Cmdliner.Term.t
-
-val config_file: unit -> (string -> string option) Lwt.t
-
 open Cmdliner
+open Lwt.Infix
+open Irmin_unix
+open Ciso_common
 
-val term_info: doc:string -> ?man:Manpage.block list -> string -> Term.info
+module S = Irmin_git.FS(Irmin.Contents.String)(Irmin.Tag.String)(Irmin.Hash.SHA1)
+module Server = Irmin_http_server.Make(S)
 
-val global: 'a -> 'a Term.t
+let server local uri =
+  let root = match local with
+    | None   -> err "no store specified!"; exit 1
+    | Some r -> r
+  in
+  Lwt_main.run begin
+    let config = Irmin_git.config ~root ~bare:true () in
+    S.create config Irmin_unix.task >>= fun t ->
+    Server.listen (t "start server") (Uri.of_string uri)
+  end
+
+let uri =
+  let doc = "Local URI where the database will be published." in
+  Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"URI")
+
+let main () =
+  Term.(pure server $ local $ uri),
+  term_info ~doc:"Publish the database over HTTP" "ciso-publish"
+
+let () = match Term.eval (main ()) with
+  | `Error _ -> exit 1
+  | `Help | `Ok _ | `Version -> ()
