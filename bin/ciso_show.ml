@@ -63,7 +63,7 @@ let find (get, status) t x =
     (function Invalid_argument _ -> Lwt.return (x, None) | e -> Lwt.fail e)
 
 let kind =
-  let doc = "Select the kind of objects to list." in
+  let doc = "Select the kind of objects to show." in
   let choices = [
     "tasks"  , `Task;
     "workers", `Worker;
@@ -140,7 +140,7 @@ let main =
     end
   in
   Term.(global list $ store $ kind $ id),
-  term_info ~doc:"Add new tasks to CISO" "ciso-add" ~man:[`P "TODO"]
+  term_info ~doc:"Show CISO objects" "ciso-show"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

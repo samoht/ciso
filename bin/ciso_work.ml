@@ -54,7 +54,7 @@ let main =
     end
   in
   Term.(global worker $ store $ opam_root $ task),
-  term_info ~doc:"Start a CISO worker" "ciso-worker"
+  term_info ~doc:"Start a new CISO worker" "ciso-worker"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0
