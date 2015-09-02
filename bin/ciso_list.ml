@@ -22,6 +22,15 @@ open Cmdliner
 open Lwt.Infix
 include Ciso_common
 
+let id_t: [`Id] Id.t Arg.converter =
+  let parse x = `Ok (Id.of_string `Id x) in
+  let print = Id.pp in
+  parse, print
+
+let id =
+  let doc = "Object identifier" in
+  Arg.(value & opt (some id_t) None & info ["id"] ~doc ~docv:"HASH")
+
 let one ?(pad=0) pp pp_status ppf (id, v) =
   match v with
   | None   ->
@@ -63,35 +72,74 @@ let kind =
   ] in
   Arg.(value & opt (enum choices) `Task & info ["k";"kind"] ~docv:"KIND" ~doc)
 
+let cast k id = Id.of_string k (Id.to_string id)
+
+let list_tasks store =
+  Store.Task.list store >>= fun task_ids ->
+  Lwt_list.map_p (find Store.Task.(get, status) store) task_ids
+  >|= fun tasks ->
+  block "Tasks" Task.pp Task.pp_status tasks ~pad:2
+
+let list_jobs store =
+  Store.Job.list store >>= fun job_ids ->
+  Lwt_list.map_p (find Store.Job.(get, status) store) job_ids
+  >|= fun jobs ->
+  block "Jobs" Job.pp Job.pp_status jobs ~pad:2
+
+let list_workers store =
+  Store.Worker.list store >>= fun worker_ids ->
+  Lwt_list.map_p (find Store.Worker.(get, status) store) worker_ids
+  >|= fun workers ->
+  block "Workers" Worker.pp Worker.pp_status workers
+
+let list_hosts _ =
+  let hosts =
+    List.map (fun h -> Host.id h, Some (h, None)) Host.defaults
+  in
+  block "Hosts" Host.pp Fmt.string hosts;
+  Lwt.return_unit
+
+let task_id store id =
+  find Store.Task.(get, status) store (cast `Task id) >|= function
+  | _, None -> None
+  | x       -> Some (fun () -> one Task.pp Task.pp_status Fmt.stdout x)
+
+let job_id store id =
+  find Store.Job.(get, status) store (cast `Job id) >|= function
+  | _, None -> None
+  | x       -> Some (fun () -> one Job.pp Job.pp_status Fmt.stdout x)
+
+let worker_id store id =
+  find Store.Worker.(get, status) store (cast `Worker id) >|= function
+  | _, None -> None
+  | x       -> Some (fun () -> one Worker.pp Worker.pp_status Fmt.stdout x)
+
+let (>>) x y =
+  x >>= function
+  | Some f -> Lwt.return (f ())
+  | None   -> y ()
+
+let invalid_id id = err "invalid id: %a" Id.pp id; exit 1
+
 let main =
-  let master store kind =
+  let list store kind id =
     Lwt_main.run begin
       store >>= fun store ->
-      match kind with
-      | `Task ->
-        Store.Task.list store >>= fun task_ids ->
-        Lwt_list.map_p (find Store.Task.(get, status) store) task_ids
-        >|= fun tasks ->
-        block "Tasks" Task.pp Task.pp_status tasks ~pad:2
-      | `Job ->
-        Store.Job.list store >>= fun job_ids ->
-        Lwt_list.map_p (find Store.Job.(get, status) store) job_ids
-        >|= fun jobs ->
-        block "Jobs" Job.pp Job.pp_status jobs ~pad:2
-      | `Worker ->
-        Store.Worker.list store >>= fun worker_ids ->
-        Lwt_list.map_p (find Store.Worker.(get, status) store) worker_ids
-        >|= fun workers ->
-        block "Workers" Worker.pp Worker.pp_status workers
-      | `Host ->
-        let hosts =
-          List.map (fun h -> Host.id h, Some (h, None)) Host.defaults
-        in
-        block "Hosts" Host.pp Fmt.string hosts;
-        Lwt.return_unit
+      match id with
+      | Some id ->
+        task_id store id >> fun () ->
+        job_id store id >> fun () ->
+        worker_id store id >> fun () ->
+        invalid_id id
+      | None ->
+        match kind with
+        | `Task   -> list_tasks store
+        | `Job    -> list_jobs store
+        | `Worker -> list_workers store
+        | `Host   -> list_hosts store
     end
   in
-  Term.(global master $ store $ kind),
+  Term.(global list $ store $ kind $ id),
   term_info ~doc:"Add new tasks to CISO" "ciso-add" ~man:[`P "TODO"]
 
 let () =
