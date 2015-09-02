@@ -15,6 +15,10 @@ opam repo add ciso https://github.com/samoht/ciso-repo.git
 opam install ciso
 ```
 
+### Usage
+
+See `ciso --help` for more information.
+
 ### License
 
 ISC. See the [LICENSE](./blob/master/LICENSE) file.
