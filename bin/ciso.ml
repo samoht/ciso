@@ -43,7 +43,7 @@ let default =
        \n\
        The most commonly used subcommands are:\n";
     List.iter (fun (name, doc) ->
-        Fmt.(pf stdout) "    %s        %s\n" name doc
+        Fmt.(pf stdout) "    %-10s        %s\n" name doc
       ) commands;
     Fmt.(pf stdout)
       "\n\
@@ -57,7 +57,7 @@ let run () =
   match Array.to_list Sys.argv with
   | [] | [_] -> ()
   | ciso :: name :: args ->
-    if not (String.length name = 0 && name.[0] = '-') then
+    if String.length name = 0 && name.[0] <> '-' then (
       let cmd = match ciso with
         | "ciso" -> "ciso-" ^ name
         | s      ->
@@ -79,6 +79,7 @@ let run () =
         err "%s: command not found" cmd;
         exit 1
       )
+    )
 
 let commands =
   let mk (name, doc) = Term.pure (), term_info ~doc name in
