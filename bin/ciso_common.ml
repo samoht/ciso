@@ -20,7 +20,11 @@ open Cmdliner
 open Lwt.Infix
 
 let info x y = Fmt.(pf stdout "%a %s\n%!" (styled `Cyan string) x y)
-let err x = Fmt.(pf stderr "%a %s\n%!" (styled `Red string) "Error!" x)
+
+let err fmt =
+  Fmt.kstrf (fun str ->
+      Fmt.(pf stderr "%a %s\n%!" (styled `Red string) "Error:" str)
+    ) fmt
 
 let () =
   Irmin_unix.install_dir_polling_listener 0.2;
@@ -39,7 +43,7 @@ let global =
   let doc = "The URI of the global Irmin store." in
   Arg.(value & opt (some string) None & info ["global"] ~docv:"URI" ~doc)
 
-let err_invalid_line l = err (Printf.sprintf "invalide line: %S" l)
+let err_invalid_line l = err "invalid line: %S" l
 
 let config_file () =
   let dot_ciso = ".ciso" in
@@ -49,7 +53,7 @@ let config_file () =
     Lwt_stream.to_list lines >|= fun lines ->
     let kvs =
       List.fold_left (fun acc l ->
-          if l.[0] = '#' then acc
+          if String.length l = 0 || l.[0] = '#' then acc
           else match Stringext.cut l ~on:" " with
             | Some (k, v) -> (k, v) :: acc
             | _ -> err_invalid_line l; acc
@@ -95,8 +99,8 @@ let help_sections = [
   `S global_option_section;
   `P "These options are common to all commands.";
   `S "AUTHORS";
-  `P "Thomas Gazagnaire   <thomas@gazagnaire.org>";
-  `P "David Sheets        <sheets@alum.mit.edu>";
+  `P "Thomas Gazagnaire   <thomas@gazagnaire.org>"; `Noblank;
+  `P "David Sheets        <sheets@alum.mit.edu>"; `Noblank;
   `P "Qi Li               <liqi0425@gmail.com>";
   `S "BUGS";
   `P "Check bug reports at https://github.com/samoht/ciso/issues.";

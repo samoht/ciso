@@ -16,6 +16,9 @@
 
 (** Internal logging module. *)
 
+val verbose: bool ref
+(** Be verbose. *)
+
 val timestamp: unit -> string
 (** Generate a [HH:MM:SS] timestamp. *)
 
