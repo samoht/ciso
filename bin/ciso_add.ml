@@ -96,7 +96,8 @@ let main =
       let task = Task.create ~rev_deps ?pins ~repos packages in
       Lwt_main.run begin
         store >>= fun store ->
-        Store.Task.add store task
+        Store.Task.add store task >|= fun () ->
+        Fmt.(pf stdout) "Task %a added!" Id.pp (Task.id task)
       end
   in
   Term.(global master $ store $ packages $ base_repo $ extra_repos
