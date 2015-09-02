@@ -1,14 +1,14 @@
 bin: [
-  "?_build/bin/ciso_list.native"     {"ciso-list"}
-  "?_build/bin/ciso_list.byte"       {"ciso-list"}
-  "?_build/bin/ciso_add.native"      {"ciso-add"}
+  "?_build/bin/ciso_show.byte"       {"ciso-show"}
+  "?_build/bin/ciso_show.native"     {"ciso-show"}
   "?_build/bin/ciso_add.byte"        {"ciso-add"}
-  "?_build/bin/ciso_work.native"     {"ciso-work"}
+  "?_build/bin/ciso_add.native"      {"ciso-add"}
   "?_build/bin/ciso_work.byte"       {"ciso-work"}
-  "?_build/bin/ciso_publish.native"  {"ciso-publish"}
+  "?_build/bin/ciso_work.native"     {"ciso-work"}
   "?_build/bin/ciso_publish.byte"    {"ciso-publish"}
-  "?_build/bin/ciso_schedule.native" {"ciso-schedule"}
+  "?_build/bin/ciso_publish.native"  {"ciso-publish"}
   "?_build/bin/ciso_schedule.byte"   {"ciso-schedule"}
-  "?_build/bin/ciso.native"          {"ciso"}
+  "?_build/bin/ciso_schedule.native" {"ciso-schedule"}
   "?_build/bin/ciso.byte"            {"ciso"}
+  "?_build/bin/ciso.native"          {"ciso"}
 ]

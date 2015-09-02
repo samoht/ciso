@@ -20,7 +20,7 @@ open Cmdliner
 open Ciso_common
 
 let commands = [
-  "list"    , "List tasks, jobs and workers.";
+  "show"    , "Show the tasks, jobs and workers.";
   "add"     , "Add a new task.";
   "schedule", "Schedule the tasks and jobs to the workers.";
   "work"    , "Start a new worker.";

@@ -49,9 +49,9 @@ Test test_ciso
   Command:          $test_ciso -q
   WorkingDirectory: lib_test/
 
-Executable "ciso-list"
+Executable "ciso-show"
   Path: bin
-  MainIs: ciso_list.ml
+  MainIs: ciso_show.ml
   CompiledObject: best
   BuildDepends: ciso, cmdliner
 
