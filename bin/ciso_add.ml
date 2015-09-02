@@ -97,7 +97,8 @@ let main =
       Lwt_main.run begin
         store >>= fun store ->
         Store.Task.add store task >|= fun () ->
-        Fmt.(pf stdout) "Task %a added!" Id.pp (Task.id task)
+        Fmt.(pf stdout) "Task %a added!\n"
+          Fmt.(styled `Cyan Id.pp) (Task.id task)
       end
   in
   Term.(global master $ store $ packages $ base_repo $ extra_repos
