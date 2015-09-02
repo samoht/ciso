@@ -25,11 +25,16 @@ module S = Irmin_git.FS(Irmin.Contents.String)(Irmin.Tag.String)(Irmin.Hash.SHA1
 module Server = Irmin_http_server.Make(S)
 
 let server local uri =
-  let root = match local with
-    | None   -> err "no store specified!"; exit 1
-    | Some r -> r
-  in
   Lwt_main.run begin
+    let root = match local with
+      | Some r -> Lwt.return r
+      | None   ->
+        config_file () >|= fun config ->
+        match config "local" with
+        | Some r -> r
+        | None   -> err "no store specified!"; exit 1
+    in
+    root >>= fun root ->
     let config = Irmin_git.config ~root ~bare:true () in
     S.create config Irmin_unix.task >>= fun t ->
     Server.listen (t "start server") (Uri.of_string uri)

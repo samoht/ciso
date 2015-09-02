@@ -57,7 +57,7 @@ let run () =
   match Array.to_list Sys.argv with
   | [] | [_] -> ()
   | ciso :: name :: args ->
-    if String.length name = 0 && name.[0] <> '-' then (
+    if String.length name <> 0 && name.[0] <> '-' then (
       let cmd = match ciso with
         | "ciso" -> "ciso-" ^ name
         | s      ->
@@ -70,11 +70,12 @@ let run () =
           )
       in
       let exists =
-        Sys.command Fmt.(strf "/bin/sh -c 'command -v %s'" cmd) = 0
+        let test = Fmt.strf "/bin/sh -c 'command -v %s' > /dev/null 1>2" cmd in
+        Sys.command test = 0
       in
       if exists then (
         let argv = Array.of_list (cmd :: args) in
-        Unix.execv cmd argv
+        Unix.execvp cmd argv
       ) else (
         err "%s: command not found" cmd;
         exit 1
