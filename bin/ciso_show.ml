@@ -102,12 +102,12 @@ let list_hosts _ =
 let task_id store id =
   find Store.Task.(get, status) store (cast `Task id) >|= function
   | _, None -> None
-  | x       -> Some (fun () -> one Task.pp Task.pp_status Fmt.stdout x)
+  | x       -> Some (fun () -> one Task.pp Task.pp_status Fmt.stdout x ~pad:2)
 
 let job_id store id =
   find Store.Job.(get, status) store (cast `Job id) >|= function
   | _, None -> None
-  | x       -> Some (fun () -> one Job.pp Job.pp_status Fmt.stdout x)
+  | x       -> Some (fun () -> one Job.pp Job.pp_status Fmt.stdout x ~pad:2)
 
 let worker_id store id =
   find Store.Worker.(get, status) store (cast `Worker id) >|= function
