@@ -14,8 +14,6 @@ build-test: [
   ["./configure" "--enable-tests"]
   [make "test"]
 ]
-install: [make "install"]
-remove:  ["ocamlfind" "remove" "ciso"]
 depends: [
   "ocamlfind" {build}
   "alcotest"  {test}
