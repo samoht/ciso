@@ -83,3 +83,38 @@ let store =
 let block _ =
   let t, _ = Lwt.task () in
   t
+
+(* Global options *)
+type global = { verbose: bool; }
+
+let app_global g = Gol.verbose := g.verbose
+
+(* Help sections common to all commands *)
+let global_option_section = "COMMON OPTIONS"
+let help_sections = [
+  `S global_option_section;
+  `P "These options are common to all commands.";
+  `S "AUTHORS";
+  `P "Thomas Gazagnaire   <thomas@gazagnaire.org>";
+  `P "David Sheets        <sheets@alum.mit.edu>";
+  `P "Qi Li               <liqi0425@gmail.com>";
+  `S "BUGS";
+  `P "Check bug reports at https://github.com/samoht/ciso/issues.";
+]
+
+let global_t =
+  let verbose =
+    let doc =
+      Arg.info ~docs:global_option_section ~doc:"Be verbose." ["v";"verbose"] in
+    Arg.(value & flag & doc)
+  in
+  Term.(pure (fun verbose -> { verbose }) $ verbose)
+
+let term_info ~doc ?(man=[]) title =
+  let man = man @ help_sections in
+  Term.info
+    ~version:Version.current ~sdocs:global_option_section ~doc ~man title
+
+let global f =
+  let g global f = app_global global; f in
+  Term.(pure g $ global_t $ pure f)

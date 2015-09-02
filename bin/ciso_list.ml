@@ -91,8 +91,8 @@ let main =
         Lwt.return_unit
     end
   in
-  Term.(pure master $ store $ kind),
-  Term.info ~version:Version.current ~doc:"Add new tasks to CISO" "ciso-add"
+  Term.(global master $ store $ kind),
+  term_info ~doc:"Add new tasks to CISO" "ciso-add" ~man:[`P "TODO"]
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0

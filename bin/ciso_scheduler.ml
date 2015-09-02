@@ -27,8 +27,8 @@ let main =
       Scheduler.start store >>= block
     end
   in
-  Term.(pure master $ store),
-  Term.info ~version:Version.current ~doc:"Run the CISO scheduler" "ciso-master"
+  Term.(global master $ store),
+  term_info ~doc:"Run the CISO scheduler" "ciso-master"
 
 let () =
   match Term.eval main with `Error _ -> exit 1 | _ -> exit 0
