@@ -19,7 +19,8 @@
 open Cmdliner
 open Lwt.Infix
 
-let info x y = Fmt.(pf stdout "%a %s\n%!" (styled `Cyan string) x y)
+let info x y =
+  if !Gol.verbose then Fmt.(pf stdout "%a %s\n%!" (styled `Cyan string) x y)
 
 let err fmt =
   Fmt.kstrf (fun str ->
