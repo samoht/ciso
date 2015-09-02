@@ -128,7 +128,7 @@ let load_state t dbg =
   init_config t dbg;
   debug "load_state %s" dbg;
   let switch = opam_switch t.switch in
-  let o = OpamState.load_state ("ci-opam-" ^ dbg) switch in
+  let o = OpamState.load_state ~save_cache:true ("ci-opam-" ^ dbg) switch in
   check t (Some o);
   o
 
