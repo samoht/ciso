@@ -182,7 +182,7 @@ let _set_env t s h =
 let eval_opam_config_env t =
   let env_s = load_state t "opam-eval-env" in
   let env = OpamState.get_opam_env ~force_path:true env_s in
-  List.iter (fun (n, v) -> Unix.putenv n v) env
+  List.iter (fun (n, v, _) -> Unix.putenv n v) env
 
 let resolve t atoms_s =
   let state = load_state t "resolve" in
@@ -364,7 +364,8 @@ let install t pkgs =
           OpamAction.install_package state nv @@++ fun () ->
           let { OT.installed; installed_roots; reinstall; _ } = state in
           let installed = OpamPackage.Set.add nv installed in
-          OpamAction.update_metadata state ~installed_roots ~reinstall ~installed
+          OpamAction.update_switch_state
+            state ~installed_roots ~reinstall ~installed
           |> fun _ -> exit 0
       in
       OpamProcess.Job.run job
@@ -372,7 +373,8 @@ let install t pkgs =
       let atoms = List.map atom_of_package pkgs in
       let add_to_root = None in
       let deps_only = false in
-      OpamClient.SafeAPI.install atoms add_to_root deps_only
+      OpamClient.SafeAPI.install
+        atoms add_to_root ~deps_only ~upgrade:false
 
 let remove t = function
   | []   -> ()
@@ -400,8 +402,7 @@ let switch_install t =
   if OpamSwitch.Map.mem switch aliases then ()
   else
     let compiler = OpamCompiler.of_string (OpamSwitch.to_string switch) in
-    OpamSwitchCommand.install
-      ~quiet:false ~warning:true ~update_config:true switch compiler
+    OpamSwitchCommand.install ~quiet:false ~update_config:true switch compiler
 
 let repo_clean t =
   let t = load_state t "repo_clean" in
@@ -414,9 +415,8 @@ let repo_add t repos =
     let address = Uri.to_string address in
     debug "repository: add %s %s" name address;
     let name = OpamRepositoryName.of_string name in
-    let address = OpamTypesBase.address_of_string address in
-    let address, kind = OpamTypesBase.parse_url address in
-    OpamRepositoryCommand.add name kind address ~priority:None
+    let url = OpamUrl.of_string address in
+    OpamRepositoryCommand.add name url ~priority:None
   in
   List.iter add_one_repo repos
 
@@ -439,7 +439,7 @@ let pin_add t pin =
       let target = Uri.to_string target in
       let pin_option = OpamTypesBase.pin_option_of_string ?kind:None target in
       let kind = OpamTypesBase.kind_of_pin_option pin_option in
-      let () = assert (kind <> `local) in
+      let () = assert (kind <> `rsync) in
       OpamClient.SafeAPI.PIN.pin
         ~edit:false ~action:false name (Some pin_option)
   in
@@ -464,19 +464,26 @@ let write_installed t installed =
     |> List.map OpamPackage.of_string
     |> OpamPackage.Set.of_list
   in
-  let file = OpamPath.Switch.installed t.OT.root t.OT.switch in
-  OpamFile.Installed.write file installed
+  let file = OpamPath.Switch.state t.OT.root t.OT.switch in
+  let state = OpamFile.State.read file in
+  let state = { state with OpamFile.State.installed } in
+  OpamFile.State.write file state
 
 let write_pinned t pinned =
   let t = load_state t "write-pinned" in
-  let file = OpamPath.Switch.pinned t.OT.root t.OT.switch in
   let pinned =
-    List.map (fun (n, t) ->
+    List.fold_left (fun acc (n, t) ->
         let t = match t with None -> failwith "TODO" | Some t -> t in
-        [n; Uri.to_string t]
-      ) pinned
+        OpamPackage.Name.Map.add
+          (OpamPackage.Name.of_string n)
+          (OpamTypesBase.pin_option_of_string (Uri.to_string t))
+          acc
+      ) OpamPackage.Name.Map.empty pinned
   in
-  OpamFile.Lines.write file pinned
+  let file = OpamPath.Switch.state t.OT.root t.OT.switch in
+  let state = OpamFile.State.read file in
+  let state = { state with OpamFile.State.pinned } in
+  OpamFile.State.write file state
 
 let atomic_jobs t task f =
   let o = load_state t "atomic_jobs" in
