@@ -29,8 +29,11 @@ module StringSet = struct
   let of_list = List.fold_left (fun s e -> add e s) empty
 end
 
-module R = Irmin.Basic(Irmin_http.Make)(Irmin.Contents.String)
-module L = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
+module Basic (S: Irmin.S_MAKER) =
+  S (Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+
+module R = Basic(Irmin_http.Make)
+module L = Basic(Irmin_git.FS)
 
 module RV = Irmin.View(R)
 module LV = Irmin.View(L)
@@ -56,7 +59,7 @@ let task msg =
 
 let remote ?(uri = Uri.of_string "http://127.0.0.1:8888") () =
   let config = Irmin_http.config uri in
-  R.create config task >|= fun t ->
+  R.Repo.create config >>= R.master task >|= fun t ->
   create (fun x -> R (t x))
 
 let err_invalid_version v =
@@ -70,7 +73,7 @@ let check_version t =
 
 let local ?root () =
   let config = Irmin_git.config ?root ~bare:true () in
-  L.create config task >>= fun t ->
+  L.Repo.create config >>= L.master task >>= fun t ->
   check_version t >|= fun () ->
   create (fun x -> L (t x))
 
@@ -226,14 +229,14 @@ module Store = struct
   let init_of_l t key = function
     | None   -> Lwt.return_none
     | Some h ->
-      R.of_head (R.config t) (fun () -> R.task t) h >>= fun t ->
+      R.of_commit_id (fun () -> R.task t) h (R.repo t) >>= fun t ->
       RV.of_path (t ()) key >|= fun v ->
       Some (h, v)
 
   let init_of_r t key = function
     | None   -> Lwt.return_none
     | Some h ->
-      L.of_head (L.config t) (fun () -> L.task t) h >>= fun t ->
+      L.of_commit_id (fun () -> L.task t) h (L.repo t) >>= fun t ->
       LV.of_path (t ()) key >|= fun v ->
       Some (h, v)
 

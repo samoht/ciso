@@ -15,7 +15,7 @@ Library ciso
     Id, Task, Job, Object, Package, Host, Switch, Worker, Store, Scheduler,
     Version
   BuildDepends:
-    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex
+    irmin.unix, lwt, uuidm, fmt, nocrypto, uri, jsont.jsonm, hex, bytes
 
 Library "ciso-worker"
   Install: false

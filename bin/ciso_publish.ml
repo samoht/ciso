@@ -21,7 +21,8 @@ open Lwt.Infix
 open Irmin_unix
 open Ciso_common
 
-module S = Irmin_git.FS(Irmin.Contents.String)(Irmin.Tag.String)(Irmin.Hash.SHA1)
+module S =
+  Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 module Server = Irmin_http_server.Make(S)
 
 let server local uri =
@@ -36,8 +37,13 @@ let server local uri =
     in
     root >>= fun root ->
     let config = Irmin_git.config ~root ~bare:true () in
-    S.create config Irmin_unix.task >>= fun t ->
-    Server.listen (t "start server") (Uri.of_string uri)
+    S.Repo.create config >>= S.master Irmin_unix.task >>= fun t ->
+    let callback = Server.http_spec (t "start server") in
+    let port = match Uri.port (Uri.of_string uri) with
+      | None   -> 80
+      | Some p -> p
+    in
+    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port port)) callback
   end
 
 let uri =
