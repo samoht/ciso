@@ -28,10 +28,10 @@ let rec with_commit_lock ~job commit variant fn =
          Lwt.return_unit
       )
 
-let make_build_spec ~base ~repo ~variant ~ty =
+let make_build_spec ~base ~repo ~variant ~ty ~opam_version =
     let base = Raw.Image.hash base in
     match ty with
-    | `Opam (`Build, selection, opam_files) -> Opam_build.spec ~base ~opam_files ~selection
+    | `Opam (`Build, selection, opam_files) -> Opam_build.spec ~base ~opam_files ~selection ~opam_version
     | `Opam (`Lint `Doc, selection, opam_files) -> Lint.doc_spec ~base ~opam_files ~selection
     | `Opam (`Lint `Opam, selection, opam_files) -> Lint.opam_lint_spec ~base ~opam_files ~selection
     | `Opam_fmt (selection, ocamlformat_source) -> Lint.fmt_spec ~base ~ocamlformat_source ~selection
@@ -66,13 +66,15 @@ module Op = struct
       ty : Spec.ty;
       base : Raw.Image.t;                       (* The image with the OCaml compiler to use. *)
       variant : Variant.t;                      (* Added as a comment in the Dockerfile *)
+      opam_version: Opam_version.t;
     }
 
-    let to_json { base; ty; variant } =
+    let to_json { base; ty; variant; opam_version } =
       `Assoc [
         "base", `String (Raw.Image.digest base);
         "op", Spec.ty_to_yojson ty;
         "variant", (Variant.to_yojson variant);
+        "opam_version", `String (Opam_version.to_string opam_version)
       ]
 
     let digest t = Yojson.Safe.to_string (to_json t)
@@ -85,8 +87,8 @@ module Op = struct
     | Error (`Msg m) -> raise (Failure m)
 
   let run { Builder.docker_context; pool; build_timeout } job
-      { Key.commit; label = _; repo } { Value.base; variant; ty } =
-    let build_spec = make_build_spec ~base ~repo ~variant ~ty
+      { Key.commit; label = _; repo } { Value.base; variant; ty; opam_version } =
+    let build_spec = make_build_spec ~base ~repo ~variant ~ty ~opam_version
     in
     let make_dockerfile ~for_user =
       (if for_user then "" else Buildkit_syntax.add (Variant.arch variant)) ^
@@ -129,6 +131,8 @@ end
 
 module BC = Current_cache.Generic(Op)
 
+let error msg = Current_incr.const (Error (`Msg msg), None)
+
 let build ~platforms ~spec ~repo commit =
   Current.component "build" |>
   let> { Spec.variant; ty; label } = spec
@@ -136,12 +140,19 @@ let build ~platforms ~spec ~repo commit =
   and> platforms = platforms
   and> repo = repo in
   match List.find_opt (fun p -> Variant.equal p.Platform.variant variant) platforms with
-  | Some { Platform.builder; variant; base; _ } ->
-    BC.run builder { Op.Key.commit; repo; label } { Op.Value.base; ty; variant }
+  | Some { Platform.builder; variant; base; vars; _ } ->
+     (match Opam_version.of_string vars.opam_version with
+     | Ok opam_version ->
+        BC.run builder
+          { Op.Key.commit; repo; label }
+          { Op.Value.base; ty; variant; opam_version }
+     | Error (`Msg msg) ->
+        (* We can only get here if there is a bug. If the set of platforms changes, [Analyse] should recalculate. *)
+        error msg)
   | None ->
     (* We can only get here if there is a bug. If the set of platforms changes, [Analyse] should recalculate. *)
     let msg = Fmt.str "BUG: variant %a is not a supported platform" Variant.pp variant in
-    Current_incr.const (Error (`Msg msg), None)
+    error msg
 
 let get_job_id x =
   let+ md = Current.Analysis.metadata x in

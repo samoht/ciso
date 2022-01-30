@@ -26,14 +26,16 @@ module Op = struct
       commit : Current_git.Commit_id.t;         (* The source code to build and test *)
       repo : Current_github.Repo_id.t;          (* Used to choose a build cache *)
       label : string;                           (* A unique ID for this build within the commit *)
+      opam_version: Opam_version.t;
     }
 
-    let to_json { pool; commit; label; repo } =
+    let to_json { pool; commit; label; repo; opam_version } =
       `Assoc [
         "pool", `String pool;
         "commit", `String (Current_git.Commit_id.hash commit);
         "repo", `String (Fmt.to_to_string Current_github.Repo_id.pp repo);
         "label", `String label;
+        "opam-version", `String (Opam_version.to_string opam_version)
       ]
 
     let digest t = Yojson.Safe.to_string (to_json t)
@@ -74,9 +76,9 @@ module Op = struct
       (Image.hash base)
       Variant.pp variant deps
 
-  let run t job { Key.pool; commit; label = _; repo } spec =
+  let run t job { Key.pool; commit; label = _; repo; opam_version } spec =
     let { Value.base; variant; ty } = spec in
-    let build_spec = Build.make_build_spec ~base ~repo ~variant ~ty
+    let build_spec = Build.make_build_spec ~base ~repo ~variant ~ty ~opam_version
     in
     Current.Job.write job
       (Fmt.str "@[<v>Base: %a@,%a@]@."
@@ -103,11 +105,11 @@ module Op = struct
     Capability.with_ref build_job (Current_ocluster.Connection.run_job ~job) >>!= fun (_ : string) ->
     Lwt_result.return ()
 
-  let pp f ({ Key.pool; repo; commit; label }, _) =
-    Fmt.pf f "test %a %a (%s:%s)"
+  let pp f ({ Key.pool; repo; commit; label; opam_version }, _) =
+    Fmt.pf f "test %a %a (%s:%s), using opam %a"
       Current_github.Repo_id.pp repo
       Current_git.Commit_id.pp commit
-      pool label
+      pool label Opam_version.pp opam_version
 
   let auto_cancel = true
   let latched = true
@@ -119,6 +121,8 @@ let config ?timeout sr =
   let connection = Current_ocluster.Connection.create sr in
   { connection; timeout }
 
+let error msg = Current_incr.const (Error (`Msg msg), None)
+
 let build t ~platforms ~spec ~repo commit =
   Current.component "cluster build" |>
   let> { Spec.variant; ty; label } = spec
@@ -126,12 +130,19 @@ let build t ~platforms ~spec ~repo commit =
   and> platforms = platforms
   and> repo = repo in
   match List.find_opt (fun p -> Variant.equal p.Platform.variant variant) platforms with
-  | Some { Platform.builder = _; pool; variant; base; _ } ->
-    BC.run t { Op.Key.pool; commit; repo; label } { Op.Value.base; ty; variant }
+  | Some { Platform.builder = _; pool; variant; base; vars; _ } ->
+     (match Opam_version.of_string vars.opam_version with
+     | Ok opam_version ->
+        BC.run t
+          { Op.Key.pool; commit; repo; label; opam_version }
+          { Op.Value.base; ty; variant }
+     | Error (`Msg msg) ->
+        (* We can only get here if there is a bug. If the set of platforms changes, [Analyse] should recalculate. *)
+        error msg)
   | None ->
     (* We can only get here if there is a bug. If the set of platforms changes, [Analyse] should recalculate. *)
     let msg = Fmt.str "BUG: variant %a is not a supported platform" Variant.pp variant in
-    Current_incr.const (Error (`Msg msg), None)
+    error msg
 
 let get_job_id x =
   let+ md = Current.Analysis.metadata x in

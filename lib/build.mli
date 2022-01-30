@@ -12,4 +12,5 @@ val make_build_spec :
   repo:Current_github.Repo_id.t ->
   variant:Variant.t ->
   ty:Spec.ty ->
+  opam_version:[`V2_0|`V2_1] ->
   Obuilder_spec.t

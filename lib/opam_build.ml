@@ -59,7 +59,7 @@ let rec get_root_opam_packages = function
 
 let download_cache = "opam-archives"
 
-let install_project_deps ~opam_files ~selection =
+let install_project_deps ~opam_version ~opam_files ~selection =
   let { Selection.packages; commit; variant } = selection in
   let groups = group_opam_files opam_files in
   let root_pkgs = get_root_opam_packages groups in
@@ -78,6 +78,8 @@ let install_project_deps ~opam_files ~selection =
      [shell ["/usr/bin/linux32"; "/bin/sh"; "-c"]] else [])
   @ distro_extras @ [
     workdir "/src";
+    run "sudo ln -f /usr/bin/opam-%s /usr/bin/opam"
+      (Opam_version.to_string opam_version);
     run "sudo chown opam /src";
     run ~network ~cache
       "cd ~/opam-repository && \
@@ -86,16 +88,20 @@ let install_project_deps ~opam_files ~selection =
        && opam update -u" commit commit;
   ] @ pin_opam_files ~network groups @ [
     env "DEPS" (String.concat " " non_root_pkgs);
-    run ~network ~cache "opam depext --update -y %s $DEPS" (String.concat " " root_pkgs);
+    (match opam_version with
+     | `V2_0 ->
+        run ~network ~cache "opam depext --update -y %s $DEPS"
+          (String.concat " " root_pkgs)
+     | `V2_1 -> run "echo skip depext for opam 2.1");
     run ~network ~cache "opam install $DEPS"
   ]
 
-let spec ~base ~opam_files ~selection =
+let spec ~base ~opam_version ~opam_files ~selection =
   let open Obuilder_spec in
   stage ~from:base (
     comment "%s" (Fmt.str "%a" Variant.pp selection.Selection.variant) ::
     user ~uid:1000 ~gid:1000 ::
-    install_project_deps ~opam_files ~selection @ [
+    install_project_deps ~opam_version ~opam_files ~selection @ [
       copy ["."] ~dst:"/src/";
       run "opam exec -- dune build @install @check @runtest && rm -rf _build"
     ]
